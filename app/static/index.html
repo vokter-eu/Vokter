@@ -25,7 +25,10 @@
   .user { background:#1f6feb33; margin-left:auto; }
   .bot  { background:var(--panel); border:1px solid var(--line); }
   .src  { color:var(--muted); font-size:.75rem; margin-top:6px; }
-  form { display:flex; gap:8px; padding-top:12px; border-top:1px solid var(--line); }
+  form { display:flex; gap:8px; padding-top:12px; border-top:1px solid var(--line); flex-wrap:wrap; }
+  .btn-new { padding:12px 16px; border-radius:10px; border:1px solid var(--line);
+             background:transparent; color:var(--muted); font-size:.9rem; cursor:pointer; }
+  .btn-new:hover { border-color:var(--accent); color:var(--accent); }
   input[type=text] { flex:1; padding:12px; border-radius:10px; border:1px solid var(--line);
          background:var(--panel); color:var(--text); font-size:1rem; }
   .btn { padding:12px 16px; border-radius:10px; border:none; background:var(--accent);
@@ -52,11 +55,13 @@
 <form id="ask">
   <input type="text" id="q" placeholder="Ask your documents…" autocomplete="off">
   <button class="btn">→</button>
+  <button type="button" class="btn-new" id="new-chat">New chat</button>
 </form>
 
 <script>
 const chat = document.getElementById('chat');
 const docsEl = document.getElementById('docs');
+let conversationId = null;
 
 function add(role, text, sources){
   const d = document.createElement('div');
@@ -121,14 +126,29 @@ document.getElementById('ask').onsubmit = async (e) => {
     const r = await fetch('/api/ask', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({question:q})
+      body: JSON.stringify({question: q, conversation_id: conversationId})
     });
-    const j = await r.json();
+    let j;
+    try { j = await r.json(); } catch {
+      thinking.textContent = `Server error ${r.status} — unexpected response format.`;
+      return;
+    }
     thinking.remove();
-    add('bot', r.ok ? j.answer : (j.detail || 'Error'), j.sources);
+    if (r.ok) {
+      conversationId = j.conversation_id;
+      add('bot', j.answer, j.sources);
+    } else {
+      add('bot', j.detail || 'Error');
+    }
   } catch (err){
     thinking.textContent = 'Can\'t reach Ollama. Is the container running?';
   }
+};
+
+document.getElementById('new-chat').onclick = () => {
+  conversationId = null;
+  chat.innerHTML = '';
+  add('bot', 'New conversation started. Ask me anything about your documents.');
 };
 
 loadDocs();
