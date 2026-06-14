@@ -50,6 +50,15 @@ services:
       # Change this to a strong, unique passphrase before first run.
       # If upgrading from v0.1, re-ingest your documents after changing this.
       - VOKTER_DB_KEY=change-me-before-first-run
+      # Email connector (IMAP). Fill in to let Vokter search your emails locally.
+      # Use an app password, not your real password (Gmail: myaccount.google.com/apppasswords)
+      # Leave blank to disable.
+      - VOKTER_EMAIL_IMAP_HOST=
+      - VOKTER_EMAIL_IMAP_PORT=993
+      - VOKTER_EMAIL_USER=
+      - VOKTER_EMAIL_PASSWORD=
+      - VOKTER_EMAIL_FOLDER=INBOX
+      - VOKTER_EMAIL_MAX_SYNC=200
     depends_on:
       - ollama
 

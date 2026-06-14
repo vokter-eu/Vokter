@@ -14,6 +14,12 @@
   header { padding:8px 0 16px; border-bottom:1px solid var(--line); }
   h1 { font-size:1.3rem; } h1 span{ color:var(--accent); }
   .tag { color:var(--muted); font-size:.85rem; }
+  #email { padding:12px 0; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  #email-status { color:var(--muted); font-size:.85rem; }
+  .btn-sm { padding:7px 12px; border-radius:8px; border:1px solid var(--line);
+            background:transparent; color:var(--muted); font-size:.85rem; cursor:pointer; }
+  .btn-sm:hover { border-color:var(--accent); color:var(--accent); }
+  .btn-sm.danger:hover { border-color:#f85149; color:#f85149; }
   #docs { padding:12px 0; border-bottom:1px solid var(--line); }
   .doc { display:flex; justify-content:space-between; align-items:center;
          padding:6px 10px; background:var(--panel); border:1px solid var(--line);
@@ -47,6 +53,11 @@
   </label>
 </header>
 
+<div id="email">
+  <span id="email-status">checking email…</span>
+  <button class="btn-sm" id="btn-sync">⟳ Sync emails</button>
+  <button class="btn-sm danger" id="btn-del-emails" style="display:none">✕ Delete all emails</button>
+</div>
 <div id="docs"></div>
 <div id="chat">
   <div class="msg bot">I'm Vokter, your guardian. Upload a document and ask me anything about it. What I learn stays between you and me — literally: it lives on your disk.</div>
@@ -151,7 +162,51 @@ document.getElementById('new-chat').onclick = () => {
   add('bot', 'New conversation started. Ask me anything about your documents.');
 };
 
+async function loadEmailStatus() {
+  const r = await fetch('/api/email/status');
+  const j = await r.json();
+  const el = document.getElementById('email-status');
+  const delBtn = document.getElementById('btn-del-emails');
+  if (!j.configured) {
+    el.textContent = 'Email not configured (set VOKTER_EMAIL_* in docker-compose.yml)';
+  } else {
+    el.textContent = j.synced_emails > 0
+      ? `${j.synced_emails} emails in memory`
+      : 'No emails synced yet';
+    delBtn.style.display = j.synced_emails > 0 ? '' : 'none';
+  }
+}
+
+document.getElementById('btn-sync').onclick = async () => {
+  const btn = document.getElementById('btn-sync');
+  const el  = document.getElementById('email-status');
+  btn.disabled = true;
+  el.textContent = 'Syncing… (this may take a while)';
+  try {
+    const r = await fetch('/api/email/sync', {method: 'POST'});
+    const j = await r.json();
+    if (r.ok) {
+      el.textContent = `Done — ${j.synced} new emails added (${j.errors} errors)`;
+      loadEmailStatus();
+    } else {
+      el.textContent = `Error: ${j.detail}`;
+    }
+  } catch {
+    el.textContent = 'Could not reach server.';
+  }
+  btn.disabled = false;
+};
+
+document.getElementById('btn-del-emails').onclick = async () => {
+  if (!confirm('Delete all synced emails from Vokter\'s memory?')) return;
+  const r = await fetch('/api/email/all', {method: 'DELETE'});
+  const j = await r.json();
+  add('bot', `Deleted ${j.emails_removed} emails (${j.chunks_removed} chunks removed).`);
+  loadEmailStatus();
+};
+
 loadDocs();
+loadEmailStatus();
 </script>
 </body>
 </html>

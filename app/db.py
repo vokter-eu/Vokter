@@ -15,4 +15,13 @@ def get_db():
                embedding TEXT NOT NULL
            )"""
     )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS synced_emails (
+               message_id TEXT PRIMARY KEY,
+               subject    TEXT,
+               sender     TEXT,
+               date       TEXT,
+               synced_at  TEXT DEFAULT CURRENT_TIMESTAMP
+           )"""
+    )
     return conn

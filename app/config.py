@@ -14,6 +14,13 @@ TOP_K         = 4
 # WARNING: process-local dict — do NOT run with multiple uvicorn workers
 MAX_HISTORY   = 20
 
+EMAIL_IMAP_HOST = os.getenv("VOKTER_EMAIL_IMAP_HOST",  "")
+EMAIL_IMAP_PORT = int(os.getenv("VOKTER_EMAIL_IMAP_PORT", "993"))
+EMAIL_USER      = os.getenv("VOKTER_EMAIL_USER",        "")
+EMAIL_PASSWORD  = os.getenv("VOKTER_EMAIL_PASSWORD",    "")
+EMAIL_FOLDER    = os.getenv("VOKTER_EMAIL_FOLDER",      "INBOX")
+EMAIL_MAX_SYNC  = int(os.getenv("VOKTER_EMAIL_MAX_SYNC", "200"))
+
 sqlite_impl = _plain_sqlite3
 
 if DB_KEY:
