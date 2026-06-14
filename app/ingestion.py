@@ -1,0 +1,66 @@
+import io
+import json
+from contextlib import closing
+
+from fastapi import APIRouter, File, HTTPException, UploadFile
+from pypdf import PdfReader
+
+from config import CHUNK_SIZE, CHUNK_OVERLAP
+from db import get_db
+from rag import embed
+
+router = APIRouter()
+
+
+def chunk_text(text: str) -> list[str]:
+    chunks, start = [], 0
+    while start < len(text):
+        piece = text[start:start + CHUNK_SIZE].strip()
+        if piece:
+            chunks.append(piece)
+        start += CHUNK_SIZE - CHUNK_OVERLAP
+    return chunks
+
+
+def extract_text(filename: str, raw: bytes) -> str:
+    if filename.lower().endswith(".pdf"):
+        reader = PdfReader(io.BytesIO(raw))
+        return "\n".join(page.extract_text() or "" for page in reader.pages)
+    return raw.decode("utf-8", errors="replace")
+
+
+@router.post("/api/docs")
+async def upload_doc(file: UploadFile = File(...)):
+    raw  = await file.read()
+    text = extract_text(file.filename, raw)
+    if not text.strip():
+        raise HTTPException(400, "Could not extract text from that file.")
+    chunks = chunk_text(text)
+    with closing(get_db()) as db:
+        for piece in chunks:
+            vector = await embed(piece)
+            db.execute(
+                "INSERT INTO chunks (doc, content, embedding) VALUES (?, ?, ?)",
+                (file.filename, piece, json.dumps(vector)),
+            )
+        db.commit()
+    return {"doc": file.filename, "chunks": len(chunks)}
+
+
+@router.get("/api/docs")
+def list_docs():
+    with closing(get_db()) as db:
+        rows = db.execute(
+            "SELECT doc, COUNT(*) FROM chunks GROUP BY doc ORDER BY doc"
+        ).fetchall()
+    return [{"doc": d, "chunks": c} for d, c in rows]
+
+
+@router.delete("/api/docs/{doc_name}")
+def delete_doc(doc_name: str):
+    with closing(get_db()) as db:
+        cur = db.execute("DELETE FROM chunks WHERE doc = ?", (doc_name,))
+        db.commit()
+    if cur.rowcount == 0:
+        raise HTTPException(404, "Vokter didn't know that document.")
+    return {"deleted": doc_name, "chunks_removed": cur.rowcount}
