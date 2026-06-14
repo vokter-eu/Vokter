@@ -14,7 +14,6 @@ this code talks to is the local Ollama container.
 import json
 import math
 import os
-import sqlite3
 import asyncio
 import uuid
 from contextlib import closing
@@ -25,6 +24,22 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from pypdf import PdfReader
+
+# --- Encrypted database setup --------------------------------------------
+_DB_KEY = os.getenv("VOKTER_DB_KEY", "")
+
+if _DB_KEY:
+    try:
+        from sqlcipher3 import dbapi2 as _sqlite3
+    except ImportError:
+        import sqlite3 as _sqlite3  # type: ignore[no-redef]
+        _DB_KEY = ""
+        print("WARNING: sqlcipher3 not installed — database is NOT encrypted")
+else:
+    import sqlite3 as _sqlite3  # type: ignore[no-redef]
+    print("WARNING: VOKTER_DB_KEY not set — database stored in plaintext. "
+          "Set it in docker-compose.yml to enable encryption.")
+
 
 # --- Configuration (everything points to local) --------------------------
 OLLAMA_URL = os.getenv("VOKTER_OLLAMA_URL", "http://ollama:11434")
@@ -47,9 +62,11 @@ conversations_lock = asyncio.Lock()
 
 
 # --- Database -------------------------------------------------------------
-def get_db() -> sqlite3.Connection:
+def get_db() -> _sqlite3.Connection:
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = _sqlite3.connect(DB_PATH)
+    if _DB_KEY:
+        conn.execute(f"PRAGMA key='{_DB_KEY}'")
     conn.execute(
         """CREATE TABLE IF NOT EXISTS chunks (
                id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -3,12 +3,12 @@
 #
 # Uso:
 #   docker compose up -d
-#   docker exec -it vokter-ollama ollama pull llama3.1:8b
-#   docker exec -it vokter-ollama ollama run llama3.1:8b
+#   docker exec -it vokter-ollama ollama pull llama3.2:3b
+#   docker exec -it vokter-ollama ollama run llama3.2:3b
 #
 # Rough hardware guide:
 #   8 GB RAM  -> llama3.2:3b or qwen2.5:3b
-#   16 GB RAM -> llama3.1:8b o mistral
+#   16 GB RAM -> llama3.2:3b o mistral
 #   NVIDIA GPU -> uncomment the "deploy" block to accelerate
 
 services:
@@ -44,8 +44,12 @@ services:
       - vokter_data:/data
     environment:
       - VOKTER_OLLAMA_URL=http://ollama:11434
-      - VOKTER_CHAT_MODEL=llama3.1:8b
+      - VOKTER_CHAT_MODEL=llama3.2:3b
       - VOKTER_EMBED_MODEL=nomic-embed-text
+      # At-rest encryption for your local database.
+      # Change this to a strong, unique passphrase before first run.
+      # If upgrading from v0.1, re-ingest your documents after changing this.
+      - VOKTER_DB_KEY=change-me-before-first-run
     depends_on:
       - ollama
 
