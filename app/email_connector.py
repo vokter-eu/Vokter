@@ -68,65 +68,69 @@ async def sync_emails():
         raise HTTPException(502, f"IMAP connection failed: {exc}")
 
     try:
-        _, data = imap.search(None, "ALL")
-        all_ids = data[0].split()
-        to_fetch = all_ids[-EMAIL_MAX_SYNC:]
-    except Exception as exc:
-        imap.logout()
-        raise HTTPException(502, f"IMAP search failed: {exc}")
-
-    with closing(get_db()) as db:
-        already_synced = {
-            row[0] for row in db.execute("SELECT message_id FROM synced_emails").fetchall()
-        }
-
-    new_count = 0
-    errors = 0
-
-    for uid in reversed(to_fetch):  # newest first
         try:
-            _, msg_data = imap.fetch(uid, "(RFC822)")
-            msg = email_lib.message_from_bytes(msg_data[0][1])
+            _, data = imap.search(None, "ALL")
+            all_ids = data[0].split()
+            to_fetch = all_ids[-EMAIL_MAX_SYNC:]
+        except Exception as exc:
+            raise HTTPException(502, f"IMAP search failed: {exc}")
 
-            message_id = msg.get("Message-ID", "").strip() or f"vokter-uid-{uid.decode()}"
-            if message_id in already_synced:
-                continue
+        with closing(get_db()) as db:
+            already_synced = {
+                row[0] for row in db.execute("SELECT message_id FROM synced_emails").fetchall()
+            }
 
-            subject = _decode_header(msg.get("Subject", "(no subject)"))
-            sender  = _decode_header(msg.get("From", "unknown"))
-            date    = msg.get("Date", "")
-            body    = _extract_body(msg)
+        new_count = 0
+        errors = 0
 
-            if not body.strip():
-                continue
+        for uid in reversed(to_fetch):  # newest first
+            try:
+                _, msg_data = imap.fetch(uid, "(RFC822)")
+                if not isinstance(msg_data[0], tuple):
+                    errors += 1
+                    continue
+                msg = email_lib.message_from_bytes(msg_data[0][1])
 
-            full_text = f"From: {sender}\nDate: {date}\nSubject: {subject}\n\n{body}"
-            chunks    = chunk_text(full_text)
-            doc_name  = f"email::{message_id}"
+                message_id = msg.get("Message-ID", "").strip() or f"vokter-uid-{uid.decode()}"
+                if message_id in already_synced:
+                    continue
 
-            with closing(get_db()) as db:
-                for piece in chunks:
-                    vector = await embed(piece)
+                subject = _decode_header(msg.get("Subject", "(no subject)"))
+                sender  = _decode_header(msg.get("From", "unknown"))
+                date    = msg.get("Date", "")
+                body    = _extract_body(msg)
+
+                if not body.strip():
+                    continue
+
+                full_text = f"From: {sender}\nDate: {date}\nSubject: {subject}\n\n{body}"
+                chunks    = chunk_text(full_text)
+                doc_name  = f"email::{message_id}"
+
+                with closing(get_db()) as db:
+                    for piece in chunks:
+                        vector = await embed(piece)
+                        db.execute(
+                            "INSERT INTO chunks (doc, content, embedding) VALUES (?, ?, ?)",
+                            (doc_name, piece, json.dumps(vector)),
+                        )
                     db.execute(
-                        "INSERT INTO chunks (doc, content, embedding) VALUES (?, ?, ?)",
-                        (doc_name, piece, json.dumps(vector)),
+                        "INSERT OR IGNORE INTO synced_emails "
+                        "(message_id, subject, sender, date) VALUES (?, ?, ?, ?)",
+                        (message_id, subject, sender, date),
                     )
-                db.execute(
-                    "INSERT OR IGNORE INTO synced_emails "
-                    "(message_id, subject, sender, date) VALUES (?, ?, ?, ?)",
-                    (message_id, subject, sender, date),
-                )
-                db.commit()
+                    db.commit()
 
-            already_synced.add(message_id)
-            new_count += 1
+                already_synced.add(message_id)
+                new_count += 1
 
-        except Exception:
-            errors += 1
-            continue
+            except Exception:
+                errors += 1
+                continue
 
-    imap.logout()
-    return {"synced": new_count, "errors": errors, "total_known": len(already_synced)}
+        return {"synced": new_count, "errors": errors, "total_known": len(already_synced)}
+    finally:
+        imap.logout()
 
 
 @router.get("/api/email/status")

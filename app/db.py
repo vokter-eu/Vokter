@@ -24,4 +24,18 @@ def get_db():
                synced_at  TEXT DEFAULT CURRENT_TIMESTAMP
            )"""
     )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS identity_keys (
+               key_id TEXT PRIMARY KEY,
+               value  BLOB NOT NULL
+           )"""
+    )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS session_nonces (
+               session_id TEXT PRIMARY KEY,
+               nonce      BLOB NOT NULL,
+               context    TEXT NOT NULL,
+               created_at TEXT NOT NULL
+           )"""
+    )
     return conn

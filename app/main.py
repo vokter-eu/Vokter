@@ -8,6 +8,8 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+import identity  # noqa: F401 — triggers master key init on startup
+
 from ingestion import router as ingestion_router
 from chat import router as chat_router
 from email_connector import router as email_router
