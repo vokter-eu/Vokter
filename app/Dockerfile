@@ -1,5 +1,11 @@
 FROM python:3.12-slim
 WORKDIR /app
+
+# ffmpeg: faster-whisper needs it to decode WebM/OGG audio from the browser
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .

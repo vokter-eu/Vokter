@@ -14,6 +14,11 @@ TOP_K         = 4
 # WARNING: process-local dict — do NOT run with multiple uvicorn workers
 MAX_HISTORY   = 20
 
+VOICE_MODELS_DIR = os.getenv("VOKTER_VOICE_MODELS_DIR", "/data/models")
+WHISPER_MODEL    = os.getenv("VOKTER_WHISPER_MODEL",    "base")
+WHISPER_DEVICE   = os.getenv("VOKTER_WHISPER_DEVICE",   "cpu")
+PIPER_VOICE      = os.getenv("VOKTER_PIPER_VOICE",      "en_US-lessac-medium")
+
 EMAIL_IMAP_HOST = os.getenv("VOKTER_EMAIL_IMAP_HOST",  "")
 EMAIL_IMAP_PORT = int(os.getenv("VOKTER_EMAIL_IMAP_PORT", "993"))
 EMAIL_USER      = os.getenv("VOKTER_EMAIL_USER",        "")

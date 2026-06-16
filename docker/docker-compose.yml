@@ -59,6 +59,12 @@ services:
       - VOKTER_EMAIL_PASSWORD=
       - VOKTER_EMAIL_FOLDER=INBOX
       - VOKTER_EMAIL_MAX_SYNC=200
+      # Voice (Whisper STT + Piper TTS). Models download automatically on first use.
+      # Whisper model sizes: tiny, base, small, medium, large-v3 (larger = slower + more accurate)
+      - VOKTER_WHISPER_MODEL=base
+      - VOKTER_WHISPER_DEVICE=cpu
+      # Piper voice: see https://huggingface.co/rhasspy/piper-voices for available voices
+      - VOKTER_PIPER_VOICE=en_US-lessac-medium
     depends_on:
       - ollama
 

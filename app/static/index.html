@@ -39,6 +39,14 @@
          background:var(--panel); color:var(--text); font-size:1rem; }
   .btn { padding:12px 16px; border-radius:10px; border:none; background:var(--accent);
          color:#06251a; font-weight:700; cursor:pointer; }
+  .btn-mic { padding:12px 14px; border-radius:10px; border:1px solid var(--line);
+             background:transparent; color:var(--muted); font-size:1rem; cursor:pointer; }
+  .btn-mic:hover { border-color:var(--accent); color:var(--accent); }
+  .btn-mic.recording { border-color:#f85149; color:#f85149; animation:pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+  .btn-play { background:none; border:none; color:var(--muted); cursor:pointer;
+              font-size:.85rem; padding:2px 6px; }
+  .btn-play:hover { color:var(--accent); }
   .upload { display:inline-block; margin-top:8px; color:var(--accent); cursor:pointer;
             font-size:.9rem; }
   .upload input { display:none; }
@@ -46,7 +54,7 @@
 </head>
 <body>
 <header>
-  <h1>🛡️ Vokter <span>v0.1</span></h1>
+  <h1>🛡️ Vokter <span>v0.3</span></h1>
   <div class="tag">Everything runs on your machine. Not a single byte leaves here.</div>
   <label class="upload">＋ Teach it a document (PDF, TXT, MD)
     <input type="file" id="file" accept=".pdf,.txt,.md">
@@ -66,6 +74,7 @@
 <form id="ask">
   <input type="text" id="q" placeholder="Ask your documents…" autocomplete="off">
   <button class="btn">→</button>
+  <button type="button" class="btn-mic" id="btn-mic" title="Hold to record, click again to stop">🎤</button>
   <button type="button" class="btn-new" id="new-chat">New chat</button>
 </form>
 
@@ -78,6 +87,14 @@ function add(role, text, sources){
   const d = document.createElement('div');
   d.className = 'msg ' + role;
   d.textContent = text;
+  if (role === 'bot') {
+    const play = document.createElement('button');
+    play.className = 'btn-play';
+    play.title = 'Read aloud';
+    play.textContent = '▶';
+    play.onclick = () => speakText(text, play);
+    d.appendChild(play);
+  }
   if (sources && sources.length){
     const s = document.createElement('div');
     s.className = 'src';
@@ -88,6 +105,62 @@ function add(role, text, sources){
   chat.scrollTop = chat.scrollHeight;
   return d;
 }
+
+async function speakText(text, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    const r = await fetch('/api/voice/speak', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text})
+    });
+    if (!r.ok) { if (btn) { btn.disabled = false; btn.textContent = '▶'; } return; }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.onended = () => { URL.revokeObjectURL(url); if (btn) { btn.disabled = false; btn.textContent = '▶'; } };
+    audio.play();
+  } catch {
+    if (btn) { btn.disabled = false; btn.textContent = '▶'; }
+  }
+}
+
+let _mediaRecorder = null;
+let _audioChunks = [];
+
+document.getElementById('btn-mic').onclick = async () => {
+  const btn = document.getElementById('btn-mic');
+  if (_mediaRecorder && _mediaRecorder.state === 'recording') {
+    _mediaRecorder.stop();
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+    _mediaRecorder = new MediaRecorder(stream);
+    _audioChunks = [];
+    _mediaRecorder.ondataavailable = e => _audioChunks.push(e.data);
+    _mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      btn.classList.remove('recording');
+      btn.textContent = '🎤';
+      btn.disabled = true;
+      const blob = new Blob(_audioChunks, {type: 'audio/webm'});
+      const fd = new FormData();
+      fd.append('audio', blob, 'recording.webm');
+      try {
+        const r = await fetch('/api/voice/transcribe', {method: 'POST', body: fd});
+        const j = await r.json();
+        if (r.ok && j.text) document.getElementById('q').value = j.text;
+      } catch {}
+      btn.disabled = false;
+    };
+    _mediaRecorder.start();
+    btn.classList.add('recording');
+    btn.textContent = '⏹';
+  } catch {
+    alert('Could not access microphone. Check browser permissions.');
+  }
+};
 
 async function loadDocs(){
   const r = await fetch('/api/docs');
