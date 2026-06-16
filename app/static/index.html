@@ -14,6 +14,20 @@
   header { padding:8px 0 16px; border-bottom:1px solid var(--line); }
   h1 { font-size:1.3rem; } h1 span{ color:var(--accent); }
   .tag { color:var(--muted); font-size:.85rem; }
+  #web { padding:12px 0; border-bottom:1px solid var(--line); }
+  #web-top { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  #web-url { flex:1; min-width:180px; padding:7px 10px; border-radius:8px;
+             border:1px solid var(--line); background:var(--panel);
+             color:var(--text); font-size:.85rem; }
+  #web-status { color:var(--muted); font-size:.82rem; margin-top:4px; }
+  #web-perms { margin-top:8px; }
+  .perm-row { display:flex; justify-content:space-between; align-items:center;
+              padding:4px 8px; background:var(--panel); border:1px solid var(--line);
+              border-radius:6px; margin-top:4px; font-size:.82rem; }
+  .perm-row button { background:none; border:none; color:#f85149; cursor:pointer; }
+  #perm-add { display:flex; gap:6px; margin-top:6px; }
+  #perm-input { flex:1; padding:6px 10px; border-radius:8px; border:1px solid var(--line);
+                background:var(--panel); color:var(--text); font-size:.82rem; }
   #email { padding:12px 0; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
   #email-status { color:var(--muted); font-size:.85rem; }
   .btn-sm { padding:7px 12px; border-radius:8px; border:1px solid var(--line);
@@ -61,6 +75,21 @@
   </label>
 </header>
 
+<div id="web">
+  <div id="web-top">
+    <input type="url" id="web-url" placeholder="https://…">
+    <button class="btn-sm" id="btn-browse">Browse</button>
+    <button class="btn-sm" id="btn-perms-toggle">Permissions (<span id="perms-count">0</span>)</button>
+  </div>
+  <div id="web-status"></div>
+  <div id="web-perms" style="display:none">
+    <div id="perms-list"></div>
+    <div id="perm-add">
+      <input type="url" id="perm-input" placeholder="https://example.com">
+      <button class="btn-sm" id="btn-add-perm">Allow</button>
+    </div>
+  </div>
+</div>
 <div id="email">
   <span id="email-status">checking email…</span>
   <button class="btn-sm" id="btn-sync">⟳ Sync emails</button>
@@ -278,8 +307,79 @@ document.getElementById('btn-del-emails').onclick = async () => {
   loadEmailStatus();
 };
 
+async function loadPerms() {
+  const r = await fetch('/api/browse/permissions');
+  const perms = await r.json();
+  document.getElementById('perms-count').textContent = perms.length;
+  const list = document.getElementById('perms-list');
+  list.innerHTML = perms.length
+    ? ''
+    : '<div class="tag" style="font-size:.82rem">No patterns allowed yet.</div>';
+  for (const p of perms) {
+    const row = document.createElement('div');
+    row.className = 'perm-row';
+    const span = document.createElement('span');
+    span.textContent = p.pattern;
+    row.appendChild(span);
+    const del = document.createElement('button');
+    del.textContent = '✕';
+    del.onclick = async () => {
+      await fetch('/api/browse/permissions/' + encodeURIComponent(p.pattern), {method:'DELETE'});
+      loadPerms();
+    };
+    row.appendChild(del);
+    list.appendChild(row);
+  }
+}
+
+document.getElementById('btn-perms-toggle').onclick = () => {
+  const el = document.getElementById('web-perms');
+  el.style.display = el.style.display === 'none' ? '' : 'none';
+};
+
+document.getElementById('btn-add-perm').onclick = async () => {
+  const input = document.getElementById('perm-input');
+  const pattern = input.value.trim();
+  if (!pattern) return;
+  const r = await fetch('/api/browse/permissions', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({pattern}),
+  });
+  if (r.ok) { input.value = ''; loadPerms(); }
+  else { const j = await r.json(); alert(j.detail); }
+};
+
+document.getElementById('btn-browse').onclick = async () => {
+  const url = document.getElementById('web-url').value.trim();
+  const status = document.getElementById('web-status');
+  if (!url) return;
+  const btn = document.getElementById('btn-browse');
+  btn.disabled = true;
+  status.textContent = 'Fetching and memorizing…';
+  try {
+    const r = await fetch('/api/browse', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url}),
+    });
+    const j = await r.json();
+    if (r.ok) {
+      status.textContent = `Done — ${j.chunks} chunks stored. Ask me about it.`;
+      add('bot', `I've read and memorized ${url} (${j.chunks} chunks). Ask me anything about it.`);
+      loadDocs();
+    } else {
+      status.textContent = `Error: ${j.detail}`;
+    }
+  } catch {
+    status.textContent = 'Could not reach server.';
+  }
+  btn.disabled = false;
+};
+
 loadDocs();
 loadEmailStatus();
+loadPerms();
 </script>
 </body>
 </html>

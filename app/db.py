@@ -38,4 +38,10 @@ def get_db():
                created_at TEXT NOT NULL
            )"""
     )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS browse_allowlist (
+               pattern    TEXT PRIMARY KEY,
+               added_at   TEXT NOT NULL
+           )"""
+    )
     return conn
