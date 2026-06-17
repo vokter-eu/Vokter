@@ -2,7 +2,6 @@ import email as email_lib
 import email.header
 import imaplib
 import json
-import re
 from contextlib import closing
 
 from fastapi import APIRouter, HTTPException
@@ -14,6 +13,7 @@ from config import (
 from db import get_db
 from ingestion import chunk_text
 from rag import embed
+from utils import strip_html
 
 router = APIRouter()
 
@@ -29,11 +29,6 @@ def _decode_header(value: str) -> str:
     return " ".join(result)
 
 
-def _strip_html(html: str) -> str:
-    text = re.sub(r"<[^>]+>", " ", html)
-    return re.sub(r"\s+", " ", text).strip()
-
-
 def _extract_body(msg) -> str:
     if msg.is_multipart():
         for part in msg.walk():
@@ -45,14 +40,14 @@ def _extract_body(msg) -> str:
             if part.get_content_type() == "text/html":
                 raw = part.get_payload(decode=True)
                 charset = part.get_content_charset() or "utf-8"
-                return _strip_html(raw.decode(charset, errors="replace"))
+                return strip_html(raw.decode(charset, errors="replace"))
         return ""
     raw = msg.get_payload(decode=True)
     if not raw:
         return ""
     charset = msg.get_content_charset() or "utf-8"
     text = raw.decode(charset, errors="replace")
-    return _strip_html(text) if msg.get_content_type() == "text/html" else text
+    return strip_html(text) if msg.get_content_type() == "text/html" else text
 
 
 @router.post("/api/email/sync")

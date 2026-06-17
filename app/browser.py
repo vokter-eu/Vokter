@@ -1,5 +1,4 @@
 import json
-import re
 from contextlib import closing
 from datetime import datetime, timezone
 from urllib.parse import urlparse
@@ -12,6 +11,7 @@ from db import get_db
 from identity import new_session_key
 from ingestion import chunk_text
 from rag import embed
+from utils import strip_html
 
 router = APIRouter()
 
@@ -37,14 +37,6 @@ def _is_allowed(url: str) -> bool:
         for p in patterns
     )
 
-
-def _strip_html(html: str) -> str:
-    html = re.sub(
-        r"<(script|style|head)[^>]*>.*?</\1>", " ", html,
-        flags=re.DOTALL | re.IGNORECASE,
-    )
-    text = re.sub(r"<[^>]+>", " ", html)
-    return re.sub(r"\s+", " ", text).strip()
 
 
 @router.post("/api/browse")
@@ -90,7 +82,7 @@ async def browse(req: BrowseRequest):
         raise HTTPException(415, f"Unsupported content type: {content_type}")
 
     raw = resp.text[:_MAX_DOWNLOAD_BYTES]
-    text = _strip_html(raw) if "html" in content_type else re.sub(r"\s+", " ", raw).strip()
+    text = strip_html(raw) if "html" in content_type else re.sub(r"\s+", " ", raw).strip()
 
     if not text:
         raise HTTPException(422, "No text content found on that page.")

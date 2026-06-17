@@ -11,7 +11,7 @@ import hmac
 import hashlib
 import secrets
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from db import get_db
 
@@ -55,12 +55,16 @@ def new_session_key(context: str = "") -> tuple[str, bytes]:
     nonce = secrets.token_bytes(16)
     key = _derive(nonce, context)
 
+    now = datetime.now(timezone.utc)
+    cutoff = (now - timedelta(hours=24)).isoformat()
+
     conn = get_db()
     try:
+        conn.execute("DELETE FROM session_nonces WHERE created_at < ?", (cutoff,))
         conn.execute(
             """INSERT INTO session_nonces (session_id, nonce, context, created_at)
                VALUES (?, ?, ?, ?)""",
-            (session_id, nonce, context, datetime.now(timezone.utc).isoformat()),
+            (session_id, nonce, context, now.isoformat()),
         )
         conn.commit()
     finally:
