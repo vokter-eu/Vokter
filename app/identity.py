@@ -19,23 +19,22 @@ _MASTER_KEY_ROW = "master_key_v1"
 
 
 def _load_or_create_master_key() -> bytes:
+    # Generate a candidate key unconditionally so both processes in a startup
+    # race produce a valid key; INSERT OR IGNORE ensures only one wins,
+    # and the SELECT that follows always reads back the stored winner.
+    candidate = secrets.token_bytes(32)
     conn = get_db()
     try:
+        conn.execute(
+            "INSERT OR IGNORE INTO identity_keys (key_id, value) VALUES (?, ?)",
+            (_MASTER_KEY_ROW, candidate),
+        )
+        conn.commit()
         row = conn.execute(
             "SELECT value FROM identity_keys WHERE key_id = ?",
             (_MASTER_KEY_ROW,),
         ).fetchone()
-        if row is not None:
-            return bytes(row[0])
-
-        key = secrets.token_bytes(32)
-        conn.execute(
-            "INSERT INTO identity_keys (key_id, value) VALUES (?, ?)",
-            (_MASTER_KEY_ROW, key),
-        )
-        conn.commit()
-        print("identity: master key generated and stored.")
-        return key
+        return bytes(row[0])
     finally:
         conn.close()
 

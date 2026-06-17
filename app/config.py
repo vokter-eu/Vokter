@@ -37,6 +37,11 @@ WALLET_SPEND_LIMIT  = int(os.getenv("VOKTER_WALLET_SPEND_LIMIT", "0"))  # per 24
 
 sqlite_impl = _plain_sqlite3
 
+_DEFAULT_DB_KEY = "change-me-before-first-run"
+if DB_KEY == _DEFAULT_DB_KEY:
+    print("WARNING: VOKTER_DB_KEY is still set to the default value. "
+          "Change it to a strong, unique passphrase before storing sensitive data.")
+
 if DB_KEY:
     try:
         from sqlcipher3 import dbapi2 as sqlite_impl  # type: ignore[no-redef]

@@ -155,21 +155,24 @@ class EVMAdapter(WalletAdapter):
                 abi=_ERC20_ABI,
             )
             raw_amount = amount * (10 ** self._decimals)
+            gas = int(contract.functions.transfer(to, raw_amount).estimate_gas({"from": acct.address}) * 1.2)
             tx = contract.functions.transfer(to, raw_amount).build_transaction({
-                "from":  acct.address,
-                "nonce": w3.eth.get_transaction_count(acct.address),
-                "gas":   100_000,
+                "from":     acct.address,
+                "nonce":    w3.eth.get_transaction_count(acct.address),
+                "gas":      gas,
                 "gasPrice": w3.eth.gas_price,
+                "chainId":  w3.eth.chain_id,
             })
         else:
             raw_amount = amount * (10 ** 18)
             tx = {
-                "to":    to,
-                "value": raw_amount,
-                "from":  acct.address,
-                "nonce": w3.eth.get_transaction_count(acct.address),
-                "gas":   21_000,
+                "to":       to,
+                "value":    raw_amount,
+                "from":     acct.address,
+                "nonce":    w3.eth.get_transaction_count(acct.address),
+                "gas":      21_000,
                 "gasPrice": w3.eth.gas_price,
+                "chainId":  w3.eth.chain_id,
             }
 
         signed = acct.sign_transaction(tx)

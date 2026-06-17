@@ -78,10 +78,22 @@ class LightningAdapter(WalletAdapter):
                 headers={"X-Api-Key": _ADMK},
                 json={"out": True, "bolt11": bolt11},
             )
-        if r.status_code not in (200, 201):
-            raise HTTPException(502, f"LNbits payment error: {r.status_code} — {r.text}")
-        payment_hash = r.json().get("payment_hash", "")
-        return Transaction.new(self.name, "out", amount, self.unit, memo=memo, output=payment_hash)
+            if r.status_code not in (200, 201):
+                raise HTTPException(502, f"LNbits payment error: {r.status_code} — {r.text}")
+            payment_hash = r.json().get("payment_hash", "")
+            # The BOLT11 invoice encodes the real amount; fetch it from LNbits
+            # rather than trusting the caller's `amount` parameter.
+            actual_amount = amount
+            try:
+                details = await c.get(
+                    f"{_URL}/api/v1/payments/{payment_hash}",
+                    headers={"X-Api-Key": _ADMK},
+                )
+                if details.status_code == 200:
+                    actual_amount = abs(details.json().get("amount", amount * 1000)) // 1000
+            except Exception:
+                pass  # fall back to caller-supplied amount
+        return Transaction.new(self.name, "out", actual_amount, self.unit, memo=memo, output=payment_hash)
 
     async def history(self) -> list[Transaction]:
         self._require_config()
