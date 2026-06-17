@@ -1,4 +1,5 @@
 import json
+import re
 from contextlib import closing
 from datetime import datetime, timezone
 from urllib.parse import urlparse
