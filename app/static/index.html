@@ -682,14 +682,36 @@ document.getElementById('btn-wallet-confirm').onclick = async () => {
   btn.disabled = false;
 };
 
-document.getElementById('btn-wallet-copy').onclick = () => {
-  const text = document.getElementById('wallet-output-token').textContent;
-  navigator.clipboard.writeText(text).then(() => {
-    const btn = document.getElementById('btn-wallet-copy');
+function _copyText(text, btn) {
+  const ok = () => {
     const orig = btn.textContent;
     btn.textContent = 'Copied!';
     setTimeout(() => { btn.textContent = orig; }, 1500);
-  });
+  };
+  const fail = () => {
+    const orig = btn.textContent;
+    btn.textContent = 'Copy failed — select manually';
+    setTimeout(() => { btn.textContent = orig; }, 2500);
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(ok, fail);
+  } else {
+    // Fallback for non-HTTPS / IP access
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand('copy') ? ok() : fail(); }
+    catch { fail(); }
+    finally { document.body.removeChild(ta); }
+  }
+}
+
+document.getElementById('btn-wallet-copy').onclick = () => {
+  const text = document.getElementById('wallet-output-token').textContent;
+  _copyText(text, document.getElementById('btn-wallet-copy'));
 };
 
 document.getElementById('btn-wallet-history-toggle').onclick = async () => {
