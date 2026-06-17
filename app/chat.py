@@ -1,6 +1,7 @@
-import asyncio
 import json
+import time
 import uuid
+from contextlib import closing
 
 import httpx
 from fastapi import APIRouter, HTTPException
@@ -8,19 +9,39 @@ from pydantic import BaseModel
 
 from agent_config import build_system_prompt, get_config
 from config import OLLAMA_URL, CHAT_MODEL, MAX_HISTORY
+from db import get_db
 from rag import retrieve
 
 router = APIRouter()
-
-# WARNING: process-local — do NOT run with multiple uvicorn workers
-conversations: dict[str, list[dict]] = {}
-conversations_lock = asyncio.Lock()
-_MAX_CONVERSATIONS = 500  # cap in-memory sessions to avoid unbounded RAM growth
 
 
 class Question(BaseModel):
     question: str
     conversation_id: str | None = None
+
+
+def _load_history(conv_id: str, limit: int) -> list[dict]:
+    with closing(get_db()) as db:
+        rows = db.execute(
+            "SELECT role, content FROM conversations"
+            " WHERE conv_id=? ORDER BY seq DESC LIMIT ?",
+            (conv_id, limit),
+        ).fetchall()
+    return [{"role": r[0], "content": r[1]} for r in reversed(rows)]
+
+
+def _save_turn(conv_id: str, question: str, answer: str) -> None:
+    now = time.time()
+    with closing(get_db()) as db:
+        db.execute(
+            "INSERT INTO conversations(conv_id, role, content, ts) VALUES(?,?,?,?)",
+            (conv_id, "user", question, now),
+        )
+        db.execute(
+            "INSERT INTO conversations(conv_id, role, content, ts) VALUES(?,?,?,?)",
+            (conv_id, "assistant", answer, now),
+        )
+        db.commit()
 
 
 @router.post("/api/ask")
@@ -32,7 +53,7 @@ async def ask(q: Question):
     scored = await retrieve(q.question, top_k=int(cfg.get("rag_chunks") or 4))
     if not scored:
         return {
-            "answer": f"You haven't taught me any documents yet. Upload one and ask me about it.",
+            "answer": "You haven't taught me any documents yet. Upload one and ask me about it.",
             "sources": [],
             "conversation_id": q.conversation_id,
         }
@@ -41,7 +62,7 @@ async def ask(q: Question):
     system  = build_system_prompt(cfg)
 
     conv_id = q.conversation_id or str(uuid.uuid4())
-    history = conversations.get(conv_id, [])
+    history = _load_history(conv_id, max_history)
 
     # History stores raw Q/A pairs — RAG context is only injected for the current turn
     messages = (
@@ -64,15 +85,7 @@ async def ask(q: Question):
     except (json.JSONDecodeError, KeyError):
         raise HTTPException(502, "Unexpected response format from Ollama")
 
-    # Locked re-read before write: prevents clobbering concurrent turns on the same conv_id
-    async with conversations_lock:
-        current = conversations.get(conv_id, [])
-        conversations[conv_id] = (current + [
-            {"role": "user",      "content": q.question},
-            {"role": "assistant", "content": answer},
-        ])[-max_history:]
-        if len(conversations) > _MAX_CONVERSATIONS:
-            conversations.pop(next(iter(conversations)))
+    _save_turn(conv_id, q.question, answer)
 
     return {
         "answer":          answer,

@@ -96,4 +96,16 @@ def get_db():
                value TEXT NOT NULL
            )"""
     )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS conversations (
+               seq     INTEGER PRIMARY KEY AUTOINCREMENT,
+               conv_id TEXT NOT NULL,
+               role    TEXT NOT NULL,
+               content TEXT NOT NULL,
+               ts      REAL NOT NULL
+           )"""
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS conversations_conv_id_idx ON conversations(conv_id)"
+    )
     return conn
