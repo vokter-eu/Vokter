@@ -61,6 +61,13 @@ class PatchTask(BaseModel):
     goal: str | None = None
     interval: str | None = None
 
+    @field_validator("interval")
+    @classmethod
+    def interval_valid(cls, v: str | None) -> str | None:
+        if v is not None:
+            _parse_interval(v)  # raises ValueError → Pydantic returns 422
+        return v
+
 
 def _row_to_task(row) -> dict:
     task_id, name, goal, interval_seconds, next_run, last_run, enabled, created_at = row

@@ -49,17 +49,21 @@ async def _run_task(task_id: str, goal: str, interval_seconds: int) -> None:
             elif ev.get("type") == "error":
                 answer = ev.get("text", "")
                 status = "error"
+    except asyncio.CancelledError:
+        status = "error"
+        answer = "cancelled"
+        raise  # let the cancellation propagate normally
     except Exception as exc:
         log.exception("Task %s run %s failed", task_id, run_id)
         answer = str(exc)
         status = "error"
-
-    with get_db() as db:
-        db.execute(
-            "UPDATE task_runs SET finished_at=?, status=?, output=? WHERE id=?",
-            (time.time(), status, answer, run_id),
-        )
-        db.commit()
+    finally:
+        with get_db() as db:
+            db.execute(
+                "UPDATE task_runs SET finished_at=?, status=?, output=? WHERE id=?",
+                (time.time(), status, answer, run_id),
+            )
+            db.commit()
 
     log.info("Task %s run %s finished: %s", task_id, run_id, status)
 

@@ -68,9 +68,6 @@
   /* scheduled tasks */
   #schedule { padding:12px 0; border-bottom:1px solid var(--line); }
   #schedule-top { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px; }
-  #schedule-badge { font-size:.72rem; background:#f851491a; color:#f85149;
-                    border:1px solid #f8514966; border-radius:4px; padding:1px 6px;
-                    display:none; }
   #schedule-form { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; display:none; }
   #sched-name { width:140px; }
   #sched-goal { flex:1; min-width:180px; }
@@ -147,7 +144,7 @@
 </head>
 <body>
 <header>
-  <h1>🛡️ Vokter <span>v0.6</span> <span id="schedule-badge"></span></h1>
+  <h1>🛡️ Vokter <span>v0.6</span></h1>
   <div class="tag">Everything runs on your machine. Not a single byte leaves here.</div>
   <label class="upload">＋ Teach it a document (PDF, TXT, MD)
     <input type="file" id="file" accept=".pdf,.txt,.md">
@@ -747,6 +744,10 @@ loadSchedule();
 
 const SCHED_SEEN_KEY = 'vokter_sched_seen';
 
+function _esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 function _fmtInterval(s) {
   if (s >= 86400 && s % 86400 === 0) return (s / 86400) + 'd';
   if (s >= 3600  && s % 3600  === 0) return (s / 3600)  + 'h';
@@ -766,7 +767,7 @@ function renderTask(task) {
   const hdr = document.createElement('div');
   hdr.className = 'stask-header';
   hdr.innerHTML =
-    `<span class="stask-name">${task.name}</span>` +
+    `<span class="stask-name">${_esc(task.name)}</span>` +
     `<span class="stask-interval">${_fmtInterval(task.interval_seconds)}</span>` +
     `<span class="stask-status ${task.enabled ? 'on' : 'off'}">${task.enabled ? 'on' : 'paused'}</span>` +
     `<button class="btn-sm" style="font-size:.72rem;padding:3px 7px" data-toggle>` +
@@ -786,10 +787,10 @@ function renderTask(task) {
     const open = runs.style.display === '';
     runs.style.display = open ? 'none' : '';
     if (!open && !runsLoaded) {
-      runsLoaded = true;
       try {
         const r = await fetch(`/api/schedule/${task.id}/runs`);
         const list = await r.json();
+        runsLoaded = true;
         if (!list.length) { runs.innerHTML = '<div class="tag" style="font-size:.78rem">No runs yet.</div>'; return; }
         runs.innerHTML = '';
         list.forEach(run => {
@@ -797,10 +798,10 @@ function renderTask(task) {
           d.className = 'srun';
           d.innerHTML =
             `<div>` +
-              `<span class="srun-status ${run.status}">${run.status}</span>` +
+              `<span class="srun-status ${_esc(run.status)}">${_esc(run.status)}</span>` +
               `<span style="color:var(--muted)">${_fmtTs(run.finished_at || run.started_at)}</span>` +
             `</div>` +
-            (run.output ? `<div class="srun-output">${run.output.slice(0, 300)}</div>` : '');
+            (run.output ? `<div class="srun-output">${_esc(run.output.slice(0, 300))}</div>` : '');
           runs.appendChild(d);
         });
       } catch {}
@@ -845,12 +846,16 @@ async function loadSchedule() {
 }
 
 async function checkNewRuns() {
-  const seen = parseFloat(localStorage.getItem(SCHED_SEEN_KEY) || '0');
+  const seenRaw = localStorage.getItem(SCHED_SEEN_KEY);
+  const seen = seenRaw ? parseFloat(seenRaw) : null;
   try {
-    const r = await fetch(`/api/schedule/runs/recent?since=${seen}&limit=20`);
+    const url = seen !== null
+      ? `/api/schedule/runs/recent?since=${seen}&limit=20`
+      : '/api/schedule/runs/recent?limit=20';
+    const r = await fetch(url);
     const runs = await r.json();
     const badge = document.getElementById('schedule-badge-el');
-    const newDone = runs.filter(r => r.finished_at && r.finished_at > seen);
+    const newDone = runs.filter(r => r.finished_at && (seen === null || r.finished_at > seen));
     if (newDone.length) {
       badge.textContent = newDone.length + ' new';
       badge.style.display = '';
@@ -890,7 +895,7 @@ document.getElementById('btn-sched-create').onclick = async () => {
       body: JSON.stringify({name, goal, interval}),
     });
     const d = await r.json();
-    if (!r.ok) { alert(d.detail || 'Error creating task'); return; }
+    if (!r.ok) { alert(d.detail || 'Error creating task'); btn.disabled = false; return; }
     document.getElementById('sched-name').value = '';
     document.getElementById('sched-goal').value = '';
     document.getElementById('sched-interval').value = '';

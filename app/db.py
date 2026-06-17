@@ -7,6 +7,7 @@ def get_db():
     conn = sqlite_impl.connect(DB_PATH)
     if DB_KEY:
         conn.execute(f"PRAGMA key='{DB_KEY}'")
+    conn.execute("PRAGMA foreign_keys = ON")
     conn.execute(
         """CREATE TABLE IF NOT EXISTS chunks (
                id        INTEGER PRIMARY KEY AUTOINCREMENT,
