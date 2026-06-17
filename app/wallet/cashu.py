@@ -15,6 +15,7 @@ Protocol specs: https://github.com/cashubtc/nuts
 import asyncio
 import base64
 import json
+from contextlib import closing
 
 import httpx
 from fastapi import HTTPException
@@ -81,22 +82,24 @@ class CashuAdapter(WalletAdapter):
     # -- DB helpers -----------------------------------------------------------
 
     def _unspent(self) -> list[dict]:
-        with get_db() as db:
+        with closing(get_db()) as db:
             rows = db.execute(
                 "SELECT proof_json FROM cashu_proofs WHERE mint=? AND spent=0",
                 (self._mint,),
             ).fetchall()
         return [json.loads(r[0]) for r in rows]
 
-    def _store_proof(self, db, proof: dict) -> None:
-        db.execute(
+    def _store_proof(self, db, proof: dict) -> bool:
+        """Returns True if the proof was newly stored, False if already known."""
+        cur = db.execute(
             "INSERT OR IGNORE INTO cashu_proofs(id, mint, amount, proof_json, spent)"
             " VALUES(?,?,?,?,0)",
             (proof["secret"], self._mint, proof["amount"], json.dumps(proof)),
         )
+        return cur.rowcount > 0
 
     def _mark_spent(self, secrets: list[str]) -> None:
-        with get_db() as db:
+        with closing(get_db()) as db:
             db.executemany(
                 "UPDATE cashu_proofs SET spent=1 WHERE id=?",
                 [(s,) for s in secrets],
@@ -104,7 +107,7 @@ class CashuAdapter(WalletAdapter):
             db.commit()
 
     def _record_tx(self, tx: Transaction) -> None:
-        with get_db() as db:
+        with closing(get_db()) as db:
             db.execute(
                 "INSERT INTO wallet_transactions"
                 "(id,adapter,direction,amount,unit,memo,output,ts)"
@@ -155,7 +158,7 @@ class CashuAdapter(WalletAdapter):
         known = await self._known_keysets()
         total = 0
 
-        with get_db() as db:
+        with closing(get_db()) as db:
             for entry in token.get("token", []):
                 mint = (entry.get("mint") or "").rstrip("/")
                 if mint != self._mint:
@@ -173,8 +176,8 @@ class CashuAdapter(WalletAdapter):
                             f"Keyset {proof.get('id')!r} is not active on this mint"
                             " — token may use an expired keyset",
                         )
-                    self._store_proof(db, proof)
-                    total += proof["amount"]
+                    if self._store_proof(db, proof):
+                        total += proof["amount"]
             db.commit()
 
         if total == 0:
@@ -215,7 +218,7 @@ class CashuAdapter(WalletAdapter):
 
             # Single atomic transaction: mark proofs spent + record the outgoing tx.
             # If either write fails neither is committed — no silent fund loss.
-            with get_db() as db:
+            with closing(get_db()) as db:
                 db.executemany(
                     "UPDATE cashu_proofs SET spent=1 WHERE id=?",
                     [(p["secret"],) for p in selected],
@@ -232,7 +235,7 @@ class CashuAdapter(WalletAdapter):
         return tx
 
     async def history(self) -> list[Transaction]:
-        with get_db() as db:
+        with closing(get_db()) as db:
             rows = db.execute(
                 "SELECT id,adapter,direction,amount,unit,memo,ts,output"
                 " FROM wallet_transactions WHERE adapter=? ORDER BY ts DESC LIMIT 100",

@@ -7,6 +7,7 @@ can accidentally bypass it — the invariant is structural, not advisory.
 """
 import os
 import time
+from contextlib import closing
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -59,7 +60,7 @@ async def wallet_send(req: SendRequest):
 
     if WALLET_SPEND_LIMIT > 0:
         since = time.time() - 86_400
-        with get_db() as db:
+        with closing(get_db()) as db:
             row = db.execute(
                 "SELECT COALESCE(SUM(amount),0) FROM wallet_transactions"
                 " WHERE adapter=? AND direction='out' AND ts>?",

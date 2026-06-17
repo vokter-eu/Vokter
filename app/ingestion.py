@@ -35,16 +35,18 @@ async def upload_doc(file: UploadFile = File(...)):
     text = extract_text(file.filename, raw)
     if not text.strip():
         raise HTTPException(400, "Could not extract text from that file.")
+    doc_name = file.filename or "untitled"
     chunks = chunk_text(text)
+    vectors = [await embed(piece) for piece in chunks]  # all embeds before touching DB
     with closing(get_db()) as db:
-        for piece in chunks:
-            vector = await embed(piece)
+        db.execute("DELETE FROM chunks WHERE doc = ?", (doc_name,))
+        for piece, vector in zip(chunks, vectors):
             db.execute(
                 "INSERT INTO chunks (doc, content, embedding) VALUES (?, ?, ?)",
-                (file.filename, piece, json.dumps(vector)),
+                (doc_name, piece, json.dumps(vector)),
             )
         db.commit()
-    return {"doc": file.filename, "chunks": len(chunks)}
+    return {"doc": doc_name, "chunks": len(chunks)}
 
 
 @router.get("/api/docs")

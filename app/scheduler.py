@@ -10,6 +10,7 @@ import json
 import logging
 import time
 import uuid
+from contextlib import closing
 
 from db import get_db
 
@@ -20,7 +21,7 @@ async def _run_task(task_id: str, goal: str, interval_seconds: int) -> None:
     run_id = str(uuid.uuid4())
     started_at = time.time()
 
-    with get_db() as db:
+    with closing(get_db()) as db:
         db.execute(
             "INSERT INTO task_runs(id, task_id, started_at, status, output)"
             " VALUES(?,?,?,'running','')",
@@ -58,7 +59,7 @@ async def _run_task(task_id: str, goal: str, interval_seconds: int) -> None:
         answer = str(exc)
         status = "error"
     finally:
-        with get_db() as db:
+        with closing(get_db()) as db:
             db.execute(
                 "UPDATE task_runs SET finished_at=?, status=?, output=? WHERE id=?",
                 (time.time(), status, answer, run_id),
@@ -70,7 +71,7 @@ async def _run_task(task_id: str, goal: str, interval_seconds: int) -> None:
 
 async def _tick() -> None:
     now = time.time()
-    with get_db() as db:
+    with closing(get_db()) as db:
         rows = db.execute(
             "SELECT id, goal, interval_seconds FROM scheduled_tasks"
             " WHERE enabled=1 AND next_run<=?",

@@ -6,7 +6,8 @@ def get_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite_impl.connect(DB_PATH)
     if DB_KEY:
-        conn.execute(f"PRAGMA key='{DB_KEY}'")
+        safe_key = DB_KEY.replace("'", "''")
+        conn.execute(f"PRAGMA key='{safe_key}'")
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute(
         """CREATE TABLE IF NOT EXISTS chunks (

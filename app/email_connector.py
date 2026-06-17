@@ -59,16 +59,16 @@ async def sync_emails():
         imap = imaplib.IMAP4_SSL(EMAIL_IMAP_HOST, EMAIL_IMAP_PORT)
         imap.login(EMAIL_USER, EMAIL_PASSWORD)
         imap.select(EMAIL_FOLDER, readonly=True)
-    except Exception as exc:
-        raise HTTPException(502, f"IMAP connection failed: {exc}")
+    except Exception:
+        raise HTTPException(502, "IMAP connection failed — check server and credentials in config")
 
     try:
         try:
             _, data = imap.search(None, "ALL")
             all_ids = data[0].split()
             to_fetch = all_ids[-EMAIL_MAX_SYNC:]
-        except Exception as exc:
-            raise HTTPException(502, f"IMAP search failed: {exc}")
+        except Exception:
+            raise HTTPException(502, "IMAP search failed")
 
         with closing(get_db()) as db:
             already_synced = {

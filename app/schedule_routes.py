@@ -6,6 +6,7 @@ The scheduler loop in scheduler.py picks up enabled tasks every 60 seconds.
 """
 import time
 import uuid
+from contextlib import closing
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query
@@ -100,7 +101,7 @@ def create_task(req: CreateTask):
     task_id = str(uuid.uuid4())
     now = time.time()
     interval_seconds = _parse_interval(req.interval)
-    with get_db() as db:
+    with closing(get_db()) as db:
         db.execute(
             "INSERT INTO scheduled_tasks(id,name,goal,interval_seconds,next_run,enabled,created_at)"
             " VALUES(?,?,?,?,?,1,?)",
@@ -112,7 +113,7 @@ def create_task(req: CreateTask):
 
 @router.get("/api/schedule")
 def list_tasks():
-    with get_db() as db:
+    with closing(get_db()) as db:
         rows = db.execute(
             "SELECT id,name,goal,interval_seconds,next_run,last_run,enabled,created_at"
             " FROM scheduled_tasks ORDER BY created_at DESC"
@@ -122,7 +123,7 @@ def list_tasks():
 
 @router.get("/api/schedule/{task_id}")
 def get_task(task_id: str):
-    with get_db() as db:
+    with closing(get_db()) as db:
         row = db.execute(
             "SELECT id,name,goal,interval_seconds,next_run,last_run,enabled,created_at"
             " FROM scheduled_tasks WHERE id=?",
@@ -135,7 +136,7 @@ def get_task(task_id: str):
 
 @router.patch("/api/schedule/{task_id}")
 def patch_task(task_id: str, req: PatchTask):
-    with get_db() as db:
+    with closing(get_db()) as db:
         row = db.execute(
             "SELECT id,name,goal,interval_seconds,next_run,last_run,enabled,created_at"
             " FROM scheduled_tasks WHERE id=?",
@@ -176,7 +177,7 @@ def patch_task(task_id: str, req: PatchTask):
 
 @router.delete("/api/schedule/{task_id}", status_code=204)
 def delete_task(task_id: str):
-    with get_db() as db:
+    with closing(get_db()) as db:
         cur = db.execute("DELETE FROM scheduled_tasks WHERE id=?", (task_id,))
         db.commit()
     if cur.rowcount == 0:
@@ -188,7 +189,7 @@ def task_runs(
     task_id: str,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
 ):
-    with get_db() as db:
+    with closing(get_db()) as db:
         exists = db.execute(
             "SELECT 1 FROM scheduled_tasks WHERE id=?", (task_id,)
         ).fetchone()
@@ -208,7 +209,7 @@ def recent_runs(
     since: float | None = None,
 ):
     """Returns most-recent runs across all tasks (for the notification badge)."""
-    with get_db() as db:
+    with closing(get_db()) as db:
         if since is not None:
             rows = db.execute(
                 "SELECT id,task_id,started_at,finished_at,status,output"

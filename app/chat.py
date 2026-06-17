@@ -1,4 +1,5 @@
 import asyncio
+import json
 import uuid
 
 import httpx
@@ -13,6 +14,7 @@ router = APIRouter()
 # WARNING: process-local — do NOT run with multiple uvicorn workers
 conversations: dict[str, list[dict]] = {}
 conversations_lock = asyncio.Lock()
+_MAX_CONVERSATIONS = 500  # cap in-memory sessions to avoid unbounded RAM growth
 
 
 class Question(BaseModel):
@@ -57,7 +59,10 @@ async def ask(q: Question):
     if r.status_code != 200:
         raise HTTPException(502, f"Ollama (chat) returned {r.status_code}. "
                                  f"Did you run 'ollama pull {CHAT_MODEL}'?")
-    answer = r.json()["message"]["content"]
+    try:
+        answer = r.json()["message"]["content"]
+    except (json.JSONDecodeError, KeyError):
+        raise HTTPException(502, "Unexpected response format from Ollama")
 
     # Locked re-read before write: prevents clobbering concurrent turns on the same conv_id
     async with conversations_lock:
@@ -66,6 +71,8 @@ async def ask(q: Question):
             {"role": "user",      "content": q.question},
             {"role": "assistant", "content": answer},
         ])[-MAX_HISTORY:]
+        if len(conversations) > _MAX_CONVERSATIONS:
+            conversations.pop(next(iter(conversations)))
 
     return {
         "answer":          answer,
