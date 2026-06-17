@@ -7,31 +7,39 @@ Vokter (Norwegian: *guardian*) is a personal, sovereign AI agent that runs on **
 > There's a right older than the internet: what is yours cannot be taken. Norwegians call it *odel*. Vokter is its digital guardian.
 > — [Read the full manifesto](docs/MANIFESTO.md)
 
-## What Vokter does today (v0.6.0)
+## What Vokter does today (v0.7.0)
 
 | Capability | Details |
 |---|---|
-| **Document memory** | Ingest PDF, TXT, MD — chunked, embedded, and stored locally. Full RAG answers with source citations. Real deletion (embeddings included). |
+| **Document memory** | Ingest PDF, TXT, MD — chunked, embedded, stored locally. Full RAG answers with source citations. Real deletion (embeddings included). |
 | **Encrypted database** | AES-256 at rest via SQLCipher. Set `VOKTER_DB_KEY` before first run. |
-| **Local chat** | Conversation with your documents. Context window 8 192 tokens, per-session memory. |
+| **Local chat** | Conversation with your documents. Persistent history per session (SQLite-backed). Context window 8 192 tokens. |
 | **Email connector** | IMAP/SSL — syncs and indexes your inbox locally. No cloud. |
-| **Local voice** | Talk to Vokter: Whisper STT (faster-whisper, CPU) + Piper TTS. Your voice never leaves the machine. |
+| **Local voice** | Talk to Vokter: Whisper STT (faster-whisper) + Piper TTS. Your voice never leaves the machine. |
 | **Web browsing** | Fetch and memorize web pages. Granular allowlist — you decide which domains Vokter can visit. |
 | **Task planner** | Give Vokter a goal; it breaks it into steps (browse, ask), executes them, and streams the result back. |
 | **Wallet** | Cashu e-cash (fully functional). Pluggable adapters for Lightning, EURC/EURe/EURCV, Solana, Monero, Bitcoin. Human confirmation and daily spend limits always enforced. |
 | **Scheduled tasks** | Set recurring goals (every 5 m / 2 h / 1 d). Vokter runs them autonomously and stores the output. |
+| **Agent personalisation** | Name, tone (formal/neutral/friendly), mode, language, model — all configurable at runtime without restarting Docker. |
 | **Identity layer** | Master key + ephemeral session keys (HMAC-SHA256). Each external interaction gets a fresh, unlinkable key. |
 
 ## Quick start
 
-Requirements: Docker and Docker Compose. Recommended: 8 GB RAM minimum.
+Requirements: [Docker](https://docs.docker.com/get-docker/) and Docker Compose. Minimum 8 GB RAM.
 
 ```bash
 git clone https://github.com/vokter-eu/Vokter.git
-cd Vokter/docker
+cd Vokter
+cp .env.example .env
 ```
 
-Edit `docker-compose.yml` — **change `VOKTER_DB_KEY`** to a strong passphrase before anything else.
+Open `.env` and **set `VOKTER_DB_KEY`** to a strong, unique passphrase before anything else. Generate one with:
+
+```bash
+openssl rand -hex 32
+```
+
+Then start the stack and pull the AI models:
 
 ```bash
 docker compose up -d --build
@@ -46,8 +54,21 @@ Open **http://localhost:8080**. Upload a document and ask it anything. Not a sin
 | RAM | Recommended model |
 |---|---|
 | 8 GB | `llama3.2:3b` or `qwen2.5:3b` |
-| 16 GB | `llama3.2:3b`, `mistral`, or `gemma2:9b` |
+| 16 GB | `mistral` or `llama3.1:8b` |
 | NVIDIA GPU | Uncomment the `deploy` block in `docker-compose.yml` |
+
+## Configuration
+
+All settings live in `.env` (copy from `.env.example`). The most important ones:
+
+| Variable | Default | Description |
+|---|---|---|
+| `VOKTER_DB_KEY` | *(must change)* | Database encryption passphrase |
+| `VOKTER_CHAT_MODEL` | `llama3.2:3b` | Ollama model for chat and planning |
+| `VOKTER_EMBED_MODEL` | `nomic-embed-text` | Ollama model for embeddings |
+| `VOKTER_WALLET_ADAPTER` | `cashu` | Payment adapter |
+
+See `.env.example` for the full list with comments.
 
 ## Roadmap
 
@@ -55,7 +76,8 @@ Open **http://localhost:8080**. Upload a document and ask it anything. Not a sin
 - [x] **Phase 2 — Your agent goes out into the world**: 100% local voice (Whisper STT + Piper TTS), web browsing with allowlist permissions, multi-step task planner with SSE streaming, identity layer.
 - [x] **Phase 3 — Your agent pays**: non-custodial wallet, Cashu e-cash, pluggable adapter architecture (Lightning, MiCA stablecoins, Monero, Bitcoin). Human confirmation and spend limits always.
 - [x] **Phase 4 — Your agent works while you sleep**: scheduled background tasks with configurable intervals, run history, autonomous execution via the planner pipeline.
-- [ ] **Phase 5 — Make it yours**: personalisation (agent name, avatar, tone, language, model selection) and a self-serve distribution web so anyone can stand up their own Vokter without touching a terminal.
+- [x] **Phase 5 — Make it yours**: agent personalisation (name, tone, language, model selection, conversation history). Docker-first setup with `.env.example`. SQLCipher encryption active in Docker.
+- [ ] **Phase 6 — Your agent talks to other agents**: MCP server adapter (connect to Claude Desktop and other MCP hosts), Nostr adapter (DMs as tool calls, identity derived from master key).
 
 ## Non-negotiable principles
 
@@ -68,10 +90,10 @@ Open **http://localhost:8080**. Upload a document and ask it anything. Not a sin
 
 ## Security
 
-- Database encrypted at rest with AES-256 (SQLCipher). Set `VOKTER_DB_KEY`.
+- Database encrypted at rest with AES-256 (SQLCipher). Set `VOKTER_DB_KEY` — required, no fallback.
 - Runs as a non-root user inside Docker.
 - Web browsing is allowlist-only — Vokter cannot visit a domain you haven't explicitly permitted, and redirects to private/internal addresses are blocked.
-- All payments require explicit user confirmation (`confirmed: true`). Daily spend limits enforced in the route layer.
+- All payments require explicit user confirmation (`confirmed: true`). Daily spend limits enforced in the route layer with a mutex to prevent race conditions.
 - No data is ever sent to a third-party service unless you configure an external adapter (e.g. an LNbits instance you run yourself).
 
 ## License

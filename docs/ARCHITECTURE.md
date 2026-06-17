@@ -16,8 +16,11 @@ Vokter is a local-first sovereign agent. The user's machine is the trust boundar
 |-------|------|-------------|
 | 0 | Skeleton | Repo, manifesto, Docker scaffold |
 | 1 | Local guardian | Document ingestion, local RAG, conversation memory, encrypted SQLite |
-| 2 | Agent goes out | Web browsing, task planning, local voice (Whisper + Piper) |
+| 2 | Agent goes out | Web browsing, task planning, local voice (Whisper + Piper), identity layer |
 | 3 | Agent pays | Non-custodial wallet, MiCA stablecoins default, pluggable asset adapters |
+| 4 | Agent works while you sleep | Scheduled recurring tasks, run history, autonomous planner pipeline |
+| 5 | Make it yours | Agent personalisation, persistent conversation history, Docker-first setup |
+| 6 | Agent talks to other agents | MCP server adapter, Nostr DM adapter |
 
 ---
 
@@ -62,9 +65,9 @@ A persistent public key (e.g. a Nostr npub) is a **correlation vector**. If Vokt
 
 **Rule**: the master key is never sent to any external service, ever. External services only ever see ephemeral session keys that are rotated per interaction.
 
-### Future: capability proofs (Phase 3+)
+### Phase 6: Nostr identity
 
-When Vokter needs to prove something to a service — "I have already paid", "I am authorized", "I am over 18" — without linking to any persistent identity, we use zero-knowledge proofs. Technologies to evaluate: Semaphore, BBS+ signatures. This is a Phase 3+ concern; do not implement early.
+Vokter's Nostr keypair is derived from the master key (secp256k1). This gives Vokter a stable, self-sovereign identity for agent-to-agent communication without any registration, account, or persistent identifier in a third-party system. The key never leaves the machine.
 
 ---
 
@@ -93,31 +96,91 @@ Cashu (Chaumian e-cash with blind signatures) sits on top of any asset. The mint
 
 ### Human confirmation always
 
-Every payment requires explicit user confirmation. Spending limits are enforced locally. No payment is ever fully autonomous.
+Every payment requires explicit user confirmation. Spending limits are enforced locally with a mutex to prevent race conditions on concurrent requests. No payment is ever fully autonomous.
 
 ---
 
-## Module structure (target for Phase 2+)
+## Interoperability architecture (Phase 6)
 
-The current flat `app/main.py` is acceptable for Phase 1. Before Phase 2 work begins, split into:
+The tool registry is the source of truth. Protocol adapters sit above it and translate, never contain business logic.
+
+```
+┌──────────────────────────────────────────────────┐
+│                 Tool Registry                    │
+│  browse │ ask │ wallet │ plan │ schedule         │
+└──────────────────┬───────────────────────────────┘
+                   │
+        ┌──────────┼──────────┐
+        │          │          │
+       REST        MCP      Nostr
+   (Phase 1–5)  (Phase 6)  (Phase 6)
+   /api/* done   adapter    adapter
+```
+
+- **REST** — already exists (`/api/*`). No changes needed.
+- **MCP** — a new `app/mcp_server.py` wraps the same tools as an MCP server. Libraries: `mcp`. No changes to core.
+- **Nostr** — a new `app/nostr_listener.py`. Encrypted DMs arrive → tool registry call → encrypted reply to sender. Keypair derived from master key (Layer 1).
+
+**Invariant**: no adapter contains business logic. Each adapter is a protocol translation layer only.
+
+---
+
+## Module structure
 
 ```
 app/
-  main.py          — FastAPI app init and route registration only
-  config.py        — All env vars and constants
-  db.py            — SQLCipher connection and schema
-  ingestion.py     — Document parsing, chunking, embedding storage
-  rag.py           — Retrieval and context assembly
-  chat.py          — Conversation memory and Ollama interaction
-  identity.py      — Master key, session key derivation (Phase 2)
+  main.py             — FastAPI app init and route registration
+  config.py           — All env vars and constants
+  db.py               — SQLCipher connection, schema (CREATE TABLE IF NOT EXISTS)
+  ingestion.py        — Document parsing, chunking, embedding storage
+  rag.py              — Retrieval and context assembly
+  chat.py             — Conversation history (SQLite) + Ollama interaction
+  agent_config.py     — Agent personalisation settings (name, tone, mode, language, models)
+  config_routes.py    — GET/PATCH /api/config endpoints
+  identity.py         — Master key generation and ephemeral session key derivation
+  browser.py          — Web fetching, allowlist enforcement, content extraction
+  planner.py          — Multi-step task planner, SSE streaming
+  scheduler.py        — Recurring task runner (asyncio background loop)
+  schedule_routes.py  — Scheduled task CRUD endpoints
+  email_connector.py  — IMAP/SSL email sync
+  wallet_routes.py    — Wallet API endpoints (send, receive, balance, history)
+  utils.py            — Shared helpers
   wallet/
-    __init__.py    — Wallet interface (abstract)
-    cashu.py       — Cashu e-cash layer
-    adapters/      — One file per asset adapter
+    __init__.py       — Abstract wallet adapter interface
+    cashu.py          — Cashu e-cash adapter (fully functional)
+    adapters/
+      evm.py          — EVM chains: EURC, EURe, EURCV, any ERC-20
+      lightning.py    — Bitcoin Lightning via LNbits
+      solana.py       — Solana SPL tokens (EURC, EURe, SOL)
+      monero.py       — Monero XMR (stub — needs monero-wallet-rpc)
+      bitcoin.py      — Bitcoin on-chain (stub — needs Bitcoin Core RPC)
   voice/
-    whisper.py     — Speech to text (Phase 2)
-    piper.py       — Text to speech (Phase 2)
+    __init__.py
+    whisper.py        — Speech-to-text (faster-whisper, CPU)
+    piper.py          — Text-to-speech (Piper)
+  static/
+    index.html        — Single-page UI
 ```
+
+---
+
+## Database schema
+
+All tables are created idempotently in `db.py` via `CREATE TABLE IF NOT EXISTS`. The database is encrypted with SQLCipher (AES-256) using `VOKTER_DB_KEY`.
+
+| Table | Purpose |
+|-------|---------|
+| `chunks` | RAG document chunks with embeddings |
+| `synced_emails` | Email sync state (message IDs) |
+| `identity_keys` | Master key (one row, never exported) |
+| `session_nonces` | Per-interaction nonces for ephemeral key derivation |
+| `browse_allowlist` | User-approved domain patterns |
+| `cashu_proofs` | Unspent Cashu e-cash proofs |
+| `wallet_transactions` | Unified transaction log across all adapters |
+| `scheduled_tasks` | Recurring task definitions |
+| `task_runs` | Execution history for scheduled tasks |
+| `agent_config` | Key-value store for personalisation settings |
+| `conversations` | Persistent conversation history (role, content, timestamp) |
 
 ---
 
@@ -131,11 +194,3 @@ These are architectural constraints, not policy choices. Violating them would re
 4. Make any payment without explicit user confirmation
 5. Use engagement mechanics, retention design, or exploit loneliness
 6. Delete a document without also deleting its embeddings
-
----
-
-## Housekeeping (known issues to fix)
-
-- `docker-compose.yml` at repo root is outdated — canonical file is `docker/docker-compose.yml`
-- `main.py` and `requirements.txt` at repo root are dead files from initial upload — delete them
-- `index.html` at repo root is a duplicate — canonical file is `app/static/index.html`
