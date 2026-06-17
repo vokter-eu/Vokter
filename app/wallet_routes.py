@@ -98,13 +98,18 @@ async def wallet_send(req: SendRequest):
 @router.get("/api/wallet/history")
 async def wallet_history():
     adapter = get_active_adapter()
-    txs = await adapter.history()
+    with closing(get_db()) as db:
+        rows = db.execute(
+            "SELECT id, direction, amount, unit, memo, ts, output"
+            " FROM wallet_transactions WHERE adapter=? ORDER BY ts DESC LIMIT 100",
+            (adapter.name,),
+        ).fetchall()
     return [
         {
-            "id": t.id, "direction": t.direction, "amount": t.amount,
-            "unit": t.unit, "memo": t.memo, "ts": t.ts,
+            "id": r[0], "direction": r[1], "amount": r[2],
+            "unit": r[3], "memo": r[4], "ts": r[5], "output": r[6],
         }
-        for t in txs
+        for r in rows
     ]
 
 
