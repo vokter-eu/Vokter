@@ -14,6 +14,17 @@
   header { padding:8px 0 16px; border-bottom:1px solid var(--line); }
   h1 { font-size:1.3rem; } h1 span{ color:var(--accent); }
   .tag { color:var(--muted); font-size:.85rem; }
+  #task { padding:12px 0; border-bottom:1px solid var(--line); }
+  #task-top { display:flex; gap:8px; flex-wrap:wrap; }
+  #task-goal { flex:1; min-width:180px; padding:7px 10px; border-radius:8px;
+               border:1px solid var(--line); background:var(--panel);
+               color:var(--text); font-size:.85rem; }
+  #task-log { margin-top:8px; font-size:.82rem; }
+  .tlog-step  { color:var(--muted); padding:2px 0; }
+  .tlog-done  { color:var(--accent); }
+  .tlog-error { color:#f85149; }
+  .tlog-answer { margin-top:8px; background:var(--panel); border:1px solid var(--line);
+                 border-radius:8px; padding:10px 12px; white-space:pre-wrap; }
   #web { padding:12px 0; border-bottom:1px solid var(--line); }
   #web-top { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   #web-url { flex:1; min-width:180px; padding:7px 10px; border-radius:8px;
@@ -68,13 +79,20 @@
 </head>
 <body>
 <header>
-  <h1>🛡️ Vokter <span>v0.3</span></h1>
+  <h1>🛡️ Vokter <span>v0.4</span></h1>
   <div class="tag">Everything runs on your machine. Not a single byte leaves here.</div>
   <label class="upload">＋ Teach it a document (PDF, TXT, MD)
     <input type="file" id="file" accept=".pdf,.txt,.md">
   </label>
 </header>
 
+<div id="task">
+  <div id="task-top">
+    <input type="text" id="task-goal" placeholder="Give me a task… e.g. Compare prices of X on these sites">
+    <button class="btn-sm" id="btn-plan">Run task</button>
+  </div>
+  <div id="task-log"></div>
+</div>
 <div id="web">
   <div id="web-top">
     <input type="url" id="web-url" placeholder="https://…">
@@ -373,6 +391,83 @@ document.getElementById('btn-browse').onclick = async () => {
     }
   } catch {
     status.textContent = 'Could not reach server.';
+  }
+  btn.disabled = false;
+};
+
+document.getElementById('btn-plan').onclick = async () => {
+  const goal = document.getElementById('task-goal').value.trim();
+  if (!goal) return;
+  const btn = document.getElementById('btn-plan');
+  const log  = document.getElementById('task-log');
+  btn.disabled = true;
+  log.innerHTML = '';
+
+  const stepEls = [];
+
+  function logLine(text, cls) {
+    const d = document.createElement('div');
+    d.className = 'tlog-step' + (cls ? ' ' + cls : '');
+    d.textContent = text;
+    log.appendChild(d);
+    return d;
+  }
+
+  try {
+    const r = await fetch('/api/plan', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({goal}),
+    });
+    if (!r.ok) { logLine('Server error: ' + r.status, 'tlog-error'); btn.disabled = false; return; }
+
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream: true});
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        let ev;
+        try { ev = JSON.parse(line.slice(6)); } catch { continue; }
+
+        if (ev.type === 'status') {
+          logLine('⋯ ' + ev.text);
+        } else if (ev.type === 'plan') {
+          ev.steps.forEach((s, i) => {
+            stepEls[i] = logLine(`${i + 1}. [${s.tool}] ${s.reason}`);
+          });
+        } else if (ev.type === 'step_start') {
+          if (stepEls[ev.index]) stepEls[ev.index].textContent += ' …';
+        } else if (ev.type === 'step_done') {
+          if (stepEls[ev.index]) {
+            stepEls[ev.index].textContent = `✓ ${ev.text}`;
+            stepEls[ev.index].className = 'tlog-step tlog-done';
+          }
+        } else if (ev.type === 'step_error') {
+          if (stepEls[ev.index]) {
+            stepEls[ev.index].textContent = `✗ ${ev.text}`;
+            stepEls[ev.index].className = 'tlog-step tlog-error';
+          }
+        } else if (ev.type === 'error') {
+          logLine('✗ ' + ev.text, 'tlog-error');
+        } else if (ev.type === 'done') {
+          const ans = document.createElement('div');
+          ans.className = 'tlog-answer';
+          ans.textContent = ev.answer;
+          log.appendChild(ans);
+          add('bot', ev.answer);
+          loadDocs();
+        }
+      }
+    }
+  } catch (err) {
+    logLine('Connection error: ' + err, 'tlog-error');
   }
   btn.disabled = false;
 };
