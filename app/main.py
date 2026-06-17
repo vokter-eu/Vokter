@@ -4,6 +4,9 @@ Vokter — Your local AI guardian.
 Not a single call leaves your machine. Check it: the only host
 this code talks to is the local Ollama container.
 """
+import asyncio
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -18,8 +21,22 @@ from voice.piper import router as piper_router
 from browser import router as browser_router
 from planner import router as planner_router
 from wallet_routes import router as wallet_router
+from schedule_routes import router as schedule_router
+from scheduler import scheduler_loop
 
-app = FastAPI(title="Vokter", version="0.5.0")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    task = asyncio.create_task(scheduler_loop())
+    yield
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+
+app = FastAPI(title="Vokter", version="0.6.0", lifespan=lifespan)
 app.include_router(ingestion_router)
 app.include_router(chat_router)
 app.include_router(email_router)
@@ -28,6 +45,7 @@ app.include_router(piper_router)
 app.include_router(browser_router)
 app.include_router(planner_router)
 app.include_router(wallet_router)
+app.include_router(schedule_router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 

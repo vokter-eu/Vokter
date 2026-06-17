@@ -65,4 +65,26 @@ def get_db():
                ts        REAL NOT NULL
            )"""
     )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS scheduled_tasks (
+               id               TEXT PRIMARY KEY,
+               name             TEXT NOT NULL,
+               goal             TEXT NOT NULL,
+               interval_seconds INTEGER NOT NULL,
+               next_run         REAL NOT NULL,
+               last_run         REAL,
+               enabled          INTEGER NOT NULL DEFAULT 1,
+               created_at       REAL NOT NULL
+           )"""
+    )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS task_runs (
+               id          TEXT PRIMARY KEY,
+               task_id     TEXT NOT NULL REFERENCES scheduled_tasks(id) ON DELETE CASCADE,
+               started_at  REAL NOT NULL,
+               finished_at REAL,
+               status      TEXT NOT NULL DEFAULT 'running',   -- running | done | error
+               output      TEXT NOT NULL DEFAULT ''
+           )"""
+    )
     return conn

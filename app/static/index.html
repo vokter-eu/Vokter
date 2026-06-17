@@ -65,6 +65,34 @@
   #wallet-modal-box h3 { margin-bottom:8px; font-size:1rem; }
   #wallet-modal-box p { color:var(--muted); font-size:.88rem; margin-bottom:16px; }
   #wallet-modal-btns { display:flex; gap:8px; }
+  /* scheduled tasks */
+  #schedule { padding:12px 0; border-bottom:1px solid var(--line); }
+  #schedule-top { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px; }
+  #schedule-badge { font-size:.72rem; background:#f851491a; color:#f85149;
+                    border:1px solid #f8514966; border-radius:4px; padding:1px 6px;
+                    display:none; }
+  #schedule-form { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; display:none; }
+  #sched-name { width:140px; }
+  #sched-goal { flex:1; min-width:180px; }
+  #sched-interval { width:72px; }
+  #schedule-list { font-size:.82rem; }
+  .stask { background:var(--panel); border:1px solid var(--line); border-radius:8px;
+           margin-top:4px; overflow:hidden; }
+  .stask-header { display:flex; align-items:center; gap:8px; padding:7px 10px; cursor:pointer; }
+  .stask-name { font-weight:600; flex:1; }
+  .stask-interval { color:var(--muted); font-size:.75rem; }
+  .stask-status { font-size:.72rem; padding:1px 5px; border-radius:3px; }
+  .stask-status.on  { background:#4cc38a22; color:var(--accent); border:1px solid #4cc38a44; }
+  .stask-status.off { background:#8b949e22; color:var(--muted);  border:1px solid var(--line); }
+  .stask-runs { display:none; border-top:1px solid var(--line); padding:6px 10px; }
+  .srun { display:flex; justify-content:space-between; align-items:flex-start;
+          padding:3px 0; border-bottom:1px solid var(--line); font-size:.78rem; }
+  .srun:last-child { border-bottom:none; }
+  .srun-status { font-size:.72rem; padding:1px 5px; border-radius:3px; margin-right:6px; }
+  .srun-status.done    { color:var(--accent); }
+  .srun-status.error   { color:#f85149; }
+  .srun-status.running { color:#e3b341; }
+  .srun-output { color:var(--muted); margin-top:2px; font-size:.75rem; white-space:pre-wrap; word-break:break-word; }
   #web { padding:12px 0; border-bottom:1px solid var(--line); }
   #web-top { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   #web-url { flex:1; min-width:180px; padding:7px 10px; border-radius:8px;
@@ -119,7 +147,7 @@
 </head>
 <body>
 <header>
-  <h1>🛡️ Vokter <span>v0.5</span></h1>
+  <h1>🛡️ Vokter <span>v0.6</span> <span id="schedule-badge"></span></h1>
   <div class="tag">Everything runs on your machine. Not a single byte leaves here.</div>
   <label class="upload">＋ Teach it a document (PDF, TXT, MD)
     <input type="file" id="file" accept=".pdf,.txt,.md">
@@ -180,6 +208,23 @@
       <button class="btn-sm" id="btn-wallet-cancel">Cancel</button>
     </div>
   </div>
+</div>
+
+<div id="schedule">
+  <div id="schedule-top">
+    <strong style="font-size:.9rem">Scheduled tasks</strong>
+    <span id="schedule-badge-el" style="font-size:.72rem;background:#f851491a;color:#f85149;border:1px solid #f8514966;border-radius:4px;padding:1px 6px;display:none"></span>
+    <button class="btn-sm" id="btn-sched-new">＋ New task</button>
+    <button class="btn-sm" id="btn-sched-refresh">⟳</button>
+  </div>
+  <div id="schedule-form" style="display:none;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+    <input type="text" class="wallet-input" id="sched-name" placeholder="Name (e.g. Daily digest)" style="width:160px">
+    <input type="text" class="wallet-input" id="sched-goal" placeholder="Goal (e.g. Summarise my emails)" style="flex:1;min-width:200px">
+    <input type="text" class="wallet-input" id="sched-interval" placeholder="1h / 30m / 1d" style="width:80px">
+    <button class="btn-sm" id="btn-sched-create">Create</button>
+    <button class="btn-sm" id="btn-sched-cancel">Cancel</button>
+  </div>
+  <div id="schedule-list"><div class="tag" style="font-size:.82rem">No scheduled tasks yet.</div></div>
 </div>
 
 <div id="web">
@@ -696,6 +741,167 @@ loadWalletBalance();
 loadDocs();
 loadEmailStatus();
 loadPerms();
+loadSchedule();
+
+// ── Scheduled tasks ───────────────────────────────────────────────────────────
+
+const SCHED_SEEN_KEY = 'vokter_sched_seen';
+
+function _fmtInterval(s) {
+  if (s >= 86400 && s % 86400 === 0) return (s / 86400) + 'd';
+  if (s >= 3600  && s % 3600  === 0) return (s / 3600)  + 'h';
+  return Math.round(s / 60) + 'm';
+}
+
+function _fmtTs(ts) {
+  if (!ts) return '—';
+  return new Date(ts * 1000).toLocaleString(undefined, {dateStyle:'short', timeStyle:'short'});
+}
+
+function renderTask(task) {
+  const wrap = document.createElement('div');
+  wrap.className = 'stask';
+  wrap.dataset.id = task.id;
+
+  const hdr = document.createElement('div');
+  hdr.className = 'stask-header';
+  hdr.innerHTML =
+    `<span class="stask-name">${task.name}</span>` +
+    `<span class="stask-interval">${_fmtInterval(task.interval_seconds)}</span>` +
+    `<span class="stask-status ${task.enabled ? 'on' : 'off'}">${task.enabled ? 'on' : 'paused'}</span>` +
+    `<button class="btn-sm" style="font-size:.72rem;padding:3px 7px" data-toggle>` +
+      `${task.enabled ? 'Pause' : 'Resume'}` +
+    `</button>` +
+    `<button class="btn-sm danger" style="font-size:.72rem;padding:3px 7px" data-del>✕</button>`;
+  wrap.appendChild(hdr);
+
+  const runs = document.createElement('div');
+  runs.className = 'stask-runs';
+  runs.innerHTML = '<div class="tag" style="font-size:.78rem">Click to load runs…</div>';
+  wrap.appendChild(runs);
+
+  let runsLoaded = false;
+  hdr.addEventListener('click', async (e) => {
+    if (e.target.dataset.toggle !== undefined || e.target.dataset.del !== undefined) return;
+    const open = runs.style.display === '';
+    runs.style.display = open ? 'none' : '';
+    if (!open && !runsLoaded) {
+      runsLoaded = true;
+      try {
+        const r = await fetch(`/api/schedule/${task.id}/runs`);
+        const list = await r.json();
+        if (!list.length) { runs.innerHTML = '<div class="tag" style="font-size:.78rem">No runs yet.</div>'; return; }
+        runs.innerHTML = '';
+        list.forEach(run => {
+          const d = document.createElement('div');
+          d.className = 'srun';
+          d.innerHTML =
+            `<div>` +
+              `<span class="srun-status ${run.status}">${run.status}</span>` +
+              `<span style="color:var(--muted)">${_fmtTs(run.finished_at || run.started_at)}</span>` +
+            `</div>` +
+            (run.output ? `<div class="srun-output">${run.output.slice(0, 300)}</div>` : '');
+          runs.appendChild(d);
+        });
+      } catch {}
+    }
+  });
+
+  hdr.querySelector('[data-toggle]').onclick = async (e) => {
+    e.stopPropagation();
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    await fetch(`/api/schedule/${task.id}`, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({enabled: !task.enabled}),
+    });
+    loadSchedule();
+  };
+
+  hdr.querySelector('[data-del]').onclick = async (e) => {
+    e.stopPropagation();
+    if (!confirm(`Delete task "${task.name}"?`)) return;
+    await fetch(`/api/schedule/${task.id}`, {method: 'DELETE'});
+    loadSchedule();
+  };
+
+  return wrap;
+}
+
+async function loadSchedule() {
+  try {
+    const r = await fetch('/api/schedule');
+    const tasks = await r.json();
+    const el = document.getElementById('schedule-list');
+    if (!tasks.length) {
+      el.innerHTML = '<div class="tag" style="font-size:.82rem">No scheduled tasks yet.</div>';
+    } else {
+      el.innerHTML = '';
+      tasks.forEach(t => el.appendChild(renderTask(t)));
+    }
+    await checkNewRuns();
+  } catch {}
+}
+
+async function checkNewRuns() {
+  const seen = parseFloat(localStorage.getItem(SCHED_SEEN_KEY) || '0');
+  try {
+    const r = await fetch(`/api/schedule/runs/recent?since=${seen}&limit=20`);
+    const runs = await r.json();
+    const badge = document.getElementById('schedule-badge-el');
+    const newDone = runs.filter(r => r.finished_at && r.finished_at > seen);
+    if (newDone.length) {
+      badge.textContent = newDone.length + ' new';
+      badge.style.display = '';
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch {}
+}
+
+document.getElementById('btn-sched-new').onclick = () => {
+  const form = document.getElementById('schedule-form');
+  form.style.display = form.style.display === 'none' ? '' : 'none';
+};
+
+document.getElementById('btn-sched-cancel').onclick = () => {
+  document.getElementById('schedule-form').style.display = 'none';
+};
+
+document.getElementById('btn-sched-refresh').onclick = () => {
+  // Mark badge as seen when user refreshes
+  localStorage.setItem(SCHED_SEEN_KEY, Date.now() / 1000);
+  document.getElementById('schedule-badge-el').style.display = 'none';
+  loadSchedule();
+};
+
+document.getElementById('btn-sched-create').onclick = async () => {
+  const name     = document.getElementById('sched-name').value.trim();
+  const goal     = document.getElementById('sched-goal').value.trim();
+  const interval = document.getElementById('sched-interval').value.trim();
+  if (!name || !goal || !interval) { alert('Fill in name, goal, and interval (e.g. 1h)'); return; }
+  const btn = document.getElementById('btn-sched-create');
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/schedule', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name, goal, interval}),
+    });
+    const d = await r.json();
+    if (!r.ok) { alert(d.detail || 'Error creating task'); return; }
+    document.getElementById('sched-name').value = '';
+    document.getElementById('sched-goal').value = '';
+    document.getElementById('sched-interval').value = '';
+    document.getElementById('schedule-form').style.display = 'none';
+    loadSchedule();
+  } catch (e) { alert('Error: ' + e); }
+  btn.disabled = false;
+};
+
+// Poll for new completed runs every 5 minutes (passive — badge only)
+setInterval(checkNewRuns, 300_000);
 </script>
 </body>
 </html>
