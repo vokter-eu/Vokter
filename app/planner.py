@@ -16,6 +16,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from agent_config import get_config
 from browser import BrowseRequest, browse as do_browse
 from config import CHAT_MODEL, OLLAMA_URL
 from rag import retrieve
@@ -121,7 +122,8 @@ async def _execute(goal: str) -> AsyncGenerator[str, None]:
                 if not question:
                     yield _sse({"type": "step_error", "index": i, "text": "Missing question."})
                     continue
-                scored = await retrieve(question)
+                cfg = get_config()
+                scored = await retrieve(question, top_k=int(cfg.get("rag_chunks") or 4))
                 yield _sse({
                     "type": "step_done", "index": i,
                     "text": f'Queried memory: {len(scored)} relevant chunk(s) for "{question}".',
@@ -138,7 +140,8 @@ async def _execute(goal: str) -> AsyncGenerator[str, None]:
     # Final synthesis via RAG
     yield _sse({"type": "status", "text": "Synthesising answer…"})
     summary_q = (plan.get("summary_question") or goal).strip()
-    scored = await retrieve(summary_q)
+    cfg = get_config()
+    scored = await retrieve(summary_q, top_k=int(cfg.get("rag_chunks") or 4))
 
     if not scored:
         yield _sse({"type": "done", "answer": "I couldn't find enough information to answer the goal."})
