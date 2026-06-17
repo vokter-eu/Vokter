@@ -140,16 +140,86 @@
   .upload { display:inline-block; margin-top:8px; color:var(--accent); cursor:pointer;
             font-size:.9rem; }
   .upload input { display:none; }
+  /* settings panel */
+  #settings { padding:12px 0; border-bottom:1px solid var(--line); display:none; }
+  .cfg-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:8px; }
+  .cfg-field label { display:block; font-size:.77rem; color:var(--muted); margin-bottom:3px; }
+  .cfg-field input, .cfg-field select {
+    width:100%; padding:6px 9px; border-radius:8px;
+    border:1px solid var(--line); background:var(--panel);
+    color:var(--text); font-size:.83rem; }
+  #cfg-status { font-size:.82rem; color:var(--muted); }
 </style>
 </head>
 <body>
 <header>
-  <h1>🛡️ Vokter <span>v0.6</span></h1>
+  <div style="display:flex;align-items:baseline;gap:10px">
+    <h1>🛡️ <span id="hdr-agent-name">Vokter</span> <span style="color:var(--muted);font-size:.8rem">v0.6</span></h1>
+    <button class="btn-sm" id="btn-settings" style="font-size:.78rem;padding:4px 9px">⚙ Settings</button>
+  </div>
   <div class="tag">Everything runs on your machine. Not a single byte leaves here.</div>
   <label class="upload">＋ Teach it a document (PDF, TXT, MD)
     <input type="file" id="file" accept=".pdf,.txt,.md">
   </label>
 </header>
+
+<div id="settings">
+  <div class="cfg-grid">
+    <div class="cfg-field">
+      <label>Agent name</label>
+      <input type="text" id="cfg-agent-name" placeholder="Vokter">
+    </div>
+    <div class="cfg-field">
+      <label>Tone</label>
+      <select id="cfg-tone">
+        <option value="formal">Formal</option>
+        <option value="neutral" selected>Neutral</option>
+        <option value="friendly">Friendly</option>
+      </select>
+    </div>
+    <div class="cfg-field">
+      <label>Mode</label>
+      <select id="cfg-mode">
+        <option value="productive">Productive (concise)</option>
+        <option value="conversational" selected>Conversational</option>
+      </select>
+    </div>
+    <div class="cfg-field">
+      <label>Language</label>
+      <select id="cfg-language">
+        <option value="auto" selected>Auto-detect</option>
+        <option value="en">English</option>
+        <option value="es">Spanish</option>
+        <option value="fr">French</option>
+        <option value="de">German</option>
+        <option value="it">Italian</option>
+        <option value="pt">Portuguese</option>
+        <option value="nl">Dutch</option>
+        <option value="pl">Polish</option>
+      </select>
+    </div>
+    <div class="cfg-field">
+      <label>Chat model override</label>
+      <input type="text" id="cfg-chat-model" placeholder="e.g. llama3.2:3b">
+    </div>
+    <div class="cfg-field">
+      <label>Embed model override</label>
+      <input type="text" id="cfg-embed-model" placeholder="e.g. nomic-embed-text">
+    </div>
+    <div class="cfg-field">
+      <label>Max conversation history (2–200)</label>
+      <input type="number" id="cfg-max-history" min="2" max="200">
+    </div>
+    <div class="cfg-field">
+      <label>RAG chunks per answer (1–20)</label>
+      <input type="number" id="cfg-rag-chunks" min="1" max="20">
+    </div>
+  </div>
+  <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
+    <button class="btn" id="btn-cfg-save" style="font-size:.85rem;padding:8px 18px">Save</button>
+    <span id="cfg-status"></span>
+  </div>
+</div>
 
 <div id="task">
   <div id="task-top">
@@ -929,6 +999,65 @@ document.getElementById('btn-sched-create').onclick = async () => {
 
 // Poll for new completed runs every 5 minutes (passive — badge only)
 setInterval(checkNewRuns, 300_000);
+
+// ── Settings ────────────────────────────────────────────────────────────────
+async function loadConfig() {
+  try {
+    const cfg = await (await fetch('/api/config')).json();
+    document.getElementById('cfg-agent-name').value  = cfg.agent_name  || 'Vokter';
+    document.getElementById('cfg-tone').value        = cfg.tone        || 'neutral';
+    document.getElementById('cfg-mode').value        = cfg.mode        || 'conversational';
+    document.getElementById('cfg-language').value    = cfg.language    || 'auto';
+    document.getElementById('cfg-chat-model').value  = cfg.chat_model  || '';
+    document.getElementById('cfg-embed-model').value = cfg.embed_model || '';
+    document.getElementById('cfg-max-history').value = cfg.max_history || 20;
+    document.getElementById('cfg-rag-chunks').value  = cfg.rag_chunks  || 4;
+    document.getElementById('hdr-agent-name').textContent = cfg.agent_name || 'Vokter';
+  } catch {}
+}
+
+document.getElementById('btn-settings').onclick = () => {
+  const p = document.getElementById('settings');
+  const open = p.style.display !== 'none';
+  p.style.display = open ? 'none' : '';
+  if (!open) loadConfig();
+};
+
+document.getElementById('btn-cfg-save').onclick = async () => {
+  const btn    = document.getElementById('btn-cfg-save');
+  const status = document.getElementById('cfg-status');
+  btn.disabled = true;
+  status.textContent = 'Saving…';
+  const maxH = parseInt(document.getElementById('cfg-max-history').value);
+  const ragC = parseInt(document.getElementById('cfg-rag-chunks').value);
+  try {
+    const r = await fetch('/api/config', {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        agent_name:  document.getElementById('cfg-agent-name').value.trim() || null,
+        tone:        document.getElementById('cfg-tone').value,
+        mode:        document.getElementById('cfg-mode').value,
+        language:    document.getElementById('cfg-language').value,
+        chat_model:  document.getElementById('cfg-chat-model').value.trim()  || null,
+        embed_model: document.getElementById('cfg-embed-model').value.trim() || null,
+        max_history: isNaN(maxH) ? null : maxH,
+        rag_chunks:  isNaN(ragC) ? null : ragC,
+      }),
+    });
+    const d = await r.json();
+    if (r.ok) {
+      document.getElementById('hdr-agent-name').textContent = d.agent_name || 'Vokter';
+      status.textContent = 'Saved ✓';
+      setTimeout(() => { status.textContent = ''; }, 2000);
+    } else {
+      status.textContent = d.detail || 'Error';
+    }
+  } catch (e) { status.textContent = 'Error: ' + e; }
+  btn.disabled = false;
+};
+
+loadConfig();
 </script>
 </body>
 </html>

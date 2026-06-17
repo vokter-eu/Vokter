@@ -22,6 +22,7 @@ from browser import router as browser_router
 from planner import router as planner_router
 from wallet_routes import router as wallet_router
 from schedule_routes import router as schedule_router
+from config_routes import router as config_router
 from scheduler import scheduler_loop, _running_tasks
 
 
@@ -52,6 +53,7 @@ app.include_router(browser_router)
 app.include_router(planner_router)
 app.include_router(wallet_router)
 app.include_router(schedule_router)
+app.include_router(config_router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 

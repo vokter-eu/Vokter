@@ -90,4 +90,10 @@ def get_db():
                output      TEXT NOT NULL DEFAULT ''
            )"""
     )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS agent_config (
+               key   TEXT PRIMARY KEY,
+               value TEXT NOT NULL
+           )"""
+    )
     return conn

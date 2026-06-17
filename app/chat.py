@@ -6,6 +6,7 @@ import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from agent_config import build_system_prompt, get_config
 from config import OLLAMA_URL, CHAT_MODEL, MAX_HISTORY
 from rag import retrieve
 
@@ -24,21 +25,20 @@ class Question(BaseModel):
 
 @router.post("/api/ask")
 async def ask(q: Question):
-    scored = await retrieve(q.question)
+    cfg = get_config()
+    model       = cfg.get("chat_model")  or CHAT_MODEL
+    max_history = int(cfg.get("max_history") or MAX_HISTORY)
+
+    scored = await retrieve(q.question, top_k=int(cfg.get("rag_chunks") or 4))
     if not scored:
         return {
-            "answer": "You haven't taught me any documents yet. Upload one and ask me about it.",
+            "answer": f"You haven't taught me any documents yet. Upload one and ask me about it.",
             "sources": [],
             "conversation_id": q.conversation_id,
         }
 
     context = "\n\n---\n\n".join(f"[{doc}]\n{content}" for _, doc, content in scored)
-    system  = (
-        "You are Vokter, the user's personal AI guardian. "
-        "Answer in the language of the question, using ONLY the provided "
-        "context from their documents. If the answer is not in the "
-        "context, say so honestly: never make things up."
-    )
+    system  = build_system_prompt(cfg)
 
     conv_id = q.conversation_id or str(uuid.uuid4())
     history = conversations.get(conv_id, [])
@@ -53,12 +53,12 @@ async def ask(q: Question):
     async with httpx.AsyncClient(timeout=300) as client:
         r = await client.post(
             f"{OLLAMA_URL}/api/chat",
-            json={"model": CHAT_MODEL, "stream": False, "messages": messages,
+            json={"model": model, "stream": False, "messages": messages,
                   "options": {"num_ctx": 8192}},
         )
     if r.status_code != 200:
         raise HTTPException(502, f"Ollama (chat) returned {r.status_code}. "
-                                 f"Did you run 'ollama pull {CHAT_MODEL}'?")
+                                 f"Did you run 'ollama pull {model}'?")
     try:
         answer = r.json()["message"]["content"]
     except (json.JSONDecodeError, KeyError):
@@ -70,7 +70,7 @@ async def ask(q: Question):
         conversations[conv_id] = (current + [
             {"role": "user",      "content": q.question},
             {"role": "assistant", "content": answer},
-        ])[-MAX_HISTORY:]
+        ])[-max_history:]
         if len(conversations) > _MAX_CONVERSATIONS:
             conversations.pop(next(iter(conversations)))
 
