@@ -7,40 +7,72 @@ Vokter (Norwegian: *guardian*) is a personal, sovereign AI agent that runs on **
 > There's a right older than the internet: what is yours cannot be taken. Norwegians call it *odel*. Vokter is its digital guardian.
 > — [Read the full manifesto](docs/MANIFESTO.md)
 
-## Project status
+## What Vokter does today (v0.6.0)
 
-🚧 **Phase 0 — Skeleton.** This is day one. If you found your way here, you're one of the first. Star the repo and check back soon, or better yet: [contribute](CONTRIBUTING.md).
+| Capability | Details |
+|---|---|
+| **Document memory** | Ingest PDF, TXT, MD — chunked, embedded, and stored locally. Full RAG answers with source citations. Real deletion (embeddings included). |
+| **Encrypted database** | AES-256 at rest via SQLCipher. Set `VOKTER_DB_KEY` before first run. |
+| **Local chat** | Conversation with your documents. Context window 8 192 tokens, per-session memory. |
+| **Email connector** | IMAP/SSL — syncs and indexes your inbox locally. No cloud. |
+| **Local voice** | Talk to Vokter: Whisper STT (faster-whisper, CPU) + Piper TTS. Your voice never leaves the machine. |
+| **Web browsing** | Fetch and memorize web pages. Granular allowlist — you decide which domains Vokter can visit. |
+| **Task planner** | Give Vokter a goal; it breaks it into steps (browse, ask), executes them, and streams the result back. |
+| **Wallet** | Cashu e-cash (fully functional). Pluggable adapters for Lightning, EURC/EURe/EURCV, Solana, Monero, Bitcoin. Human confirmation and daily spend limits always enforced. |
+| **Scheduled tasks** | Set recurring goals (every 5 m / 2 h / 1 d). Vokter runs them autonomously and stores the output. |
+| **Identity layer** | Master key + ephemeral session keys (HMAC-SHA256). Each external interaction gets a fresh, unlinkable key. |
 
-## Roadmap
+## Quick start
 
-- [ ] **Phase 1 — Your agent on your machine**: local LLM (Ollama), encrypted personal memory, chat with your documents. 100% offline.
-- [ ] **Phase 2 — Your agent goes out into the world**: web browsing with granular permissions, real task planning (travel, shopping, errands), and **100% local voice** (hearing via Whisper, speech via Piper — talk to Vokter without your voice leaving home). It proposes; you decide.
-- [ ] **Phase 3 — Your agent pays**: non-custodial wallet with a **modular, asset-agnostic architecture** — by default, MiCA-regulated stablecoins (authorized EMTs); any other asset (BTC, ETH…) as an optional pluggable adapter, without touching the core. Human confirmation and spending limits always.
-
-## Quick start (v0.1)
-
-Requirements: Docker and Docker Compose. Recommended: 16 GB RAM (with 8 GB, switch the model to `llama3.2:3b` in the compose file).
+Requirements: Docker and Docker Compose. Recommended: 8 GB RAM minimum.
 
 ```bash
 git clone https://github.com/vokter-eu/Vokter.git
 cd Vokter/docker
+```
+
+Edit `docker-compose.yml` — **change `VOKTER_DB_KEY`** to a strong passphrase before anything else.
+
+```bash
 docker compose up -d --build
-docker exec -it vokter-ollama ollama pull llama3.1:8b
+docker exec -it vokter-ollama ollama pull llama3.2:3b
 docker exec -it vokter-ollama ollama pull nomic-embed-text
 ```
 
-Open **http://localhost:8080**: upload a PDF and ask it anything. Not a single byte has left your machine — check for yourself: that's the whole point.
+Open **http://localhost:8080**. Upload a document and ask it anything. Not a single byte has left your machine.
 
-What v0.1 already does: ingest PDF/TXT/MD, local memory in SQLite, answers grounded only in your documents with source citations, a "what Vokter knows" panel, and real deletion (document + embeddings). Honestly pending for v0.2: at-rest encryption of the database and an email connector.
+### Hardware guide
+
+| RAM | Recommended model |
+|---|---|
+| 8 GB | `llama3.2:3b` or `qwen2.5:3b` |
+| 16 GB | `llama3.2:3b`, `mistral`, or `gemma2:9b` |
+| NVIDIA GPU | Uncomment the `deploy` block in `docker-compose.yml` |
+
+## Roadmap
+
+- [x] **Phase 1 — Your agent on your machine**: local LLM via Ollama, AES-256 encrypted memory, RAG chat, email connector.
+- [x] **Phase 2 — Your agent goes out into the world**: 100% local voice (Whisper STT + Piper TTS), web browsing with allowlist permissions, multi-step task planner with SSE streaming, identity layer.
+- [x] **Phase 3 — Your agent pays**: non-custodial wallet, Cashu e-cash, pluggable adapter architecture (Lightning, MiCA stablecoins, Monero, Bitcoin). Human confirmation and spend limits always.
+- [x] **Phase 4 — Your agent works while you sleep**: scheduled background tasks with configurable intervals, run history, autonomous execution via the planner pipeline.
+- [ ] **Phase 5 — Make it yours**: personalisation (agent name, avatar, tone, language, model selection) and a self-serve distribution web so anyone can stand up their own Vokter without touching a terminal.
 
 ## Non-negotiable principles
 
 1. **Local first.** By default, everything is processed on your hardware.
-2. **Zero hidden calls.** No requests to third-party AI APIs. Verified in CI.
-3. **Your keys, your money.** When payments arrive: non-custodial or nothing.
+2. **Zero hidden calls.** No requests to third-party AI APIs. Check the code — that's the point.
+3. **Your keys, your money.** Non-custodial or nothing.
 4. **Real deletion.** Delete means delete, embeddings included.
 5. **Open source.** We don't ask for trust; we give proof.
-6. **For your life, not to retain you.** Vokter knows your world to give you back time and push you toward your real life — it will never use mechanics of attachment, loneliness, or engagement.
+6. **For your life, not to retain you.** Vokter gives you back time and pushes you toward your real life. No engagement mechanics, ever.
+
+## Security
+
+- Database encrypted at rest with AES-256 (SQLCipher). Set `VOKTER_DB_KEY`.
+- Runs as a non-root user inside Docker.
+- Web browsing is allowlist-only — Vokter cannot visit a domain you haven't explicitly permitted, and redirects to private/internal addresses are blocked.
+- All payments require explicit user confirmation (`confirmed: true`). Daily spend limits enforced in the route layer.
+- No data is ever sent to a third-party service unless you configure an external adapter (e.g. an LNbits instance you run yourself).
 
 ## License
 
@@ -48,8 +80,8 @@ AGPL-3.0 — free forever, and improvements flow back to the community.
 
 ## Community
 
-- Web: [vokter.eu](https://vokter.eu) *(coming soon)*
 - Discussions: the Discussions tab of this repository
+- [Contribute](CONTRIBUTING.md)
 
 ---
 
