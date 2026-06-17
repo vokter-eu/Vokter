@@ -84,15 +84,16 @@ class LightningAdapter(WalletAdapter):
             # The BOLT11 invoice encodes the real amount; fetch it from LNbits
             # rather than trusting the caller's `amount` parameter.
             actual_amount = amount
-            try:
-                details = await c.get(
-                    f"{_URL}/api/v1/payments/{payment_hash}",
-                    headers={"X-Api-Key": _ADMK},
-                )
-                if details.status_code == 200:
-                    actual_amount = abs(details.json().get("amount", amount * 1000)) // 1000
-            except Exception:
-                pass  # fall back to caller-supplied amount
+            if payment_hash:
+                try:
+                    details = await c.get(
+                        f"{_URL}/api/v1/payments/{payment_hash}",
+                        headers={"X-Api-Key": _ADMK},
+                    )
+                    if details.status_code == 200:
+                        actual_amount = abs(details.json().get("amount", amount * 1000)) // 1000
+                except Exception:
+                    pass  # fall back to caller-supplied amount
         return Transaction.new(self.name, "out", actual_amount, self.unit, memo=memo, output=payment_hash)
 
     async def history(self) -> list[Transaction]:

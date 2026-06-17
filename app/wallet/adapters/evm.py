@@ -155,7 +155,10 @@ class EVMAdapter(WalletAdapter):
                 abi=_ERC20_ABI,
             )
             raw_amount = amount * (10 ** self._decimals)
-            gas = int(contract.functions.transfer(to, raw_amount).estimate_gas({"from": acct.address}) * 1.2)
+            try:
+                gas = int(contract.functions.transfer(to, raw_amount).estimate_gas({"from": acct.address}) * 1.2)
+            except Exception:
+                raise HTTPException(400, "Transaction would fail — check token balance, allowances, and contract status")
             tx = contract.functions.transfer(to, raw_amount).build_transaction({
                 "from":     acct.address,
                 "nonce":    w3.eth.get_transaction_count(acct.address),

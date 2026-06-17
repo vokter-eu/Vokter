@@ -81,6 +81,17 @@ async def wallet_send(req: SendRequest):
                 )
 
         tx = await adapter.send(req.amount, req.destination, req.memo)
+        # Adapters that don't write their own DB row (EVM, Lightning, …) need this.
+        # INSERT OR IGNORE is a no-op for Cashu, which already writes atomically inside send().
+        with closing(get_db()) as db:
+            db.execute(
+                "INSERT OR IGNORE INTO wallet_transactions"
+                "(id,adapter,direction,amount,unit,memo,output,ts)"
+                " VALUES(?,?,?,?,?,?,?,?)",
+                (tx.id, tx.adapter, tx.direction, tx.amount,
+                 tx.unit, tx.memo, tx.output, tx.ts),
+            )
+            db.commit()
     return {"sent": tx.amount, "unit": tx.unit, "output": tx.output, "id": tx.id}
 
 
