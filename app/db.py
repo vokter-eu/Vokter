@@ -3,7 +3,8 @@ from config import DB_PATH, DB_KEY, sqlite_impl
 
 
 def get_db():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    if d := os.path.dirname(DB_PATH):
+        os.makedirs(d, exist_ok=True)
     conn = sqlite_impl.connect(DB_PATH)
     if DB_KEY:
         safe_key = DB_KEY.replace("'", "''")

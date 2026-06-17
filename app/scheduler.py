@@ -16,6 +16,9 @@ from db import get_db
 
 log = logging.getLogger("vokter.scheduler")
 
+# Tracks all in-flight _run_task coroutines so lifespan can cancel them cleanly.
+_running_tasks: set[asyncio.Task] = set()
+
 
 async def _run_task(task_id: str, goal: str, interval_seconds: int) -> None:
     run_id = str(uuid.uuid4())
@@ -78,7 +81,9 @@ async def _tick() -> None:
             (now,),
         ).fetchall()
     for task_id, goal, interval_seconds in rows:
-        asyncio.create_task(_run_task(task_id, goal, interval_seconds))
+        t = asyncio.create_task(_run_task(task_id, goal, interval_seconds))
+        _running_tasks.add(t)
+        t.add_done_callback(_running_tasks.discard)
 
 
 async def scheduler_loop() -> None:

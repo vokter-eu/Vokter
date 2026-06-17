@@ -8,6 +8,8 @@ from fastapi import HTTPException
 from config import OLLAMA_URL, EMBED_MODEL, TOP_K
 from db import get_db
 
+_SCAN_LIMIT = 10_000  # safety cap — prevents OOM on very large corpora
+
 
 async def embed(text: str) -> list[float]:
     async with httpx.AsyncClient(timeout=120) as client:
@@ -18,10 +20,18 @@ async def embed(text: str) -> list[float]:
     if r.status_code != 200:
         raise HTTPException(502, f"Ollama (embeddings) returned {r.status_code}. "
                                  f"Did you run 'ollama pull {EMBED_MODEL}'?")
-    return r.json()["embedding"]
+    try:
+        vec = r.json()["embedding"]
+    except (json.JSONDecodeError, KeyError):
+        raise HTTPException(502, "Ollama returned an unexpected embedding response")
+    if not vec:
+        raise HTTPException(502, "Ollama returned an empty embedding — is the model loaded?")
+    return vec
 
 
 def cosine(a: list[float], b: list[float]) -> float:
+    if len(a) != len(b):
+        return 0.0  # dimension mismatch — embedding model changed between ingest and query
     dot = sum(x * y for x, y in zip(a, b))
     na  = math.sqrt(sum(x * x for x in a))
     nb  = math.sqrt(sum(y * y for y in b))
@@ -30,7 +40,9 @@ def cosine(a: list[float], b: list[float]) -> float:
 
 async def retrieve(question: str) -> list[tuple]:
     with closing(get_db()) as db:
-        rows = db.execute("SELECT doc, content, embedding FROM chunks").fetchall()
+        rows = db.execute(
+            "SELECT doc, content, embedding FROM chunks LIMIT ?", (_SCAN_LIMIT,)
+        ).fetchall()
     if not rows:
         return []
     q_vec = await embed(question)

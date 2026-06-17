@@ -1,5 +1,7 @@
+import ipaddress
 import json
 import re
+import socket
 from contextlib import closing
 from datetime import datetime, timezone
 from urllib.parse import urlparse
@@ -26,6 +28,18 @@ class BrowseRequest(BaseModel):
 
 class AllowRequest(BaseModel):
     pattern: str
+
+
+def _is_private_host(host: str) -> bool:
+    """Return True if host resolves to a loopback or private/link-local address."""
+    try:
+        addr = ipaddress.ip_address(host)
+    except ValueError:
+        try:
+            addr = ipaddress.ip_address(socket.gethostbyname(host))
+        except OSError:
+            return False
+    return addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved
 
 
 def _is_allowed(url: str) -> bool:
@@ -75,6 +89,9 @@ async def browse(req: BrowseRequest):
 
     # Re-validate the final URL in case redirects led to a different origin.
     final_url = str(resp.url)
+    final_host = urlparse(final_url).hostname or ""
+    if _is_private_host(final_host):
+        raise HTTPException(403, "Redirect to a private/internal address is not allowed.")
     if not _is_allowed(final_url):
         raise HTTPException(403, f"Redirect led to non-allowlisted URL: {final_url}")
 
