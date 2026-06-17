@@ -4,6 +4,7 @@ WORKDIR /app
 # ffmpeg: faster-whisper needs it to decode WebM/OGG audio from the browser
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
+    libsqlcipher-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
