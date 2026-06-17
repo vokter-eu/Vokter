@@ -91,55 +91,86 @@ async def wallet_history():
 
 @router.get("/api/wallet/adapters")
 async def wallet_adapters():
+    import os
+    evm_rpc = bool(os.getenv("VOKTER_EVM_RPC_URL"))
+    sol_rpc = bool(os.getenv("VOKTER_SOLANA_RPC_URL"))
     return {
         "active": WALLET_ADAPTER,
         "adapters": [
+            # ── Default / privacy ──────────────────────────────────────────
             {
-                "name": "cashu",
+                "name": "cashu", "tier": "default",
                 "label": "Cashu e-cash",
-                "tier": "default",
-                "description": "Privacy layer: Chaumian blind signatures. Mint-agnostic.",
+                "description": "Chaumian blind signatures. Works with any Cashu mint.",
                 "status": "ready" if CASHU_MINT_URL else "needs VOKTER_CASHU_MINT_URL",
             },
+            # ── Lightning ──────────────────────────────────────────────────
             {
-                "name": "lightning",
-                "label": "Lightning (LNbits)",
-                "tier": "mainstream",
+                "name": "lightning", "tier": "mainstream",
+                "label": "Lightning Network (LNbits)",
                 "description": "Bitcoin Lightning via self-hosted LNbits.",
                 "status": "stub — set VOKTER_LNBITS_URL + keys",
             },
+            # ── EVM stablecoins (MiCA-regulated) ──────────────────────────
             {
-                "name": "eurc",
-                "label": "EURC — Circle",
-                "tier": "regulated",
-                "description": "MiCA euro stablecoin on Ethereum.",
-                "status": "stub — set VOKTER_ETH_RPC_URL + private key",
+                "name": "eurc", "tier": "regulated",
+                "label": "EURC — Circle (EVM)",
+                "description": "MiCA euro stablecoin. Ethereum, Avalanche, Base.",
+                "status": ("ready" if evm_rpc else "stub") + " — set VOKTER_EVM_* vars",
             },
             {
-                "name": "eure",
-                "label": "EURe — Monerium",
-                "tier": "regulated",
-                "description": "MiCA euro stablecoin on Gnosis Chain.",
-                "status": "stub — set VOKTER_ETH_RPC_URL + private key",
+                "name": "eure", "tier": "regulated",
+                "label": "EURe — Monerium (EVM)",
+                "description": "MiCA euro stablecoin. Ethereum, Gnosis, Polygon.",
+                "status": ("ready" if evm_rpc else "stub") + " — set VOKTER_EVM_* vars",
             },
             {
-                "name": "eurcv",
-                "label": "EURCV — Société Générale",
-                "tier": "regulated",
-                "description": "MiCA euro stablecoin on Ethereum.",
-                "status": "stub — set VOKTER_ETH_RPC_URL + private key",
+                "name": "eurcv", "tier": "regulated",
+                "label": "EURCV — Société Générale (EVM)",
+                "description": "MiCA euro stablecoin. Ethereum.",
+                "status": ("ready" if evm_rpc else "stub") + " — set VOKTER_EVM_* vars",
             },
             {
-                "name": "monero",
+                "name": "evm", "tier": "regulated",
+                "label": "Custom EVM token",
+                "description": "Any ERC-20 on any EVM chain. Set contract + RPC manually.",
+                "status": ("ready" if evm_rpc else "stub") + " — set VOKTER_EVM_* vars",
+            },
+            # ── Solana stablecoins ─────────────────────────────────────────
+            {
+                "name": "eurc-solana", "tier": "regulated",
+                "label": "EURC — Circle (Solana)",
+                "description": "EURC SPL token on Solana.",
+                "status": ("ready" if sol_rpc else "stub") + " — set VOKTER_SOLANA_* vars",
+            },
+            {
+                "name": "eure-solana", "tier": "regulated",
+                "label": "EURe — Monerium (Solana)",
+                "description": "EURe SPL token on Solana.",
+                "status": ("ready" if sol_rpc else "stub") + " — set VOKTER_SOLANA_* vars",
+            },
+            {
+                "name": "sol", "tier": "mainstream",
+                "label": "SOL (native)",
+                "description": "Native Solana token.",
+                "status": ("ready" if sol_rpc else "stub") + " — set VOKTER_SOLANA_* vars",
+            },
+            {
+                "name": "solana", "tier": "mainstream",
+                "label": "Custom Solana SPL token",
+                "description": "Any SPL token. Set mint address manually.",
+                "status": ("ready" if sol_rpc else "stub") + " — set VOKTER_SOLANA_* vars",
+            },
+            # ── Cyberpunk / privacy ────────────────────────────────────────
+            {
+                "name": "monero", "tier": "cyberpunk",
                 "label": "Monero (XMR)",
-                "tier": "cyberpunk",
                 "description": "Untraceable by design. Ring signatures + stealth addresses.",
-                "status": "stub — needs monero-wallet-rpc + VOKTER_MONERO_RPC_URL",
+                "status": "stub — set VOKTER_MONERO_RPC_URL",
             },
             {
-                "name": "bitcoin",
+                "name": "bitcoin", "tier": "mainstream",
                 "label": "Bitcoin (on-chain)",
-                "tier": "mainstream",
                 "description": "On-chain BTC via Bitcoin Core RPC.",
                 "status": "stub — set VOKTER_BTC_RPC_URL",
             },
