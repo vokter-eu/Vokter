@@ -12,6 +12,7 @@ Phase 3+ once coincurve is integrated for blind-signature math.
 
 Protocol specs: https://github.com/cashubtc/nuts
 """
+import asyncio
 import base64
 import json
 
@@ -20,6 +21,10 @@ from fastapi import HTTPException
 
 from db import get_db
 from wallet import WalletAdapter, Transaction
+
+# Serialises proof reads + writes inside send() to prevent double-spend when
+# two coroutines race between _unspent() and _mark_spent().
+_SEND_LOCK = asyncio.Lock()
 
 
 # ---------- token codec -------------------------------------------------------
@@ -111,7 +116,9 @@ class CashuAdapter(WalletAdapter):
 
     # -- mint helpers ---------------------------------------------------------
 
-    async def _known_keysets(self) -> set[str]:
+    async def _known_keysets(self) -> set[str] | None:
+        """Returns active keyset IDs, or None if the mint is unreachable.
+        None means 'unknown' — callers must not silently skip validation."""
         try:
             async with httpx.AsyncClient(timeout=10) as c:
                 r = await c.get(f"{self._mint}/v1/keysets")
@@ -119,7 +126,7 @@ class CashuAdapter(WalletAdapter):
                 return {ks["id"] for ks in r.json().get("keysets", [])}
         except httpx.HTTPError:
             pass
-        return set()
+        return None
 
     async def _discover_unit(self) -> None:
         try:
@@ -157,7 +164,10 @@ class CashuAdapter(WalletAdapter):
                         f"Token is from mint {mint!r} but configured mint is {self._mint!r}",
                     )
                 for proof in entry.get("proofs", []):
-                    if known and proof.get("id") not in known:
+                    # known is None when mint is unreachable — skip validation rather
+                    # than accept blindly. known=set() means mint responded with no
+                    # active keysets, which should also reject.
+                    if known is not None and proof.get("id") not in known:
                         raise HTTPException(
                             400,
                             f"Keyset {proof.get('id')!r} is not active on this mint"
@@ -180,28 +190,45 @@ class CashuAdapter(WalletAdapter):
         if amount <= 0:
             raise HTTPException(400, "Amount must be positive")
 
-        proofs = self._unspent()
-        selected = _select_proofs(proofs, amount)
-        if selected is None:
-            available = sum(p["amount"] for p in proofs)
-            raise HTTPException(
-                400,
-                f"Cannot make exact change for {amount} {self._unit}. "
-                f"Available balance: {available}. "
-                "Cashu requires proof denominations that sum exactly to the requested amount. "
-                "Try a different amount, or receive proofs with smaller denominations.",
+        # Discover unit before the lock — it's an HTTP call unrelated to proof state.
+        await self._discover_unit()
+
+        async with _SEND_LOCK:
+            proofs = self._unspent()
+            selected = _select_proofs(proofs, amount)
+            if selected is None:
+                available = sum(p["amount"] for p in proofs)
+                raise HTTPException(
+                    400,
+                    f"Cannot make exact change for {amount} {self._unit}. "
+                    f"Available balance: {available}. "
+                    "Cashu requires proof denominations that sum exactly to the requested amount. "
+                    "Try a different amount, or receive proofs with smaller denominations.",
+                )
+
+            token_str = _encode_token(self._mint, selected, self._unit, memo)
+            tx = Transaction.new(
+                self.name, "out", amount, self._unit,
+                memo=memo or destination,
+                output=token_str,
             )
 
-        await self._discover_unit()
-        token_str = _encode_token(self._mint, selected, self._unit, memo)
-        self._mark_spent([p["secret"] for p in selected])
+            # Single atomic transaction: mark proofs spent + record the outgoing tx.
+            # If either write fails neither is committed — no silent fund loss.
+            with get_db() as db:
+                db.executemany(
+                    "UPDATE cashu_proofs SET spent=1 WHERE id=?",
+                    [(p["secret"],) for p in selected],
+                )
+                db.execute(
+                    "INSERT INTO wallet_transactions"
+                    "(id,adapter,direction,amount,unit,memo,output,ts)"
+                    " VALUES(?,?,?,?,?,?,?,?)",
+                    (tx.id, tx.adapter, tx.direction, tx.amount,
+                     tx.unit, tx.memo, tx.output, tx.ts),
+                )
+                db.commit()
 
-        tx = Transaction.new(
-            self.name, "out", amount, self._unit,
-            memo=memo or destination,
-            output=token_str,
-        )
-        self._record_tx(tx)
         return tx
 
     async def history(self) -> list[Transaction]:

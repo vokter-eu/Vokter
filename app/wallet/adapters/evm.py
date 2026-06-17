@@ -52,6 +52,15 @@ _SYMBOL   = os.getenv("VOKTER_EVM_TOKEN_SYMBOL",     "EVM")
 _DECIMALS = int(os.getenv("VOKTER_EVM_TOKEN_DECIMALS", "18"))
 _CHAIN    = os.getenv("VOKTER_EVM_CHAIN",             "")
 
+# Known decimal places for MiCA stablecoins when no env override is provided.
+# EURC and EURCV use 6 decimals; EURe uses 18. Without this mapping, a preset
+# like `eurc` would silently use 18 decimals and send 10^12 × the intended amount.
+_PRESET_DECIMALS: dict[str, int] = {
+    "eurc":  6,
+    "eurcv": 6,
+    "eure":  18,
+}
+
 # Minimum ERC-20 ABI — only the functions we need
 _ERC20_ABI = [
     {"name": "balanceOf",  "type": "function", "stateMutability": "view",
@@ -71,6 +80,12 @@ class EVMAdapter(WalletAdapter):
     def __init__(self, preset_symbol: str = "") -> None:
         self.name = preset_symbol.lower() if preset_symbol else "evm"
         self.unit = preset_symbol.upper() if preset_symbol else _SYMBOL
+        # Preset wins over env var for known tokens; env var overrides both.
+        env_override = os.getenv("VOKTER_EVM_TOKEN_DECIMALS")
+        self._decimals = (
+            int(env_override) if env_override
+            else _PRESET_DECIMALS.get(self.name, _DECIMALS)
+        )
 
     def _require_config(self) -> None:
         if not _RPC or not _KEY:
@@ -97,7 +112,6 @@ class EVMAdapter(WalletAdapter):
         return w3
 
     def _account(self, w3):
-        from web3 import Web3  # already imported above
         return w3.eth.account.from_key(_KEY)
 
     async def balance(self) -> int:
@@ -110,7 +124,7 @@ class EVMAdapter(WalletAdapter):
                 abi=_ERC20_ABI,
             )
             raw = contract.functions.balanceOf(acct.address).call()
-            return raw // (10 ** _DECIMALS)
+            return raw // (10 ** self._decimals)
         else:
             # native coin (ETH, MATIC, …)
             wei = w3.eth.get_balance(acct.address)
@@ -140,7 +154,7 @@ class EVMAdapter(WalletAdapter):
                 address=w3.to_checksum_address(_CONTRACT),
                 abi=_ERC20_ABI,
             )
-            raw_amount = amount * (10 ** _DECIMALS)
+            raw_amount = amount * (10 ** self._decimals)
             tx = contract.functions.transfer(to, raw_amount).build_transaction({
                 "from":  acct.address,
                 "nonce": w3.eth.get_transaction_count(acct.address),
@@ -159,7 +173,11 @@ class EVMAdapter(WalletAdapter):
             }
 
         signed = acct.sign_transaction(tx)
-        tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+        # web3.py v6 uses raw_transaction (snake_case); v5 used rawTransaction.
+        raw_tx = getattr(signed, "raw_transaction", None) or getattr(signed, "rawTransaction", None)
+        if not raw_tx:
+            raise HTTPException(500, "Failed to serialize signed transaction (unexpected web3 version?)")
+        tx_hash = w3.eth.send_raw_transaction(raw_tx)
         return Transaction.new(
             self.name, "out", amount, self.unit,
             memo=memo,

@@ -5,6 +5,7 @@ Every payment goes through an explicit confirmation gate: POST /api/wallet/send
 refuses any request where confirmed=false. This is enforced here so no adapter
 can accidentally bypass it — the invariant is structural, not advisory.
 """
+import os
 import time
 
 from fastapi import APIRouter, HTTPException
@@ -91,7 +92,6 @@ async def wallet_history():
 
 @router.get("/api/wallet/adapters")
 async def wallet_adapters():
-    import os
     evm_rpc = bool(os.getenv("VOKTER_EVM_RPC_URL"))
     sol_rpc = bool(os.getenv("VOKTER_SOLANA_RPC_URL"))
     return {
