@@ -25,6 +25,46 @@
   .tlog-error { color:#f85149; }
   .tlog-answer { margin-top:8px; background:var(--panel); border:1px solid var(--line);
                  border-radius:8px; padding:10px 12px; white-space:pre-wrap; }
+  #wallet { padding:12px 0; border-bottom:1px solid var(--line); }
+  #wallet-top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  #wallet-balance { font-size:.95rem; }
+  #wallet-balance strong { color:var(--accent); }
+  #wallet-badge { font-size:.75rem; color:var(--muted); background:var(--panel);
+                  border:1px solid var(--line); border-radius:4px; padding:2px 6px; }
+  #wallet-sections { margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; }
+  .wallet-input { padding:7px 10px; border-radius:8px; border:1px solid var(--line);
+                  background:var(--panel); color:var(--text); font-size:.85rem; }
+  #wallet-token { width:100%; margin-top:8px; font-family:monospace; font-size:.78rem; }
+  #wallet-send-row { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  #wallet-send-amount { width:90px; }
+  #wallet-send-memo { flex:1; min-width:120px; }
+  #wallet-output { margin-top:8px; }
+  #wallet-output-token { width:100%; font-family:monospace; font-size:.75rem;
+                          background:var(--panel); border:1px solid var(--line);
+                          border-radius:6px; padding:8px; color:var(--accent);
+                          word-break:break-all; white-space:pre-wrap; }
+  #wallet-history { margin-top:8px; font-size:.82rem; display:none; }
+  .wtx { display:flex; justify-content:space-between; align-items:center;
+          padding:4px 8px; background:var(--panel); border:1px solid var(--line);
+          border-radius:6px; margin-top:3px; }
+  .wtx-in  { color:var(--accent); }
+  .wtx-out { color:#f85149; }
+  #wallet-adapters-panel { margin-top:8px; display:none; }
+  .wadapter { padding:5px 8px; border:1px solid var(--line); border-radius:6px;
+               margin-top:4px; font-size:.8rem; }
+  .wadapter-name { font-weight:600; }
+  .wadapter-tier { font-size:.72rem; color:var(--muted); margin-left:6px; }
+  .wadapter-status { color:var(--muted); font-size:.75rem; margin-top:2px; }
+  .wadapter.active { border-color:var(--accent); }
+  /* confirmation modal */
+  #wallet-modal { display:none; position:fixed; inset:0; background:#0009;
+                   z-index:100; align-items:center; justify-content:center; }
+  #wallet-modal.open { display:flex; }
+  #wallet-modal-box { background:var(--panel); border:1px solid var(--line);
+                       border-radius:12px; padding:20px 24px; max-width:380px; width:90%; }
+  #wallet-modal-box h3 { margin-bottom:8px; font-size:1rem; }
+  #wallet-modal-box p { color:var(--muted); font-size:.88rem; margin-bottom:16px; }
+  #wallet-modal-btns { display:flex; gap:8px; }
   #web { padding:12px 0; border-bottom:1px solid var(--line); }
   #web-top { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   #web-url { flex:1; min-width:180px; padding:7px 10px; border-radius:8px;
@@ -79,7 +119,7 @@
 </head>
 <body>
 <header>
-  <h1>🛡️ Vokter <span>v0.4</span></h1>
+  <h1>🛡️ Vokter <span>v0.5</span></h1>
   <div class="tag">Everything runs on your machine. Not a single byte leaves here.</div>
   <label class="upload">＋ Teach it a document (PDF, TXT, MD)
     <input type="file" id="file" accept=".pdf,.txt,.md">
@@ -93,6 +133,55 @@
   </div>
   <div id="task-log"></div>
 </div>
+<div id="wallet">
+  <div id="wallet-top">
+    <span id="wallet-balance">Balance: <strong>—</strong></span>
+    <span id="wallet-badge">cashu</span>
+    <button class="btn-sm" id="btn-wallet-refresh">⟳</button>
+    <button class="btn-sm" id="btn-wallet-history-toggle">History</button>
+    <button class="btn-sm" id="btn-wallet-adapters-toggle">Adapters</button>
+  </div>
+
+  <div id="wallet-sections">
+    <div style="flex:1;min-width:200px">
+      <input type="text" class="wallet-input" id="wallet-token" placeholder="Paste cashuA… token to receive">
+      <div style="margin-top:4px">
+        <button class="btn-sm" id="btn-wallet-receive">Receive</button>
+      </div>
+    </div>
+    <div style="flex:1;min-width:200px">
+      <div id="wallet-send-row">
+        <input type="number" class="wallet-input" id="wallet-send-amount" placeholder="Amount" min="1">
+        <input type="text" class="wallet-input" id="wallet-send-memo" placeholder="Memo (optional)">
+      </div>
+      <div style="margin-top:4px">
+        <button class="btn-sm" id="btn-wallet-send">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="wallet-output" style="display:none">
+    <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px">Token to share with recipient:</div>
+    <div id="wallet-output-token"></div>
+    <button class="btn-sm" id="btn-wallet-copy" style="margin-top:4px">Copy token</button>
+  </div>
+
+  <div id="wallet-history"></div>
+  <div id="wallet-adapters-panel"></div>
+</div>
+
+<!-- payment confirmation modal -->
+<div id="wallet-modal">
+  <div id="wallet-modal-box">
+    <h3>Confirm payment</h3>
+    <p id="wallet-modal-text"></p>
+    <div id="wallet-modal-btns">
+      <button class="btn" id="btn-wallet-confirm">Confirm</button>
+      <button class="btn-sm" id="btn-wallet-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div id="web">
   <div id="web-top">
     <input type="url" id="web-url" placeholder="https://…">
@@ -472,6 +561,138 @@ document.getElementById('btn-plan').onclick = async () => {
   btn.disabled = false;
 };
 
+// ── Wallet ────────────────────────────────────────────────────────────────────
+
+async function loadWalletBalance() {
+  try {
+    const r = await fetch('/api/wallet/balance');
+    if (!r.ok) return;
+    const d = await r.json();
+    document.getElementById('wallet-balance').innerHTML =
+      `Balance: <strong>${d.balance.toLocaleString()} ${d.unit}</strong>`;
+    document.getElementById('wallet-badge').textContent = d.adapter;
+  } catch {}
+}
+
+document.getElementById('btn-wallet-refresh').onclick = loadWalletBalance;
+
+document.getElementById('btn-wallet-receive').onclick = async () => {
+  const token = document.getElementById('wallet-token').value.trim();
+  if (!token) return;
+  const btn = document.getElementById('btn-wallet-receive');
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/wallet/receive', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({token}),
+    });
+    const d = await r.json();
+    if (!r.ok) { alert(d.detail || 'Receive failed'); return; }
+    document.getElementById('wallet-token').value = '';
+    alert(`Received ${d.received.toLocaleString()} ${d.unit}`);
+    loadWalletBalance();
+  } catch (e) { alert('Error: ' + e); }
+  btn.disabled = false;
+};
+
+let _pendingSend = null;
+
+document.getElementById('btn-wallet-send').onclick = () => {
+  const amount = parseInt(document.getElementById('wallet-send-amount').value, 10);
+  const memo   = document.getElementById('wallet-send-memo').value.trim();
+  if (!amount || amount <= 0) { alert('Enter a valid amount'); return; }
+  _pendingSend = {amount, memo};
+  document.getElementById('wallet-modal-text').textContent =
+    `Send ${amount.toLocaleString()} tokens${memo ? ' — ' + memo : ''}. This cannot be undone.`;
+  document.getElementById('wallet-modal').classList.add('open');
+};
+
+document.getElementById('btn-wallet-cancel').onclick = () => {
+  document.getElementById('wallet-modal').classList.remove('open');
+  _pendingSend = null;
+};
+
+document.getElementById('btn-wallet-confirm').onclick = async () => {
+  if (!_pendingSend) return;
+  document.getElementById('wallet-modal').classList.remove('open');
+  const {amount, memo} = _pendingSend;
+  _pendingSend = null;
+  const btn = document.getElementById('btn-wallet-send');
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/wallet/send', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({amount, memo, confirmed: true}),
+    });
+    const d = await r.json();
+    if (!r.ok) { alert(d.detail || 'Send failed'); btn.disabled = false; return; }
+    document.getElementById('wallet-send-amount').value = '';
+    document.getElementById('wallet-send-memo').value   = '';
+    if (d.output) {
+      const out = document.getElementById('wallet-output');
+      document.getElementById('wallet-output-token').textContent = d.output;
+      out.style.display = '';
+    }
+    loadWalletBalance();
+  } catch (e) { alert('Error: ' + e); }
+  btn.disabled = false;
+};
+
+document.getElementById('btn-wallet-copy').onclick = () => {
+  const text = document.getElementById('wallet-output-token').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('btn-wallet-copy');
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+  });
+};
+
+document.getElementById('btn-wallet-history-toggle').onclick = async () => {
+  const el = document.getElementById('wallet-history');
+  if (el.style.display !== 'none') { el.style.display = 'none'; return; }
+  el.style.display = '';
+  try {
+    const r = await fetch('/api/wallet/history');
+    const txs = await r.json();
+    if (!txs.length) { el.textContent = 'No transactions yet.'; return; }
+    el.innerHTML = '';
+    txs.forEach(t => {
+      const d = document.createElement('div');
+      d.className = 'wtx';
+      const sign = t.direction === 'in' ? '+' : '−';
+      const cls  = t.direction === 'in' ? 'wtx-in' : 'wtx-out';
+      d.innerHTML = `<span class="${cls}">${sign}${t.amount.toLocaleString()} ${t.unit}</span>` +
+                    `<span style="color:var(--muted);font-size:.75rem">${t.memo || ''}</span>` +
+                    `<span style="color:var(--muted);font-size:.72rem">${new Date(t.ts*1000).toLocaleDateString()}</span>`;
+      el.appendChild(d);
+    });
+  } catch {}
+};
+
+document.getElementById('btn-wallet-adapters-toggle').onclick = async () => {
+  const el = document.getElementById('wallet-adapters-panel');
+  if (el.style.display !== 'none') { el.style.display = 'none'; return; }
+  el.style.display = '';
+  try {
+    const r = await fetch('/api/wallet/adapters');
+    const d = await r.json();
+    el.innerHTML = '';
+    d.adapters.forEach(a => {
+      const div = document.createElement('div');
+      div.className = 'wadapter' + (a.name === d.active ? ' active' : '');
+      div.innerHTML =
+        `<div><span class="wadapter-name">${a.label}</span>` +
+        `<span class="wadapter-tier">[${a.tier}]</span></div>` +
+        `<div class="wadapter-status">${a.status}</div>`;
+      el.appendChild(div);
+    });
+  } catch {}
+};
+
+loadWalletBalance();
 loadDocs();
 loadEmailStatus();
 loadPerms();

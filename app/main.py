@@ -17,8 +17,9 @@ from voice.whisper import router as whisper_router
 from voice.piper import router as piper_router
 from browser import router as browser_router
 from planner import router as planner_router
+from wallet_routes import router as wallet_router
 
-app = FastAPI(title="Vokter", version="0.4.0")
+app = FastAPI(title="Vokter", version="0.5.0")
 app.include_router(ingestion_router)
 app.include_router(chat_router)
 app.include_router(email_router)
@@ -26,6 +27,7 @@ app.include_router(whisper_router)
 app.include_router(piper_router)
 app.include_router(browser_router)
 app.include_router(planner_router)
+app.include_router(wallet_router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 

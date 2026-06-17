@@ -26,6 +26,12 @@ EMAIL_PASSWORD  = os.getenv("VOKTER_EMAIL_PASSWORD",    "")
 EMAIL_FOLDER    = os.getenv("VOKTER_EMAIL_FOLDER",      "INBOX")
 EMAIL_MAX_SYNC  = int(os.getenv("VOKTER_EMAIL_MAX_SYNC", "200"))
 
+# Wallet (Phase 3)
+# VOKTER_WALLET_ADAPTER: cashu | lightning | eurc | eure | eurcv | monero | bitcoin
+WALLET_ADAPTER      = os.getenv("VOKTER_WALLET_ADAPTER",    "cashu")
+CASHU_MINT_URL      = os.getenv("VOKTER_CASHU_MINT_URL",    "")
+WALLET_SPEND_LIMIT  = int(os.getenv("VOKTER_WALLET_SPEND_LIMIT", "0"))  # per 24h in adapter unit; 0 = no limit
+
 sqlite_impl = _plain_sqlite3
 
 if DB_KEY:

@@ -44,4 +44,25 @@ def get_db():
                added_at   TEXT NOT NULL
            )"""
     )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS cashu_proofs (
+               id         TEXT PRIMARY KEY,   -- proof secret
+               mint       TEXT NOT NULL,
+               amount     INTEGER NOT NULL,
+               proof_json TEXT NOT NULL,
+               spent      INTEGER NOT NULL DEFAULT 0
+           )"""
+    )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS wallet_transactions (
+               id        TEXT PRIMARY KEY,
+               adapter   TEXT NOT NULL,
+               direction TEXT NOT NULL,       -- 'in' | 'out'
+               amount    INTEGER NOT NULL,
+               unit      TEXT NOT NULL,
+               memo      TEXT DEFAULT '',
+               output    TEXT DEFAULT '',     -- token / txid / bolt11 for the counterparty
+               ts        REAL NOT NULL
+           )"""
+    )
     return conn

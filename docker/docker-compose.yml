@@ -1,4 +1,4 @@
-# Vokter — Phase 1 (preliminary)
+# Vokter — Phase 3
 # Spins up the local AI engine. Not a byte leaves your machine.
 #
 # Uso:
@@ -65,6 +65,27 @@ services:
       - VOKTER_WHISPER_DEVICE=cpu
       # Piper voice: see https://huggingface.co/rhasspy/piper-voices for available voices
       - VOKTER_PIPER_VOICE=en_US-lessac-medium
+      # Wallet (Phase 3). Adapter options: cashu | lightning | eurc | eure | eurcv | monero | bitcoin
+      # Cashu (default): point to any self-hosted or public Cashu mint.
+      #   - Regulated / MiCA euro mints: https://legend.lnbits.com (supports EURC mints)
+      #   - Cyberpunk: run your own cashu mint (github.com/cashubtc/nutshell)
+      - VOKTER_WALLET_ADAPTER=cashu
+      - VOKTER_CASHU_MINT_URL=
+      # Daily spending limit in the adapter's unit (0 = no limit)
+      - VOKTER_WALLET_SPEND_LIMIT=0
+      # Lightning adapter (set VOKTER_WALLET_ADAPTER=lightning to activate)
+      - VOKTER_LNBITS_URL=
+      - VOKTER_LNBITS_INVOICE_KEY=
+      - VOKTER_LNBITS_ADMIN_KEY=
+      # ERC-20 stablecoins (EURC/EURe/EURCV — set VOKTER_WALLET_ADAPTER=eurc/eure/eurcv)
+      - VOKTER_ETH_RPC_URL=
+      - VOKTER_ETH_PRIVATE_KEY=
+      # Monero (set VOKTER_WALLET_ADAPTER=monero — run monero-wallet-rpc separately)
+      - VOKTER_MONERO_RPC_URL=
+      # Bitcoin on-chain (set VOKTER_WALLET_ADAPTER=bitcoin — requires Bitcoin Core)
+      - VOKTER_BTC_RPC_URL=
+      - VOKTER_BTC_RPC_USER=
+      - VOKTER_BTC_RPC_PASS=
     depends_on:
       - ollama
 
