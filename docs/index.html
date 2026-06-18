@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vokter — Your AI. Your machine. Your data.</title>
+<meta name="description" content="Vokter is a sovereign AI agent that runs entirely on your machine. No cloud, no accounts, no telemetry. Your documents, emails, wallet, and voice — all local.">
+<meta property="og:title" content="Vokter — Your AI. Your machine. Your data.">
+<meta property="og:description" content="A sovereign AI agent that runs entirely on your machine. Open source, AGPL-3.0.">
+<meta property="og:type" content="website">
+<style>
+  :root {
+    --bg:     #0e1116;
+    --panel:  #161b22;
+    --line:   #2d333b;
+    --text:   #e6edf3;
+    --muted:  #8b949e;
+    --accent: #4cc38a;
+    --red:    #f85149;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 17px/1.6 system-ui, -apple-system, sans-serif;
+  }
+
+  /* ── Nav ── */
+  nav {
+    position: sticky; top: 0; z-index: 10;
+    background: #0e1116ee;
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 32px;
+  }
+  .nav-logo { font-weight: 700; font-size: 1.1rem; color: var(--accent); text-decoration: none; }
+  .nav-links { display: flex; gap: 24px; }
+  .nav-links a { color: var(--muted); text-decoration: none; font-size: .9rem; }
+  .nav-links a:hover { color: var(--text); }
+  .nav-cta {
+    background: var(--accent); color: #06251a; font-weight: 700;
+    padding: 8px 20px; border-radius: 8px; text-decoration: none;
+    font-size: .9rem; white-space: nowrap;
+  }
+  .nav-cta:hover { opacity: .9; }
+
+  /* ── Hero ── */
+  .hero {
+    max-width: 760px; margin: 0 auto;
+    padding: 96px 24px 80px;
+    text-align: center;
+  }
+  .hero-badge {
+    display: inline-block; margin-bottom: 24px;
+    background: var(--panel); border: 1px solid var(--line);
+    color: var(--muted); font-size: .82rem;
+    padding: 4px 12px; border-radius: 20px;
+  }
+  .hero-badge span { color: var(--accent); }
+  h1 {
+    font-size: clamp(2rem, 6vw, 3.4rem);
+    line-height: 1.15; font-weight: 800; letter-spacing: -.02em;
+    margin-bottom: 24px;
+  }
+  h1 em { color: var(--accent); font-style: normal; }
+  .hero-sub {
+    color: var(--muted); font-size: 1.15rem;
+    max-width: 540px; margin: 0 auto 40px;
+  }
+  .hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn-primary {
+    background: var(--accent); color: #06251a; font-weight: 700;
+    padding: 14px 32px; border-radius: 10px; text-decoration: none;
+    font-size: 1rem;
+  }
+  .btn-primary:hover { opacity: .9; }
+  .btn-secondary {
+    border: 1px solid var(--line); color: var(--muted);
+    padding: 14px 32px; border-radius: 10px; text-decoration: none;
+    font-size: 1rem;
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Install ── */
+  .install {
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding: 64px 24px;
+  }
+  .install-inner { max-width: 760px; margin: 0 auto; }
+  .install h2 { font-size: 1.6rem; margin-bottom: 8px; }
+  .install p  { color: var(--muted); margin-bottom: 40px; }
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+  .step {
+    background: var(--bg); border: 1px solid var(--line);
+    border-radius: 12px; padding: 20px;
+  }
+  .step-num {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: #4cc38a22; border: 1px solid #4cc38a44;
+    color: var(--accent); font-size: .85rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 12px;
+  }
+  .step h3 { font-size: .95rem; margin-bottom: 8px; }
+  .step code {
+    display: block; background: #0e1116;
+    border: 1px solid var(--line); border-radius: 6px;
+    padding: 8px 10px; font-family: monospace; font-size: .8rem;
+    color: var(--accent); white-space: pre-wrap; word-break: break-all;
+  }
+  .step p { color: var(--muted); font-size: .85rem; margin-top: 8px; margin-bottom: 0; }
+
+  /* ── Features ── */
+  .features { max-width: 760px; margin: 0 auto; padding: 80px 24px; }
+  .features h2 { font-size: 1.6rem; margin-bottom: 8px; }
+  .features > p { color: var(--muted); margin-bottom: 40px; }
+  .feat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+  }
+  .feat {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 20px;
+  }
+  .feat-icon { font-size: 1.5rem; margin-bottom: 10px; }
+  .feat h3 { font-size: .95rem; margin-bottom: 6px; }
+  .feat p { color: var(--muted); font-size: .84rem; line-height: 1.5; }
+
+  /* ── Principles ── */
+  .principles {
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding: 80px 24px;
+  }
+  .principles-inner { max-width: 760px; margin: 0 auto; }
+  .principles h2 { font-size: 1.6rem; margin-bottom: 8px; }
+  .principles > div > p { color: var(--muted); margin-bottom: 40px; }
+  .principle-list { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+  .principle-list li {
+    display: flex; gap: 14px; align-items: flex-start;
+    background: var(--bg); border: 1px solid var(--line);
+    border-radius: 10px; padding: 14px 18px;
+  }
+  .pl-num {
+    color: var(--accent); font-weight: 700; font-size: .9rem;
+    min-width: 20px; margin-top: 1px;
+  }
+  .pl-text strong { display: block; margin-bottom: 2px; }
+  .pl-text span { color: var(--muted); font-size: .88rem; }
+
+  /* ── Hardware ── */
+  .hardware { max-width: 760px; margin: 0 auto; padding: 80px 24px; }
+  .hardware h2 { font-size: 1.6rem; margin-bottom: 8px; }
+  .hardware > p { color: var(--muted); margin-bottom: 32px; }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  th {
+    text-align: left; padding: 10px 14px;
+    color: var(--muted); font-size: .8rem; text-transform: uppercase;
+    letter-spacing: .06em; border-bottom: 1px solid var(--line);
+  }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  tr:last-child td { border-bottom: none; }
+  td code {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 4px; padding: 1px 6px; font-family: monospace; font-size: .82rem;
+  }
+
+  /* ── Manifesto strip ── */
+  .manifesto-strip {
+    background: #4cc38a0a; border-top: 1px solid #4cc38a22;
+    border-bottom: 1px solid #4cc38a22;
+    padding: 56px 24px; text-align: center;
+  }
+  .manifesto-strip blockquote {
+    max-width: 600px; margin: 0 auto 24px;
+    font-size: 1.15rem; line-height: 1.7; font-style: italic; color: var(--text);
+  }
+  .manifesto-strip blockquote strong { color: var(--accent); font-style: normal; }
+  .manifesto-strip a { color: var(--accent); font-size: .9rem; }
+
+  /* ── Footer ── */
+  footer {
+    max-width: 760px; margin: 0 auto;
+    padding: 40px 24px; color: var(--muted);
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 12px; font-size: .85rem;
+  }
+  footer a { color: var(--muted); text-decoration: none; }
+  footer a:hover { color: var(--accent); }
+  .footer-links { display: flex; gap: 20px; }
+
+  @media (max-width: 600px) {
+    nav { padding: 12px 16px; }
+    .nav-links { display: none; }
+    .hero { padding: 64px 16px 56px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="/">🛡️ Vokter</a>
+  <div class="nav-links">
+    <a href="#install">Install</a>
+    <a href="#features">Features</a>
+    <a href="#principles">Principles</a>
+    <a href="MANIFESTO.html">Manifesto</a>
+  </div>
+  <a class="nav-cta" href="https://github.com/vokter-eu/Vokter" target="_blank">View on GitHub →</a>
+</nav>
+
+<section class="hero">
+  <div class="hero-badge">Open source · AGPL-3.0 · <span>European project</span></div>
+  <h1>Your AI.<br><em>Your machine.</em><br>Your data. By right.</h1>
+  <p class="hero-sub">
+    Vokter is a sovereign AI agent that runs entirely on your hardware.
+    No cloud. No accounts. No telemetry. Not a single byte leaves your machine
+    without your explicit permission.
+  </p>
+  <div class="hero-actions">
+    <a class="btn-primary" href="#install">Get started in 3 steps</a>
+    <a class="btn-secondary" href="https://github.com/vokter-eu/Vokter" target="_blank">★ Star on GitHub</a>
+  </div>
+</section>
+
+<section class="install" id="install">
+  <div class="install-inner">
+    <h2>Up and running in minutes</h2>
+    <p>Requirements: Docker and Docker Compose. Minimum 8 GB RAM.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h3>Clone and configure</h3>
+        <code>git clone https://github.com/vokter-eu/Vokter
+cd Vokter
+cp .env.example .env</code>
+        <p>Open <code>.env</code> and set <code>VOKTER_DB_KEY</code> to a strong passphrase. That's the only required change.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h3>Start the stack</h3>
+        <code>docker compose up -d --build
+docker exec -it vokter-ollama \
+  ollama pull llama3.2:3b
+docker exec -it vokter-ollama \
+  ollama pull nomic-embed-text</code>
+        <p>First run downloads the AI models. After that, everything is local — no internet needed.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h3>Open your guardian</h3>
+        <code>http://localhost:8080</code>
+        <p>Upload a document and ask it anything. Your data never leaves this address.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="features" id="features">
+  <h2>Everything runs locally</h2>
+  <p>Vokter is not a wrapper around a cloud AI. It is a complete local stack.</p>
+  <div class="feat-grid">
+    <div class="feat">
+      <div class="feat-icon">📄</div>
+      <h3>Document memory</h3>
+      <p>Ingest PDF, TXT, Markdown. Chunked, embedded, and stored with AES-256 encryption. Real deletion — embeddings included.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">💬</div>
+      <h3>Local chat</h3>
+      <p>Ask questions about your documents. Persistent conversation history per session. Answers cite their sources.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">📧</div>
+      <h3>Email connector</h3>
+      <p>IMAP/SSL — syncs and indexes your inbox locally. Ask Vokter about your emails without any cloud service seeing them.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">🎤</div>
+      <h3>Local voice</h3>
+      <p>Talk to Vokter with Whisper (speech-to-text) and Piper (text-to-speech). Your voice never leaves the machine.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">🌐</div>
+      <h3>Web browsing</h3>
+      <p>Fetch and memorize web pages. Allowlist-only — Vokter only visits domains you explicitly permit.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">🗓️</div>
+      <h3>Task planner</h3>
+      <p>Give Vokter a goal. It breaks it into steps, browses, queries its memory, and streams the result back.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">💸</div>
+      <h3>Non-custodial wallet</h3>
+      <p>Cashu e-cash, Lightning, EURC/EURe, Solana, Monero, Bitcoin. Human confirmation always. Your keys never leave.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">⏰</div>
+      <h3>Scheduled tasks</h3>
+      <p>Set recurring goals — daily digest, price alerts, email summaries. Vokter runs them autonomously and saves the output.</p>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">🔌</div>
+      <h3>MCP + Nostr</h3>
+      <p>Connect Vokter to Claude Desktop via MCP. Or send it encrypted DMs on Nostr — it responds using your local tools.</p>
+    </div>
+  </div>
+</section>
+
+<section class="principles" id="principles">
+  <div class="principles-inner">
+    <h2>Non-negotiable principles</h2>
+    <div>
+      <p>These are architectural constraints, not marketing claims. They cannot be changed without forking the project.</p>
+      <ul class="principle-list">
+        <li>
+          <span class="pl-num">1</span>
+          <div class="pl-text">
+            <strong>Local first</strong>
+            <span>Everything runs on your hardware by default. No setting can change this.</span>
+          </div>
+        </li>
+        <li>
+          <span class="pl-num">2</span>
+          <div class="pl-text">
+            <strong>Zero hidden calls</strong>
+            <span>No requests to third-party AI APIs. Check the code — that's the point.</span>
+          </div>
+        </li>
+        <li>
+          <span class="pl-num">3</span>
+          <div class="pl-text">
+            <strong>Your keys, your money</strong>
+            <span>Non-custodial or nothing. Vokter never holds your funds.</span>
+          </div>
+        </li>
+        <li>
+          <span class="pl-num">4</span>
+          <div class="pl-text">
+            <strong>Real deletion</strong>
+            <span>Delete means delete. Embeddings, history, everything. No soft deletes.</span>
+          </div>
+        </li>
+        <li>
+          <span class="pl-num">5</span>
+          <div class="pl-text">
+            <strong>Open source</strong>
+            <span>AGPL-3.0. We don't ask for your trust — we give you proof.</span>
+          </div>
+        </li>
+        <li>
+          <span class="pl-num">6</span>
+          <div class="pl-text">
+            <strong>For your life, not to retain you</strong>
+            <span>No engagement mechanics. No exploiting loneliness. Vokter gives you back time.</span>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="hardware" id="hardware">
+  <h2>Hardware guide</h2>
+  <p>Vokter runs on any machine that can run Docker. No GPU required.</p>
+  <table>
+    <thead>
+      <tr><th>RAM</th><th>Recommended model</th><th>Speed</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>8 GB</td>
+        <td><code>llama3.2:3b</code> or <code>qwen2.5:3b</code></td>
+        <td>Fast on CPU</td>
+      </tr>
+      <tr>
+        <td>16 GB</td>
+        <td><code>mistral</code> or <code>llama3.1:8b</code></td>
+        <td>Good quality</td>
+      </tr>
+      <tr>
+        <td>32 GB+</td>
+        <td><code>llama3.1:70b</code> (quantized)</td>
+        <td>Excellent quality</td>
+      </tr>
+      <tr>
+        <td>NVIDIA GPU</td>
+        <td>Any model above</td>
+        <td>5–10× faster</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<div class="manifesto-strip">
+  <blockquote>
+    "There's a right older than the internet: <strong>what is yours cannot be taken</strong>.
+    Norwegians call it <em>odel</em> — the land that no crown, bank, or lord can wrest
+    from a family, protected in their Constitution for centuries.
+    A thousand years later, we apply that right to your digital life."
+  </blockquote>
+  <a href="MANIFESTO.html">Read the full manifesto →</a>
+</div>
+
+<footer>
+  <span>🛡️ Vokter — an independent European project</span>
+  <div class="footer-links">
+    <a href="https://github.com/vokter-eu/Vokter" target="_blank">GitHub</a>
+    <a href="MANIFESTO.html">Manifesto</a>
+    <a href="https://github.com/vokter-eu/Vokter/blob/main/CONTRIBUTING.md" target="_blank">Contribute</a>
+    <a href="https://github.com/vokter-eu/Vokter/blob/main/LICENSE" target="_blank">AGPL-3.0</a>
+  </div>
+</footer>
+
+</body>
+</html>
