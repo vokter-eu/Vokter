@@ -33,18 +33,30 @@
     backdrop-filter: blur(8px);
     border-bottom: 1px solid var(--line);
     display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 32px;
+    padding: 12px 32px; gap: 16px;
   }
   .nav-logo { font-weight: 700; font-size: 1.1rem; color: var(--accent); text-decoration: none; }
   .nav-links { display: flex; gap: 24px; }
   .nav-links a { color: var(--muted); text-decoration: none; font-size: .9rem; }
   .nav-links a:hover { color: var(--text); }
+  .nav-right { display: flex; align-items: center; gap: 12px; }
   .nav-cta {
     background: var(--accent); color: #06251a; font-weight: 700;
     padding: 8px 20px; border-radius: 8px; text-decoration: none;
     font-size: .9rem; white-space: nowrap;
   }
   .nav-cta:hover { opacity: .9; }
+
+  /* ── Language selector ── */
+  .lang-sel { display: flex; gap: 4px; }
+  .lang-btn {
+    background: none; border: 1px solid transparent;
+    color: var(--muted); font-size: .78rem; font-weight: 600;
+    padding: 4px 7px; border-radius: 5px; cursor: pointer;
+    letter-spacing: .04em;
+  }
+  .lang-btn:hover { color: var(--text); border-color: var(--line); }
+  .lang-btn.active { color: var(--accent); border-color: #4cc38a44; background: #4cc38a0d; }
 
   /* ── Hero ── */
   .hero {
@@ -94,13 +106,9 @@
   .install > .install-inner > h2 { font-size: 1.6rem; margin-bottom: 8px; }
   .install > .install-inner > p  { color: var(--muted); margin-bottom: 48px; }
 
-  .istep {
-    display: flex; gap: 20px; align-items: flex-start;
-    margin-bottom: 40px;
-  }
+  .istep { display: flex; gap: 20px; align-items: flex-start; margin-bottom: 40px; }
   .istep-num {
-    flex-shrink: 0;
-    width: 40px; height: 40px; border-radius: 50%;
+    flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%;
     background: #4cc38a18; border: 1px solid #4cc38a44;
     color: var(--accent); font-size: 1rem; font-weight: 800;
     display: flex; align-items: center; justify-content: center;
@@ -109,7 +117,6 @@
   .istep-body h3 { font-size: 1.05rem; margin-bottom: 6px; }
   .istep-body > p { color: var(--muted); font-size: .9rem; margin-bottom: 16px; }
 
-  /* Docker buttons (Step 1) */
   .docker-btns { display: flex; gap: 10px; flex-wrap: wrap; }
   .docker-btn {
     display: inline-flex; align-items: center; gap: 8px;
@@ -120,7 +127,6 @@
   }
   .docker-btn:hover { border-color: var(--accent); color: var(--accent); }
 
-  /* Download buttons (Step 2) */
   .dl-btns { display: flex; flex-direction: column; gap: 10px; }
   .dl-btn {
     display: flex; align-items: center; gap: 16px;
@@ -136,7 +142,6 @@
   .dl-label small { color: var(--muted); font-size: .8rem; }
   .dl-arrow { margin-left: auto; color: var(--accent); font-size: 1.1rem; }
 
-  /* Step 3 done box */
   .done-box {
     background: var(--bg); border: 1px solid var(--line);
     border-radius: 12px; padding: 18px 20px;
@@ -144,9 +149,8 @@
   }
   .done-box strong { color: var(--text); }
 
-  /* Coming soon */
   .coming-soon {
-    margin-top: 40px;
+    margin-top: 16px;
     background: var(--bg); border: 1px dashed var(--line);
     border-radius: 12px; padding: 16px 20px;
     display: flex; align-items: center; gap: 14px;
@@ -164,10 +168,7 @@
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 12px;
   }
-  .feat {
-    background: var(--panel); border: 1px solid var(--line);
-    border-radius: 12px; padding: 20px;
-  }
+  .feat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
   .feat-icon { font-size: 1.5rem; margin-bottom: 10px; }
   .feat h3 { font-size: .95rem; margin-bottom: 6px; }
   .feat p { color: var(--muted); font-size: .84rem; line-height: 1.5; }
@@ -188,10 +189,7 @@
     background: var(--bg); border: 1px solid var(--line);
     border-radius: 10px; padding: 14px 18px;
   }
-  .pl-num {
-    color: var(--accent); font-weight: 700; font-size: .9rem;
-    min-width: 20px; margin-top: 1px;
-  }
+  .pl-num { color: var(--accent); font-weight: 700; font-size: .9rem; min-width: 20px; margin-top: 1px; }
   .pl-text strong { display: block; margin-bottom: 2px; }
   .pl-text span { color: var(--muted); font-size: .88rem; }
 
@@ -207,10 +205,7 @@
   }
   td { padding: 10px 14px; border-bottom: 1px solid var(--line); }
   tr:last-child td { border-bottom: none; }
-  td code {
-    background: var(--panel); border: 1px solid var(--line);
-    border-radius: 4px; padding: 1px 6px; font-family: monospace; font-size: .82rem;
-  }
+  td code { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; font-family: monospace; font-size: .82rem; }
 
   /* ── Manifesto strip ── */
   .manifesto-strip {
@@ -240,6 +235,8 @@
     nav { padding: 12px 16px; }
     .nav-links { display: none; }
     .hero { padding: 64px 16px 56px; }
+    .lang-sel { gap: 2px; }
+    .lang-btn { padding: 3px 5px; font-size: .72rem; }
   }
 </style>
 </head>
@@ -248,81 +245,82 @@
 <nav>
   <a class="nav-logo" href="/">🛡️ Vokter</a>
   <div class="nav-links">
-    <a href="#install">Download</a>
-    <a href="#features">Features</a>
-    <a href="#principles">Principles</a>
-    <a href="MANIFESTO.html">Manifesto</a>
+    <a href="#install" data-i18n="nav_download">Download</a>
+    <a href="#features" data-i18n="nav_features">Features</a>
+    <a href="#principles" data-i18n="nav_principles">Principles</a>
+    <a href="MANIFESTO.html" data-i18n="nav_manifesto">Manifesto</a>
   </div>
-  <a class="nav-cta" href="https://github.com/vokter-eu/Vokter" target="_blank">View on GitHub →</a>
+  <div class="nav-right">
+    <div class="lang-sel">
+      <button class="lang-btn" data-lang="en">EN</button>
+      <button class="lang-btn" data-lang="es">ES</button>
+      <button class="lang-btn" data-lang="fr">FR</button>
+      <button class="lang-btn" data-lang="de">DE</button>
+      <button class="lang-btn" data-lang="it">IT</button>
+    </div>
+    <a class="nav-cta" href="https://github.com/vokter-eu/Vokter" target="_blank" data-i18n="nav_github">View on GitHub →</a>
+  </div>
 </nav>
 
 <section class="hero">
-  <div class="hero-badge">Open source · AGPL-3.0 · <span>European project</span></div>
-  <h1>Your AI.<br><em>Your machine.</em><br>Your data. By right.</h1>
-  <p class="hero-sub">
+  <div class="hero-badge">Open source · AGPL-3.0 · <span data-i18n="badge_european">European project</span></div>
+  <h1 data-i18n-html="hero_h1">Your AI.<br><em>Your machine.</em><br>Your data. By right.</h1>
+  <p class="hero-sub" data-i18n="hero_sub">
     Vokter is a sovereign AI agent that runs entirely on your hardware.
     No cloud. No accounts. No telemetry. Not a single byte leaves your machine
     without your explicit permission.
   </p>
   <div class="hero-actions">
-    <a class="btn-primary" href="#install">Download Vokter — free</a>
-    <a class="btn-secondary" href="https://github.com/vokter-eu/Vokter" target="_blank">★ Star on GitHub</a>
+    <a class="btn-primary" href="#install" data-i18n="hero_cta_download">Download Vokter — free</a>
+    <a class="btn-secondary" href="https://github.com/vokter-eu/Vokter" target="_blank" data-i18n="hero_cta_github">★ Star on GitHub</a>
   </div>
 </section>
 
 <section class="install" id="install">
   <div class="install-inner">
-    <h2>Set up in 3 steps — no technical knowledge needed</h2>
-    <p>No coding, no terminal, no configuration. Total time: about 10 minutes, mostly waiting for downloads.</p>
+    <h2 data-i18n="install_h2">Set up in 3 steps — no technical knowledge needed</h2>
+    <p data-i18n="install_sub">Total time: about 10 minutes, mostly waiting for downloads.</p>
 
-    <!-- Step 1 -->
     <div class="istep">
       <div class="istep-num">1</div>
       <div class="istep-body">
-        <h3>Install Docker Desktop — it's free</h3>
-        <p>Docker is a free app that lets Vokter run safely in its own space on your computer, like a sandbox. Install it like any normal app. You only do this once.</p>
+        <h3 data-i18n="step1_h3">Install Docker Desktop — it's free</h3>
+        <p data-i18n="step1_p">Docker is a free app that lets Vokter run safely in its own space on your computer. Install it like any normal app. You only do this once.</p>
         <div class="docker-btns">
-          <a class="docker-btn" href="https://www.docker.com/products/docker-desktop/" target="_blank">
-            🍎 Docker for Mac
-          </a>
-          <a class="docker-btn" href="https://www.docker.com/products/docker-desktop/" target="_blank">
-            🪟 Docker for Windows
-          </a>
-          <a class="docker-btn" href="https://docs.docker.com/desktop/install/linux/" target="_blank">
-            🐧 Docker for Linux
-          </a>
+          <a class="docker-btn" href="https://www.docker.com/products/docker-desktop/" target="_blank">🍎 <span data-i18n="docker_mac">Docker for Mac</span></a>
+          <a class="docker-btn" href="https://www.docker.com/products/docker-desktop/" target="_blank">🪟 <span data-i18n="docker_win">Docker for Windows</span></a>
+          <a class="docker-btn" href="https://docs.docker.com/desktop/install/linux/" target="_blank">🐧 <span data-i18n="docker_linux">Docker for Linux</span></a>
         </div>
       </div>
     </div>
 
-    <!-- Step 2 -->
     <div class="istep">
       <div class="istep-num">2</div>
       <div class="istep-body">
-        <h3>Download and open the Vokter installer</h3>
-        <p>Download the file for your computer. Open it. The installer does everything for you — no setup, no typing, no configuration.</p>
+        <h3 data-i18n="step2_h3">Download and open the Vokter installer</h3>
+        <p data-i18n="step2_p">Download the file for your computer. Open it. The installer does everything for you — no setup, no typing, no configuration.</p>
         <div class="dl-btns">
           <a class="dl-btn" id="dl-mac" href="install/vokter-mac.zip" download>
             <span class="dl-icon">🍎</span>
             <div class="dl-label">
-              <strong>Download for Mac</strong>
-              <small>Unzip → double-click "vokter-mac.command". First time: right-click → Open</small>
+              <strong data-i18n="dl_mac_title">Download for Mac</strong>
+              <small data-i18n="dl_mac_hint">Unzip → double-click "vokter-mac.command". First time: right-click → Open</small>
             </div>
             <span class="dl-arrow">↓</span>
           </a>
           <a class="dl-btn" id="dl-win" href="install/vokter-windows.bat" download>
             <span class="dl-icon">🪟</span>
             <div class="dl-label">
-              <strong>Download for Windows</strong>
-              <small>Double-click the downloaded file. If Windows asks, click "More info → Run anyway"</small>
+              <strong data-i18n="dl_win_title">Download for Windows</strong>
+              <small data-i18n="dl_win_hint">Double-click the downloaded file. If Windows asks, click "More info → Run anyway"</small>
             </div>
             <span class="dl-arrow">↓</span>
           </a>
           <a class="dl-btn" id="dl-linux" href="install/vokter-linux.sh" download>
             <span class="dl-icon">🐧</span>
             <div class="dl-label">
-              <strong>Download for Linux</strong>
-              <small>Run in terminal: bash vokter-linux.sh</small>
+              <strong data-i18n="dl_linux_title">Download for Linux</strong>
+              <small data-i18n="dl_linux_hint">Run in terminal: bash vokter-linux.sh</small>
             </div>
             <span class="dl-arrow">↓</span>
           </a>
@@ -330,12 +328,11 @@
       </div>
     </div>
 
-    <!-- Step 3 -->
     <div class="istep">
       <div class="istep-num">3</div>
       <div class="istep-body">
-        <h3>Your browser opens automatically</h3>
-        <div class="done-box">
+        <h3 data-i18n="step3_h3">Your browser opens automatically</h3>
+        <div class="done-box" data-i18n-html="step3_box">
           The installer asks you to choose an AI model — <strong>Compact (~800 MB)</strong>
           for fast downloads and 8 GB machines, or <strong>Standard (~2 GB)</strong>
           for better quality. This download happens only once.<br><br>
@@ -347,187 +344,351 @@
       </div>
     </div>
 
-    <!-- Mobile coming soon -->
     <div class="coming-soon">
       <span class="coming-soon-icon">📱</span>
       <div>
-        <strong>Android &amp; tablet app — coming soon</strong>
-        Connect to your home Vokter from your phone or tablet, anywhere on your local network.
+        <strong data-i18n="soon_android_title">Android &amp; tablet app — coming soon</strong>
+        <span data-i18n="soon_android_sub">Connect to your home Vokter from your phone or tablet, anywhere on your local network.</span>
       </div>
     </div>
 
-    <!-- Confidential compute coming soon -->
     <div class="coming-soon">
       <span class="coming-soon-icon">🔒</span>
       <div>
-        <strong>Sovereign cloud compute — coming soon</strong>
-        No local hardware? Pay per use for confidential compute in a TEE (Trusted Execution Environment).
-        You receive cryptographic proof from the chip itself that your data is private —
-        not a promise, not a policy. Audited by independent security firms.
+        <strong data-i18n="soon_tee_title">Sovereign cloud compute — coming soon</strong>
+        <span data-i18n="soon_tee_sub">No local hardware? Pay per use for confidential compute in a TEE (Trusted Execution Environment). You receive cryptographic proof from the chip itself that your data is private — not a promise, not a policy. Audited by independent security firms.</span>
       </div>
     </div>
   </div>
 </section>
 
 <section class="features" id="features">
-  <h2>Everything runs locally</h2>
-  <p>Vokter is not a wrapper around a cloud AI. It is a complete local stack.</p>
+  <h2 data-i18n="feat_h2">Everything runs locally</h2>
+  <p data-i18n="feat_sub">Vokter is not a wrapper around a cloud AI. It is a complete local stack.</p>
   <div class="feat-grid">
-    <div class="feat">
-      <div class="feat-icon">📄</div>
-      <h3>Document memory</h3>
-      <p>Ingest PDF, TXT, Markdown. Chunked, embedded, and stored with AES-256 encryption. Real deletion — embeddings included.</p>
-    </div>
-    <div class="feat">
-      <div class="feat-icon">💬</div>
-      <h3>Local chat</h3>
-      <p>Ask questions about your documents. Persistent conversation history per session. Answers cite their sources.</p>
-    </div>
-    <div class="feat">
-      <div class="feat-icon">📧</div>
-      <h3>Email connector</h3>
-      <p>IMAP/SSL — syncs and indexes your inbox locally. Ask Vokter about your emails without any cloud service seeing them.</p>
-    </div>
-    <div class="feat">
-      <div class="feat-icon">🎤</div>
-      <h3>Local voice</h3>
-      <p>Talk to Vokter with Whisper (speech-to-text) and Piper (text-to-speech). Your voice never leaves the machine.</p>
-    </div>
-    <div class="feat">
-      <div class="feat-icon">🌐</div>
-      <h3>Web browsing</h3>
-      <p>Fetch and memorize web pages. Allowlist-only — Vokter only visits domains you explicitly permit.</p>
-    </div>
-    <div class="feat">
-      <div class="feat-icon">🗓️</div>
-      <h3>Task planner</h3>
-      <p>Give Vokter a goal. It breaks it into steps, browses, queries its memory, and streams the result back.</p>
-    </div>
-    <div class="feat">
-      <div class="feat-icon">💸</div>
-      <h3>Non-custodial wallet</h3>
-      <p>Cashu e-cash, Lightning, EURC/EURe, Solana, Monero, Bitcoin. Human confirmation always. Your keys never leave.</p>
-    </div>
-    <div class="feat">
-      <div class="feat-icon">⏰</div>
-      <h3>Scheduled tasks</h3>
-      <p>Set recurring goals — daily digest, price alerts, email summaries. Vokter runs them autonomously and saves the output.</p>
-    </div>
-    <div class="feat">
-      <div class="feat-icon">🔌</div>
-      <h3>MCP + Nostr</h3>
-      <p>Connect Vokter to Claude Desktop via MCP. Or send it encrypted DMs on Nostr — it responds using your local tools.</p>
-    </div>
+    <div class="feat"><div class="feat-icon">📄</div><h3 data-i18n="f1_h">Document memory</h3><p data-i18n="f1_p">Ingest PDF, TXT, Markdown. Chunked, embedded, and stored with AES-256 encryption. Real deletion — embeddings included.</p></div>
+    <div class="feat"><div class="feat-icon">💬</div><h3 data-i18n="f2_h">Local chat</h3><p data-i18n="f2_p">Ask questions about your documents. Persistent conversation history per session. Answers cite their sources.</p></div>
+    <div class="feat"><div class="feat-icon">📧</div><h3 data-i18n="f3_h">Email connector</h3><p data-i18n="f3_p">IMAP/SSL — syncs and indexes your inbox locally. Ask Vokter about your emails without any cloud service seeing them.</p></div>
+    <div class="feat"><div class="feat-icon">🎤</div><h3 data-i18n="f4_h">Local voice</h3><p data-i18n="f4_p">Talk to Vokter with Whisper (speech-to-text) and Piper (text-to-speech). Your voice never leaves the machine.</p></div>
+    <div class="feat"><div class="feat-icon">🌐</div><h3 data-i18n="f5_h">Web browsing</h3><p data-i18n="f5_p">Fetch and memorize web pages. Allowlist-only — Vokter only visits domains you explicitly permit.</p></div>
+    <div class="feat"><div class="feat-icon">🗓️</div><h3 data-i18n="f6_h">Task planner</h3><p data-i18n="f6_p">Give Vokter a goal. It breaks it into steps, browses, queries its memory, and streams the result back.</p></div>
+    <div class="feat"><div class="feat-icon">💸</div><h3 data-i18n="f7_h">Non-custodial wallet</h3><p data-i18n="f7_p">Cashu e-cash, Lightning, EURC/EURe, Solana, Monero, Bitcoin. Human confirmation always. Your keys never leave.</p></div>
+    <div class="feat"><div class="feat-icon">⏰</div><h3 data-i18n="f8_h">Scheduled tasks</h3><p data-i18n="f8_p">Set recurring goals — daily digest, price alerts, email summaries. Vokter runs them autonomously and saves the output.</p></div>
+    <div class="feat"><div class="feat-icon">🔌</div><h3 data-i18n="f9_h">MCP + Nostr</h3><p data-i18n="f9_p">Connect Vokter to Claude Desktop via MCP. Or send it encrypted DMs on Nostr — it responds using your local tools.</p></div>
   </div>
 </section>
 
 <section class="principles" id="principles">
   <div class="principles-inner">
-    <h2>Non-negotiable principles</h2>
+    <h2 data-i18n="pr_h2">Non-negotiable principles</h2>
     <div>
-      <p>These are architectural constraints, not marketing claims. They cannot be changed without forking the project.</p>
+      <p data-i18n="pr_sub">These are architectural constraints, not marketing claims. They cannot be changed without forking the project.</p>
       <ul class="principle-list">
-        <li>
-          <span class="pl-num">1</span>
-          <div class="pl-text">
-            <strong>Local first</strong>
-            <span>Everything runs on your hardware by default. No setting can change this.</span>
-          </div>
-        </li>
-        <li>
-          <span class="pl-num">2</span>
-          <div class="pl-text">
-            <strong>Zero hidden calls</strong>
-            <span>No requests to third-party AI APIs. Check the code — that's the point.</span>
-          </div>
-        </li>
-        <li>
-          <span class="pl-num">3</span>
-          <div class="pl-text">
-            <strong>Your keys, your money</strong>
-            <span>Non-custodial or nothing. Vokter never holds your funds.</span>
-          </div>
-        </li>
-        <li>
-          <span class="pl-num">4</span>
-          <div class="pl-text">
-            <strong>Real deletion</strong>
-            <span>Delete means delete. Embeddings, history, everything. No soft deletes.</span>
-          </div>
-        </li>
-        <li>
-          <span class="pl-num">5</span>
-          <div class="pl-text">
-            <strong>Open source</strong>
-            <span>AGPL-3.0. We don't ask for your trust — we give you proof.</span>
-          </div>
-        </li>
-        <li>
-          <span class="pl-num">6</span>
-          <div class="pl-text">
-            <strong>For your life, not to retain you</strong>
-            <span>No engagement mechanics. No exploiting loneliness. Vokter gives you back time.</span>
-          </div>
-        </li>
+        <li><span class="pl-num">1</span><div class="pl-text"><strong data-i18n="p1_h">Local first</strong><span data-i18n="p1_p">Everything runs on your hardware by default. No setting can change this.</span></div></li>
+        <li><span class="pl-num">2</span><div class="pl-text"><strong data-i18n="p2_h">Zero hidden calls</strong><span data-i18n="p2_p">No requests to third-party AI APIs. Check the code — that's the point.</span></div></li>
+        <li><span class="pl-num">3</span><div class="pl-text"><strong data-i18n="p3_h">Your keys, your money</strong><span data-i18n="p3_p">Non-custodial or nothing. Vokter never holds your funds.</span></div></li>
+        <li><span class="pl-num">4</span><div class="pl-text"><strong data-i18n="p4_h">Real deletion</strong><span data-i18n="p4_p">Delete means delete. Embeddings, history, everything. No soft deletes.</span></div></li>
+        <li><span class="pl-num">5</span><div class="pl-text"><strong data-i18n="p5_h">Open source</strong><span data-i18n="p5_p">AGPL-3.0. We don't ask for your trust — we give you proof.</span></div></li>
+        <li><span class="pl-num">6</span><div class="pl-text"><strong data-i18n="p6_h">For your life, not to retain you</strong><span data-i18n="p6_p">No engagement mechanics. No exploiting loneliness. Vokter gives you back time.</span></div></li>
       </ul>
     </div>
   </div>
 </section>
 
 <section class="hardware" id="hardware">
-  <h2>Hardware guide</h2>
-  <p>Vokter runs on any machine that can run Docker. No GPU required.</p>
+  <h2 data-i18n="hw_h2">Hardware guide</h2>
+  <p data-i18n="hw_sub">Vokter runs on any machine that can run Docker. No GPU required.</p>
   <table>
     <thead>
-      <tr><th>RAM</th><th>Recommended model</th><th>Speed</th></tr>
+      <tr><th data-i18n="hw_col_ram">RAM</th><th data-i18n="hw_col_model">Recommended model</th><th data-i18n="hw_col_speed">Speed</th></tr>
     </thead>
     <tbody>
-      <tr>
-        <td>8 GB</td>
-        <td><code>llama3.2:3b</code> or <code>qwen2.5:3b</code></td>
-        <td>Fast on CPU</td>
-      </tr>
-      <tr>
-        <td>16 GB</td>
-        <td><code>mistral</code> or <code>llama3.1:8b</code></td>
-        <td>Good quality</td>
-      </tr>
-      <tr>
-        <td>32 GB+</td>
-        <td><code>llama3.1:70b</code> (quantized)</td>
-        <td>Excellent quality</td>
-      </tr>
-      <tr>
-        <td>NVIDIA GPU</td>
-        <td>Any model above</td>
-        <td>5–10× faster</td>
-      </tr>
+      <tr><td>8 GB</td><td><code>llama3.2:3b</code> or <code>qwen2.5:3b</code></td><td data-i18n="hw_r1_speed">Fast on CPU</td></tr>
+      <tr><td>16 GB</td><td><code>mistral</code> or <code>llama3.1:8b</code></td><td data-i18n="hw_r2_speed">Good quality</td></tr>
+      <tr><td>32 GB+</td><td><code>llama3.1:70b</code> (quantized)</td><td data-i18n="hw_r3_speed">Excellent quality</td></tr>
+      <tr><td>NVIDIA GPU</td><td data-i18n="hw_r4_model">Any model above</td><td data-i18n="hw_r4_speed">5–10× faster</td></tr>
     </tbody>
   </table>
 </section>
 
 <div class="manifesto-strip">
-  <blockquote>
+  <blockquote data-i18n-html="manifesto_quote">
     "There's a right older than the internet: <strong>what is yours cannot be taken</strong>.
     Norwegians call it <em>odel</em> — the land that no crown, bank, or lord can wrest
     from a family, protected in their Constitution for centuries.
     A thousand years later, we apply that right to your digital life."
   </blockquote>
-  <a href="MANIFESTO.html">Read the full manifesto →</a>
+  <a href="MANIFESTO.html" data-i18n="manifesto_link">Read the full manifesto →</a>
 </div>
 
 <footer>
-  <span>🛡️ Vokter — an independent European project</span>
+  <span>🛡️ Vokter — <span data-i18n="footer_tagline">an independent European project</span></span>
   <div class="footer-links">
     <a href="https://github.com/vokter-eu/Vokter" target="_blank">GitHub</a>
-    <a href="MANIFESTO.html">Manifesto</a>
-    <a href="https://github.com/vokter-eu/Vokter/blob/main/CONTRIBUTING.md" target="_blank">Contribute</a>
+    <a href="MANIFESTO.html" data-i18n="nav_manifesto">Manifesto</a>
+    <a href="https://github.com/vokter-eu/Vokter/blob/main/CONTRIBUTING.md" target="_blank" data-i18n="footer_contribute">Contribute</a>
     <a href="https://github.com/vokter-eu/Vokter/blob/main/LICENSE" target="_blank">AGPL-3.0</a>
   </div>
 </footer>
 
 <script>
-// Highlight the download button that matches the visitor's OS
+const T = {
+  en: {
+    nav_download: "Download", nav_features: "Features", nav_principles: "Principles",
+    nav_manifesto: "Manifesto", nav_github: "View on GitHub →",
+    badge_european: "European project",
+    hero_h1: "Your AI.<br><em>Your machine.</em><br>Your data. By right.",
+    hero_sub: "Vokter is a sovereign AI agent that runs entirely on your hardware. No cloud. No accounts. No telemetry. Not a single byte leaves your machine without your explicit permission.",
+    hero_cta_download: "Download Vokter — free", hero_cta_github: "★ Star on GitHub",
+    install_h2: "Set up in 3 steps — no technical knowledge needed",
+    install_sub: "Total time: about 10 minutes, mostly waiting for downloads.",
+    step1_h3: "Install Docker Desktop — it's free",
+    step1_p: "Docker is a free app that lets Vokter run safely in its own space on your computer. Install it like any normal app. You only do this once.",
+    docker_mac: "Docker for Mac", docker_win: "Docker for Windows", docker_linux: "Docker for Linux",
+    step2_h3: "Download and open the Vokter installer",
+    step2_p: "Download the file for your computer. Open it. The installer does everything for you — no setup, no typing, no configuration.",
+    dl_mac_title: "Download for Mac", dl_mac_hint: "Unzip → double-click \"vokter-mac.command\". First time: right-click → Open",
+    dl_win_title: "Download for Windows", dl_win_hint: "Double-click the downloaded file. If Windows asks, click \"More info → Run anyway\"",
+    dl_linux_title: "Download for Linux", dl_linux_hint: "Run in terminal: bash vokter-linux.sh",
+    step3_h3: "Your browser opens automatically",
+    step3_box: "The installer asks you to choose an AI model — <strong>Compact (~800 MB)</strong> for fast downloads and 8 GB machines, or <strong>Standard (~2 GB)</strong> for better quality. This download happens only once.<br><br>It also generates a <strong>unique encryption key</strong> for your data and opens Vokter at <strong>http://localhost:8080</strong> automatically.<br><br>Next time, Vokter starts automatically when you open Docker Desktop. <strong>No need to run the installer again.</strong>",
+    soon_android_title: "Android & tablet app — coming soon", soon_android_sub: "Connect to your home Vokter from your phone or tablet, anywhere on your local network.",
+    soon_tee_title: "Sovereign cloud compute — coming soon", soon_tee_sub: "No local hardware? Pay per use for confidential compute in a TEE (Trusted Execution Environment). You receive cryptographic proof from the chip itself that your data is private — not a promise, not a policy. Audited by independent security firms.",
+    feat_h2: "Everything runs locally", feat_sub: "Vokter is not a wrapper around a cloud AI. It is a complete local stack.",
+    f1_h: "Document memory", f1_p: "Ingest PDF, TXT, Markdown. Chunked, embedded, and stored with AES-256 encryption. Real deletion — embeddings included.",
+    f2_h: "Local chat", f2_p: "Ask questions about your documents. Persistent conversation history per session. Answers cite their sources.",
+    f3_h: "Email connector", f3_p: "IMAP/SSL — syncs and indexes your inbox locally. Ask Vokter about your emails without any cloud service seeing them.",
+    f4_h: "Local voice", f4_p: "Talk to Vokter with Whisper (speech-to-text) and Piper (text-to-speech). Your voice never leaves the machine.",
+    f5_h: "Web browsing", f5_p: "Fetch and memorize web pages. Allowlist-only — Vokter only visits domains you explicitly permit.",
+    f6_h: "Task planner", f6_p: "Give Vokter a goal. It breaks it into steps, browses, queries its memory, and streams the result back.",
+    f7_h: "Non-custodial wallet", f7_p: "Cashu e-cash, Lightning, EURC/EURe, Solana, Monero, Bitcoin. Human confirmation always. Your keys never leave.",
+    f8_h: "Scheduled tasks", f8_p: "Set recurring goals — daily digest, price alerts, email summaries. Vokter runs them autonomously and saves the output.",
+    f9_h: "MCP + Nostr", f9_p: "Connect Vokter to Claude Desktop via MCP. Or send it encrypted DMs on Nostr — it responds using your local tools.",
+    pr_h2: "Non-negotiable principles", pr_sub: "These are architectural constraints, not marketing claims. They cannot be changed without forking the project.",
+    p1_h: "Local first", p1_p: "Everything runs on your hardware by default. No setting can change this.",
+    p2_h: "Zero hidden calls", p2_p: "No requests to third-party AI APIs. Check the code — that's the point.",
+    p3_h: "Your keys, your money", p3_p: "Non-custodial or nothing. Vokter never holds your funds.",
+    p4_h: "Real deletion", p4_p: "Delete means delete. Embeddings, history, everything. No soft deletes.",
+    p5_h: "Open source", p5_p: "AGPL-3.0. We don't ask for your trust — we give you proof.",
+    p6_h: "For your life, not to retain you", p6_p: "No engagement mechanics. No exploiting loneliness. Vokter gives you back time.",
+    hw_h2: "Hardware guide", hw_sub: "Vokter runs on any machine that can run Docker. No GPU required.",
+    hw_col_ram: "RAM", hw_col_model: "Recommended model", hw_col_speed: "Speed",
+    hw_r1_speed: "Fast on CPU", hw_r2_speed: "Good quality", hw_r3_speed: "Excellent quality",
+    hw_r4_model: "Any model above", hw_r4_speed: "5–10× faster",
+    manifesto_quote: "“There’s a right older than the internet: <strong>what is yours cannot be taken</strong>. Norwegians call it <em>odel</em> — the land that no crown, bank, or lord can wrest from a family, protected in their Constitution for centuries. A thousand years later, we apply that right to your digital life.”",
+    manifesto_link: "Read the full manifesto →",
+    footer_tagline: "an independent European project", footer_contribute: "Contribute"
+  },
+
+  es: {
+    nav_download: "Descargar", nav_features: "Funciones", nav_principles: "Principios",
+    nav_manifesto: "Manifiesto", nav_github: "Ver en GitHub →",
+    badge_european: "Proyecto europeo",
+    hero_h1: "Tu IA.<br><em>Tu máquina.</em><br>Tus datos. Por derecho.",
+    hero_sub: "Vokter es un agente de IA soberano que se ejecuta completamente en tu ordenador. Sin nube. Sin cuentas. Sin telemetría. Ni un solo byte sale de tu máquina sin tu permiso explícito.",
+    hero_cta_download: "Descargar Vokter — gratis", hero_cta_github: "★ Star en GitHub",
+    install_h2: "En 3 pasos — sin conocimientos técnicos",
+    install_sub: "Tiempo total: unos 10 minutos, la mayoría esperando descargas.",
+    step1_h3: "Instala Docker Desktop — es gratis",
+    step1_p: "Docker es una app gratuita que permite a Vokter ejecutarse de forma segura en tu ordenador. Instálala como cualquier otra aplicación. Solo lo haces una vez.",
+    docker_mac: "Docker para Mac", docker_win: "Docker para Windows", docker_linux: "Docker para Linux",
+    step2_h3: "Descarga y abre el instalador de Vokter",
+    step2_p: "Descarga el archivo para tu ordenador. Ábrelo. El instalador lo hace todo por ti — sin configuración, sin escribir nada.",
+    dl_mac_title: "Descargar para Mac", dl_mac_hint: "Descomprime → doble clic en \"vokter-mac.command\". Primera vez: clic derecho → Abrir",
+    dl_win_title: "Descargar para Windows", dl_win_hint: "Doble clic en el archivo descargado. Si Windows pregunta, pulsa \"Más información → Ejecutar de todas formas\"",
+    dl_linux_title: "Descargar para Linux", dl_linux_hint: "Ejecuta en terminal: bash vokter-linux.sh",
+    step3_h3: "Tu navegador se abre automáticamente",
+    step3_box: "El instalador te pregunta qué modelo de IA quieres — <strong>Compacto (~800 MB)</strong> para descargas rápidas y máquinas de 8 GB, o <strong>Estándar (~2 GB)</strong> para mayor calidad. Esta descarga solo ocurre una vez.<br><br>También genera una <strong>clave de cifrado única</strong> para tus datos y abre Vokter en <strong>http://localhost:8080</strong> automáticamente.<br><br>La próxima vez, Vokter arranca automáticamente con Docker Desktop. <strong>No hace falta volver a ejecutar el instalador.</strong>",
+    soon_android_title: "App para Android y tablet — próximamente", soon_android_sub: "Conéctate a tu Vokter doméstico desde tu móvil o tablet, en cualquier lugar de tu red local.",
+    soon_tee_title: "Compute soberano en la nube — próximamente", soon_tee_sub: "¿Sin hardware local? Paga por uso para computación confidencial en un TEE (Entorno de Ejecución de Confianza). Recibes prueba criptográfica del propio chip de que tus datos son privados — no es una promesa, es matemática. Auditado por empresas de seguridad independientes.",
+    feat_h2: "Todo se ejecuta localmente", feat_sub: "Vokter no es un envoltorio sobre una IA en la nube. Es una pila local completa.",
+    f1_h: "Memoria de documentos", f1_p: "Ingesta PDF, TXT, Markdown. Fragmentado, vectorizado y almacenado con cifrado AES-256. Borrado real — embeddings incluidos.",
+    f2_h: "Chat local", f2_p: "Pregunta sobre tus documentos. Historial de conversación persistente por sesión. Las respuestas citan sus fuentes.",
+    f3_h: "Conector de email", f3_p: "IMAP/SSL — sincroniza e indexa tu bandeja de entrada localmente. Pregunta a Vokter sobre tus emails sin que ningún servicio en la nube los vea.",
+    f4_h: "Voz local", f4_p: "Habla con Vokter mediante Whisper (voz a texto) y Piper (texto a voz). Tu voz nunca sale de la máquina.",
+    f5_h: "Navegación web", f5_p: "Obtén y memoriza páginas web. Solo dominios permitidos — Vokter solo visita los dominios que tú autorices.",
+    f6_h: "Planificador de tareas", f6_p: "Dale un objetivo a Vokter. Lo divide en pasos, navega, consulta su memoria y te devuelve el resultado.",
+    f7_h: "Cartera sin custodia", f7_p: "Cashu e-cash, Lightning, EURC/EURe, Solana, Monero, Bitcoin. Siempre con confirmación humana. Tus claves nunca salen.",
+    f8_h: "Tareas programadas", f8_p: "Define objetivos recurrentes — resumen diario, alertas de precio, resúmenes de email. Vokter los ejecuta de forma autónoma y guarda el resultado.",
+    f9_h: "MCP + Nostr", f9_p: "Conecta Vokter a Claude Desktop mediante MCP. O envíale mensajes directos cifrados por Nostr — responde usando tus herramientas locales.",
+    pr_h2: "Principios no negociables", pr_sub: "Son restricciones arquitectónicas, no afirmaciones de marketing. No pueden cambiarse sin hacer un fork del proyecto.",
+    p1_h: "Local primero", p1_p: "Todo se ejecuta en tu hardware por defecto. Ningún ajuste puede cambiar esto.",
+    p2_h: "Cero llamadas ocultas", p2_p: "Sin peticiones a APIs de IA de terceros. Revisa el código — ese es el punto.",
+    p3_h: "Tus claves, tu dinero", p3_p: "Sin custodia o nada. Vokter nunca tiene tus fondos.",
+    p4_h: "Borrado real", p4_p: "Borrar significa borrar. Embeddings, historial, todo. Sin borrados suaves.",
+    p5_h: "Código abierto", p5_p: "AGPL-3.0. No pedimos tu confianza — te damos la prueba.",
+    p6_h: "Para tu vida, no para retenerte", p6_p: "Sin mecánicas de enganche. Sin explotar la soledad. Vokter te devuelve tiempo.",
+    hw_h2: "Guía de hardware", hw_sub: "Vokter funciona en cualquier máquina que pueda ejecutar Docker. No se necesita GPU.",
+    hw_col_ram: "RAM", hw_col_model: "Modelo recomendado", hw_col_speed: "Velocidad",
+    hw_r1_speed: "Rápido en CPU", hw_r2_speed: "Buena calidad", hw_r3_speed: "Excelente calidad",
+    hw_r4_model: "Cualquiera de los anteriores", hw_r4_speed: "5–10× más rápido",
+    manifesto_quote: "“Existe un derecho más antiguo que internet: <strong>lo que es tuyo no puede ser arrebatado</strong>. Los noruegos lo llaman <em>odel</em> — la tierra que ninguna corona, banco ni señor puede quitarle a una familia, protegida en su Constitución durante siglos. Mil años después, aplicamos ese derecho a tu vida digital.”",
+    manifesto_link: "Leer el manifiesto completo →",
+    footer_tagline: "un proyecto europeo independiente", footer_contribute: "Contribuir"
+  },
+
+  fr: {
+    nav_download: "Télécharger", nav_features: "Fonctions", nav_principles: "Principes",
+    nav_manifesto: "Manifeste", nav_github: "Voir sur GitHub →",
+    badge_european: "Projet européen",
+    hero_h1: "Ton IA.<br><em>Ta machine.</em><br>Tes données. Par droit.",
+    hero_sub: "Vokter est un agent IA souverain qui fonctionne entièrement sur votre matériel. Pas de cloud. Pas de comptes. Pas de télémétrie. Pas un seul octet ne quitte votre machine sans votre permission explicite.",
+    hero_cta_download: "Télécharger Vokter — gratuit", hero_cta_github: "★ Star sur GitHub",
+    install_h2: "Installé en 3 étapes — aucune connaissance technique requise",
+    install_sub: "Temps total : environ 10 minutes, principalement des téléchargements.",
+    step1_h3: "Installer Docker Desktop — c'est gratuit",
+    step1_p: "Docker est une application gratuite qui permet à Vokter de fonctionner en sécurité sur votre ordinateur. Installez-le comme n'importe quelle application. Vous ne le faites qu'une seule fois.",
+    docker_mac: "Docker pour Mac", docker_win: "Docker pour Windows", docker_linux: "Docker pour Linux",
+    step2_h3: "Téléchargez et ouvrez l'installateur Vokter",
+    step2_p: "Téléchargez le fichier pour votre ordinateur. Ouvrez-le. L'installateur fait tout pour vous — aucune configuration, aucune saisie.",
+    dl_mac_title: "Télécharger pour Mac", dl_mac_hint: "Décompressez → double-cliquez sur \"vokter-mac.command\". Première fois : clic droit → Ouvrir",
+    dl_win_title: "Télécharger pour Windows", dl_win_hint: "Double-cliquez sur le fichier téléchargé. Si Windows demande, cliquez sur \"Informations complémentaires → Exécuter quand même\"",
+    dl_linux_title: "Télécharger pour Linux", dl_linux_hint: "Exécutez dans le terminal : bash vokter-linux.sh",
+    step3_h3: "Votre navigateur s'ouvre automatiquement",
+    step3_box: "L'installateur vous demande de choisir un modèle IA — <strong>Compact (~800 Mo)</strong> pour des téléchargements rapides et les machines 8 Go, ou <strong>Standard (~2 Go)</strong> pour une meilleure qualité. Ce téléchargement n'a lieu qu'une seule fois.<br><br>Il génère également une <strong>clé de chiffrement unique</strong> pour vos données et ouvre Vokter à <strong>http://localhost:8080</strong> automatiquement.<br><br>La prochaine fois, Vokter démarre automatiquement avec Docker Desktop. <strong>Inutile de relancer l'installateur.</strong>",
+    soon_android_title: "Application Android & tablette — bientôt disponible", soon_android_sub: "Connectez-vous à votre Vokter depuis votre téléphone ou tablette, partout sur votre réseau local.",
+    soon_tee_title: "Calcul souverain dans le cloud — bientôt disponible", soon_tee_sub: "Pas de matériel local ? Payez à l'usage pour un calcul confidentiel dans un TEE (Trusted Execution Environment). Vous recevez une preuve cryptographique du puce elle-même que vos données sont privées — pas une promesse, des mathématiques. Audité par des sociétés de sécurité indépendantes.",
+    feat_h2: "Tout fonctionne localement", feat_sub: "Vokter n'est pas une surcouche autour d'une IA dans le cloud. C'est une pile locale complète.",
+    f1_h: "Mémoire documentaire", f1_p: "Ingérez des PDF, TXT, Markdown. Découpé, vectorisé et stocké avec chiffrement AES-256. Suppression réelle — embeddings inclus.",
+    f2_h: "Chat local", f2_p: "Posez des questions sur vos documents. Historique de conversation persistant par session. Les réponses citent leurs sources.",
+    f3_h: "Connecteur e-mail", f3_p: "IMAP/SSL — synchronise et indexe votre boîte de réception localement. Interrogez Vokter sur vos e-mails sans qu'aucun service cloud ne les voie.",
+    f4_h: "Voix locale", f4_p: "Parlez à Vokter avec Whisper (parole en texte) et Piper (texte en parole). Votre voix ne quitte jamais la machine.",
+    f5_h: "Navigation web", f5_p: "Récupérez et mémorisez des pages web. Liste d'autorisation uniquement — Vokter ne visite que les domaines que vous autorisez.",
+    f6_h: "Planificateur de tâches", f6_p: "Donnez un objectif à Vokter. Il le décompose en étapes, navigue, interroge sa mémoire et vous renvoie le résultat.",
+    f7_h: "Portefeuille non-custodial", f7_p: "Cashu e-cash, Lightning, EURC/EURe, Solana, Monero, Bitcoin. Confirmation humaine toujours. Vos clés ne quittent jamais l'appareil.",
+    f8_h: "Tâches planifiées", f8_p: "Définissez des objectifs récurrents — résumé quotidien, alertes de prix, résumés d'e-mails. Vokter les exécute de manière autonome et sauvegarde le résultat.",
+    f9_h: "MCP + Nostr", f9_p: "Connectez Vokter à Claude Desktop via MCP. Ou envoyez-lui des DMs chiffrés sur Nostr — il répond en utilisant vos outils locaux.",
+    pr_h2: "Principes non négociables", pr_sub: "Ce sont des contraintes architecturales, pas des arguments marketing. Ils ne peuvent pas être modifiés sans forker le projet.",
+    p1_h: "Local d'abord", p1_p: "Tout fonctionne sur votre matériel par défaut. Aucun paramètre ne peut changer cela.",
+    p2_h: "Zéro appel caché", p2_p: "Aucune requête vers des API d'IA tierces. Vérifiez le code — c'est tout le propos.",
+    p3_h: "Vos clés, votre argent", p3_p: "Non-custodial ou rien. Vokter ne détient jamais vos fonds.",
+    p4_h: "Suppression réelle", p4_p: "Supprimer signifie supprimer. Embeddings, historique, tout. Pas de suppression douce.",
+    p5_h: "Open source", p5_p: "AGPL-3.0. Nous ne demandons pas votre confiance — nous vous donnons la preuve.",
+    p6_h: "Pour votre vie, pas pour vous retenir", p6_p: "Pas de mécaniques d'engagement. Pas d'exploitation de la solitude. Vokter vous redonne du temps.",
+    hw_h2: "Guide matériel", hw_sub: "Vokter fonctionne sur toute machine pouvant faire tourner Docker. Pas de GPU nécessaire.",
+    hw_col_ram: "RAM", hw_col_model: "Modèle recommandé", hw_col_speed: "Vitesse",
+    hw_r1_speed: "Rapide sur CPU", hw_r2_speed: "Bonne qualité", hw_r3_speed: "Excellente qualité",
+    hw_r4_model: "N'importe lequel ci-dessus", hw_r4_speed: "5–10× plus rapide",
+    manifesto_quote: "« Il existe un droit plus ancien qu’internet : <strong>ce qui est à vous ne peut vous être pris</strong>. Les Norvégiens l’appellent <em>odel</em> — la terre qu’aucune couronne, banque ou seigneur ne peut arracher à une famille, protégée dans leur Constitution depuis des siècles. Mille ans plus tard, nous appliquons ce droit à votre vie numérique. »",
+    manifesto_link: "Lire le manifeste complet →",
+    footer_tagline: "un projet européen indépendant", footer_contribute: "Contribuer"
+  },
+
+  de: {
+    nav_download: "Download", nav_features: "Funktionen", nav_principles: "Grundsätze",
+    nav_manifesto: "Manifest", nav_github: "Auf GitHub ansehen →",
+    badge_european: "Europäisches Projekt",
+    hero_h1: "Deine KI.<br><em>Deine Maschine.</em><br>Deine Daten. Von Rechts wegen.",
+    hero_sub: "Vokter ist ein souveräner KI-Agent, der vollständig auf Ihrer Hardware läuft. Keine Cloud. Keine Konten. Keine Telemetrie. Kein einziges Byte verlässt Ihren Computer ohne Ihre ausdrückliche Erlaubnis.",
+    hero_cta_download: "Vokter herunterladen — kostenlos", hero_cta_github: "★ Star auf GitHub",
+    install_h2: "In 3 Schritten einrichten — kein technisches Wissen nötig",
+    install_sub: "Gesamtzeit: etwa 10 Minuten, meist Wartezeit für Downloads.",
+    step1_h3: "Docker Desktop installieren — kostenlos",
+    step1_p: "Docker ist eine kostenlose App, mit der Vokter sicher auf Ihrem Computer läuft. Installieren Sie es wie jede andere normale App. Sie tun das nur einmal.",
+    docker_mac: "Docker für Mac", docker_win: "Docker für Windows", docker_linux: "Docker für Linux",
+    step2_h3: "Vokter-Installer herunterladen und öffnen",
+    step2_p: "Laden Sie die Datei für Ihren Computer herunter. Öffnen Sie sie. Der Installer erledigt alles für Sie — keine Einrichtung, kein Tippen, keine Konfiguration.",
+    dl_mac_title: "Für Mac herunterladen", dl_mac_hint: "Entzippen → Doppelklick auf \"vokter-mac.command\". Erstmalig: Rechtsklick → Öffnen",
+    dl_win_title: "Für Windows herunterladen", dl_win_hint: "Doppelklick auf die heruntergeladene Datei. Wenn Windows fragt, klicken Sie auf \"Weitere Informationen → Trotzdem ausführen\"",
+    dl_linux_title: "Für Linux herunterladen", dl_linux_hint: "Im Terminal ausführen: bash vokter-linux.sh",
+    step3_h3: "Ihr Browser öffnet sich automatisch",
+    step3_box: "Der Installer fragt Sie, welches KI-Modell Sie möchten — <strong>Kompakt (~800 MB)</strong> für schnelle Downloads und 8-GB-Maschinen, oder <strong>Standard (~2 GB)</strong> für bessere Qualität. Dieser Download findet nur einmal statt.<br><br>Außerdem generiert er einen <strong>einzigartigen Verschlüsselungsschlüssel</strong> für Ihre Daten und öffnet Vokter automatisch unter <strong>http://localhost:8080</strong>.<br><br>Beim nächsten Mal startet Vokter automatisch mit Docker Desktop. <strong>Den Installer müssen Sie nicht erneut ausführen.</strong>",
+    soon_android_title: "Android- & Tablet-App — demnächst", soon_android_sub: "Verbinden Sie sich von Ihrem Telefon oder Tablet aus mit Ihrem Heim-Vokter, überall in Ihrem lokalen Netzwerk.",
+    soon_tee_title: "Souveränes Cloud-Computing — demnächst", soon_tee_sub: "Keine lokale Hardware? Zahlen Sie pro Nutzung für vertrauliches Computing in einer TEE (Trusted Execution Environment). Sie erhalten einen kryptografischen Beweis direkt vom Chip, dass Ihre Daten privat sind — kein Versprechen, Mathematik. Geprüft von unabhängigen Sicherheitsunternehmen.",
+    feat_h2: "Alles läuft lokal", feat_sub: "Vokter ist kein Wrapper um eine Cloud-KI. Es ist ein vollständiger lokaler Stack.",
+    f1_h: "Dokumentengedächtnis", f1_p: "PDF, TXT, Markdown einlesen. Aufgeteilt, vektorisiert und mit AES-256-Verschlüsselung gespeichert. Echte Löschung — Embeddings inklusive.",
+    f2_h: "Lokaler Chat", f2_p: "Stellen Sie Fragen zu Ihren Dokumenten. Persistenter Gesprächsverlauf pro Sitzung. Antworten zitieren ihre Quellen.",
+    f3_h: "E-Mail-Connector", f3_p: "IMAP/SSL — synchronisiert und indexiert Ihren Posteingang lokal. Fragen Sie Vokter nach Ihren E-Mails, ohne dass ein Cloud-Dienst sie sieht.",
+    f4_h: "Lokale Stimme", f4_p: "Sprechen Sie mit Vokter via Whisper (Sprache-zu-Text) und Piper (Text-zu-Sprache). Ihre Stimme verlässt nie das Gerät.",
+    f5_h: "Web-Browsing", f5_p: "Webseiten abrufen und speichern. Nur Allowlist — Vokter besucht nur Domains, die Sie ausdrücklich erlauben.",
+    f6_h: "Aufgabenplaner", f6_p: "Geben Sie Vokter ein Ziel. Es zerlegt es in Schritte, surft, fragt sein Gedächtnis ab und streamt das Ergebnis zurück.",
+    f7_h: "Nicht-verwahrender Wallet", f7_p: "Cashu E-Cash, Lightning, EURC/EURe, Solana, Monero, Bitcoin. Immer mit menschlicher Bestätigung. Ihre Schlüssel verlassen nie das Gerät.",
+    f8_h: "Geplante Aufgaben", f8_p: "Wiederkehrende Ziele festlegen — tägliche Zusammenfassung, Preisalarme, E-Mail-Zusammenfassungen. Vokter führt sie autonom aus und speichert das Ergebnis.",
+    f9_h: "MCP + Nostr", f9_p: "Verbinden Sie Vokter via MCP mit Claude Desktop. Oder senden Sie verschlüsselte DMs über Nostr — es antwortet mit Ihren lokalen Tools.",
+    pr_h2: "Nicht verhandelbare Grundsätze", pr_sub: "Das sind architektonische Einschränkungen, keine Marketingaussagen. Sie können nicht geändert werden, ohne das Projekt zu forken.",
+    p1_h: "Lokal zuerst", p1_p: "Alles läuft standardmäßig auf Ihrer Hardware. Keine Einstellung kann das ändern.",
+    p2_h: "Null versteckte Aufrufe", p2_p: "Keine Anfragen an KI-APIs von Drittanbietern. Prüfen Sie den Code — das ist der Punkt.",
+    p3_h: "Ihre Schlüssel, Ihr Geld", p3_p: "Nicht-verwahrend oder gar nicht. Vokter hält nie Ihre Gelder.",
+    p4_h: "Echte Löschung", p4_p: "Löschen bedeutet löschen. Embeddings, Verlauf, alles. Keine Soft-Deletes.",
+    p5_h: "Open Source", p5_p: "AGPL-3.0. Wir bitten nicht um Ihr Vertrauen — wir geben Ihnen den Beweis.",
+    p6_h: "Für Ihr Leben, nicht um Sie zu binden", p6_p: "Keine Engagement-Mechanismen. Keine Ausbeutung von Einsamkeit. Vokter gibt Ihnen Zeit zurück.",
+    hw_h2: "Hardware-Leitfaden", hw_sub: "Vokter läuft auf jeder Maschine, die Docker ausführen kann. Keine GPU erforderlich.",
+    hw_col_ram: "RAM", hw_col_model: "Empfohlenes Modell", hw_col_speed: "Geschwindigkeit",
+    hw_r1_speed: "Schnell auf CPU", hw_r2_speed: "Gute Qualität", hw_r3_speed: "Exzellente Qualität",
+    hw_r4_model: "Jedes der obigen", hw_r4_speed: "5–10× schneller",
+    manifesto_quote: "„Es gibt ein Recht, das älter ist als das Internet: <strong>Was Ihnen gehört, kann Ihnen nicht genommen werden</strong>. Die Norweger nennen es <em>odel</em> — das Land, das keine Krone, keine Bank und kein Herr einer Familie entreißen kann, seit Jahrhunderten in ihrer Verfassung verankert. Tausend Jahre später wenden wir dieses Recht auf Ihr digitales Leben an.“",
+    manifesto_link: "Das vollständige Manifest lesen →",
+    footer_tagline: "ein unabhängiges europäisches Projekt", footer_contribute: "Beitragen"
+  },
+
+  it: {
+    nav_download: "Scarica", nav_features: "Funzioni", nav_principles: "Principi",
+    nav_manifesto: "Manifesto", nav_github: "Vedi su GitHub →",
+    badge_european: "Progetto europeo",
+    hero_h1: "La tua IA.<br><em>La tua macchina.</em><br>I tuoi dati. Di diritto.",
+    hero_sub: "Vokter è un agente IA sovrano che gira interamente sul tuo hardware. Nessun cloud. Nessun account. Nessuna telemetria. Nemmeno un byte lascia il tuo dispositivo senza il tuo esplicito consenso.",
+    hero_cta_download: "Scarica Vokter — gratuito", hero_cta_github: "★ Star su GitHub",
+    install_h2: "Pronto in 3 passi — nessuna competenza tecnica richiesta",
+    install_sub: "Tempo totale: circa 10 minuti, principalmente in attesa dei download.",
+    step1_h3: "Installa Docker Desktop — è gratuito",
+    step1_p: "Docker è un'app gratuita che permette a Vokter di girare in sicurezza sul tuo computer. Installala come qualsiasi altra app. Lo fai una volta sola.",
+    docker_mac: "Docker per Mac", docker_win: "Docker per Windows", docker_linux: "Docker per Linux",
+    step2_h3: "Scarica e apri l'installer di Vokter",
+    step2_p: "Scarica il file per il tuo computer. Aprilo. L'installer fa tutto per te — nessuna configurazione, nessuna digitazione.",
+    dl_mac_title: "Scarica per Mac", dl_mac_hint: "Decomprimi → doppio clic su \"vokter-mac.command\". Prima volta: clic destro → Apri",
+    dl_win_title: "Scarica per Windows", dl_win_hint: "Doppio clic sul file scaricato. Se Windows chiede, clicca \"Ulteriori informazioni → Esegui comunque\"",
+    dl_linux_title: "Scarica per Linux", dl_linux_hint: "Esegui nel terminale: bash vokter-linux.sh",
+    step3_h3: "Il tuo browser si apre automaticamente",
+    step3_box: "L'installer ti chiede di scegliere un modello IA — <strong>Compatto (~800 MB)</strong> per download veloci e macchine da 8 GB, o <strong>Standard (~2 GB)</strong> per qualità migliore. Questo download avviene una volta sola.<br><br>Genera anche una <strong>chiave di cifratura unica</strong> per i tuoi dati e apre Vokter su <strong>http://localhost:8080</strong> automaticamente.<br><br>La prossima volta, Vokter si avvia automaticamente con Docker Desktop. <strong>Non è necessario rieseguire l'installer.</strong>",
+    soon_android_title: "App Android & tablet — prossimamente", soon_android_sub: "Connettiti al tuo Vokter di casa dal tuo telefono o tablet, ovunque sulla tua rete locale.",
+    soon_tee_title: "Calcolo sovrano nel cloud — prossimamente", soon_tee_sub: "Nessun hardware locale? Paga a utilizzo per il calcolo confidenziale in un TEE (Trusted Execution Environment). Ricevi una prova crittografica dal chip stesso che i tuoi dati sono privati — non una promessa, matematica. Certificato da aziende di sicurezza indipendenti.",
+    feat_h2: "Tutto gira localmente", feat_sub: "Vokter non è un wrapper attorno a una IA cloud. È uno stack locale completo.",
+    f1_h: "Memoria documentale", f1_p: "Importa PDF, TXT, Markdown. Suddiviso, vettorizzato e memorizzato con cifratura AES-256. Cancellazione reale — embedding inclusi.",
+    f2_h: "Chat locale", f2_p: "Fai domande sui tuoi documenti. Cronologia della conversazione persistente per sessione. Le risposte citano le loro fonti.",
+    f3_h: "Connettore email", f3_p: "IMAP/SSL — sincronizza e indicizza la tua casella localmente. Chiedi a Vokter delle tue email senza che nessun servizio cloud le veda.",
+    f4_h: "Voce locale", f4_p: "Parla con Vokter tramite Whisper (voce in testo) e Piper (testo in voce). La tua voce non lascia mai il dispositivo.",
+    f5_h: "Navigazione web", f5_p: "Recupera e memorizza pagine web. Solo whitelist — Vokter visita solo i domini che autorizzi esplicitamente.",
+    f6_h: "Pianificatore di attività", f6_p: "Dai un obiettivo a Vokter. Lo scompone in passi, naviga, consulta la sua memoria e ti restituisce il risultato.",
+    f7_h: "Portafoglio non custodiale", f7_p: "Cashu e-cash, Lightning, EURC/EURe, Solana, Monero, Bitcoin. Sempre con conferma umana. Le tue chiavi non lasciano mai il dispositivo.",
+    f8_h: "Attività pianificate", f8_p: "Imposta obiettivi ricorrenti — riassunto quotidiano, avvisi di prezzo, riassunti email. Vokter li esegue autonomamente e salva il risultato.",
+    f9_h: "MCP + Nostr", f9_p: "Connetti Vokter a Claude Desktop via MCP. O invia DM cifrati su Nostr — risponde usando i tuoi strumenti locali.",
+    pr_h2: "Principi non negoziabili", pr_sub: "Sono vincoli architetturali, non affermazioni di marketing. Non possono essere modificati senza fare un fork del progetto.",
+    p1_h: "Locale prima di tutto", p1_p: "Tutto gira sul tuo hardware di default. Nessuna impostazione può cambiarlo.",
+    p2_h: "Zero chiamate nascoste", p2_p: "Nessuna richiesta ad API IA di terze parti. Controlla il codice — è proprio questo il punto.",
+    p3_h: "Le tue chiavi, il tuo denaro", p3_p: "Non custodiale o niente. Vokter non detiene mai i tuoi fondi.",
+    p4_h: "Cancellazione reale", p4_p: "Cancellare significa cancellare. Embedding, cronologia, tutto. Nessuna cancellazione morbida.",
+    p5_h: "Open source", p5_p: "AGPL-3.0. Non chiediamo la tua fiducia — ti diamo la prova.",
+    p6_h: "Per la tua vita, non per trattenerti", p6_p: "Nessuna meccanica di coinvolgimento. Nessuno sfruttamento della solitudine. Vokter ti restituisce tempo.",
+    hw_h2: "Guida all'hardware", hw_sub: "Vokter gira su qualsiasi macchina che possa eseguire Docker. Nessuna GPU richiesta.",
+    hw_col_ram: "RAM", hw_col_model: "Modello consigliato", hw_col_speed: "Velocità",
+    hw_r1_speed: "Veloce su CPU", hw_r2_speed: "Buona qualità", hw_r3_speed: "Qualità eccellente",
+    hw_r4_model: "Qualsiasi dei precedenti", hw_r4_speed: "5–10× più veloce",
+    manifesto_quote: "«Esiste un diritto più antico di internet: <strong>ciò che è tuo non può essere tolto</strong>. I norvegesi lo chiamano <em>odel</em> — la terra che nessuna corona, banca o signore può strappare a una famiglia, protetta nella loro Costituzione da secoli. Mille anni dopo, applichiamo quel diritto alla tua vita digitale.»",
+    manifesto_link: "Leggi il manifesto completo →",
+    footer_tagline: "un progetto europeo indipendente", footer_contribute: "Contribuisci"
+  }
+};
+
+function applyLang(code) {
+  var t = T[code] || T.en;
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    if (t[el.dataset.i18n] !== undefined) el.textContent = t[el.dataset.i18n];
+  });
+  document.querySelectorAll('[data-i18n-html]').forEach(function(el) {
+    if (t[el.dataset.i18nHtml] !== undefined) el.innerHTML = t[el.dataset.i18nHtml];
+  });
+  document.documentElement.lang = code;
+  localStorage.setItem('vokter-lang', code);
+  document.querySelectorAll('.lang-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.lang === code);
+  });
+}
+
+document.querySelectorAll('.lang-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() { applyLang(btn.dataset.lang); });
+});
+
+// OS highlight
 (function() {
   var ua = navigator.userAgent;
   var id = ua.indexOf('Win') > -1 ? 'dl-win'
@@ -535,6 +696,16 @@
           : 'dl-mac';
   var el = document.getElementById(id);
   if (el) el.classList.add('active');
+})();
+
+// Language detection
+(function() {
+  var saved = localStorage.getItem('vokter-lang');
+  var browser = (navigator.language || 'en').slice(0, 2).toLowerCase();
+  var supported = ['en', 'es', 'fr', 'de', 'it'];
+  var lang = supported.indexOf(saved) > -1 ? saved :
+             supported.indexOf(browser) > -1 ? browser : 'en';
+  applyLang(lang);
 })();
 </script>
 </body>
