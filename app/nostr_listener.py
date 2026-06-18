@@ -13,6 +13,10 @@ Start: disabled unless VOKTER_NOSTR_RELAYS is set.
 Relay format: comma-separated WSS URLs.
   e.g. VOKTER_NOSTR_RELAYS=wss://relay.damus.io,wss://nos.lol
 
+Set VOKTER_NOSTR_ALLOWED_PUBKEYS to a comma-separated list of hex pubkeys to
+restrict who can send commands. Leave unset to accept DMs from any pubkey
+(only safe on a private relay).
+
 Architecture: protocol adapter only — all business logic runs in the
 FastAPI app, called via HTTP on localhost:8080.
 """
@@ -40,6 +44,10 @@ log = logging.getLogger("vokter.nostr")
 _BASE            = "http://localhost:8080"
 _RECONNECT_DELAY = 30  # seconds between reconnect attempts
 _HTTP_TIMEOUT    = httpx.Timeout(connect=5.0, read=300.0, write=10.0, pool=5.0)
+_http            = httpx.AsyncClient(timeout=_HTTP_TIMEOUT)
+
+# Conversation continuity: map sender hex pubkey → last conversation_id.
+_conversations: dict[str, str] = {}
 
 
 def _configured_relays() -> list[str]:
@@ -47,9 +55,15 @@ def _configured_relays() -> list[str]:
     return [r.strip() for r in raw.split(",") if r.strip()]
 
 
-async def _tool_call(text: str) -> str:
+def _allowed_pubkeys() -> set[str] | None:
+    """Return the set of permitted hex pubkeys, or None for unrestricted."""
+    raw  = os.getenv("VOKTER_NOSTR_ALLOWED_PUBKEYS", "")
+    keys = {k.strip() for k in raw.split(",") if k.strip()}
+    return keys if keys else None
+
+
+async def _tool_call(sender_hex: str, text: str) -> str:
     """Route a decrypted DM to the local REST API and return the response."""
-    # Try JSON tool call first; fall back to plain-text question
     try:
         obj  = json.loads(text)
         tool = (obj.get("tool") or "ask").lower().strip()
@@ -57,70 +71,85 @@ async def _tool_call(text: str) -> str:
     except (json.JSONDecodeError, AttributeError):
         tool, args = "ask", {"question": text}
 
-    async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT) as client:
-        try:
-            if tool in ("ask", ""):
-                r = await client.post(
-                    f"{_BASE}/api/ask",
-                    json={"question": args.get("question") or text},
-                )
-                return r.json()["answer"]
+    try:
+        if tool == "ask":
+            payload = {"question": args.get("question") or text}
+            conv_id = _conversations.get(sender_hex)
+            if conv_id:
+                payload["conversation_id"] = conv_id
+            r = await _http.post(f"{_BASE}/api/ask", json=payload)
+            r.raise_for_status()
+            data = r.json()
+            _conversations[sender_hex] = data["conversation_id"]
+            return data["answer"]
 
-            if tool == "browse":
-                r = await client.post(
-                    f"{_BASE}/api/browse",
-                    json={"url": args.get("url", "")},
-                )
-                d = r.json()
-                return f"Stored {d['chunks']} chunks from {d['doc']}."
-
-            if tool == "wallet_balance":
-                r = await client.get(f"{_BASE}/api/wallet/balance")
-                d = r.json()
-                return f"{d['balance']:,} {d['unit']} ({d['adapter']})"
-
-            if tool == "plan":
-                answer = "[no answer returned]"
-                async with client.stream(
-                    "POST", f"{_BASE}/api/plan",
-                    json={"goal": args.get("goal") or text},
-                ) as resp:
-                    buf = ""
-                    async for chunk in resp.aiter_text():
-                        buf += chunk
-                        lines = buf.split("\n")
-                        buf   = lines.pop()
-                        for line in lines:
-                            if not line.startswith("data: "):
-                                continue
-                            try:
-                                ev = json.loads(line[6:])
-                                if ev.get("type") == "done":
-                                    answer = ev.get("answer", answer)
-                            except json.JSONDecodeError:
-                                pass
-                return answer
-
-            return (
-                f"Unknown tool: {tool!r}. "
-                "Available: ask, browse, wallet_balance, plan"
+        if tool == "browse":
+            r = await _http.post(
+                f"{_BASE}/api/browse",
+                json={"url": args.get("url", "")},
             )
+            r.raise_for_status()
+            d = r.json()
+            return f"Stored {d['chunks']} chunks from {d['doc']}."
 
-        except Exception as exc:
-            log.exception("Tool call failed for tool=%r", tool)
-            return f"Error processing your request: {exc}"
+        if tool == "wallet_balance":
+            r = await _http.get(f"{_BASE}/api/wallet/balance")
+            r.raise_for_status()
+            d = r.json()
+            return f"{d['balance']:,} {d['unit']} ({d['adapter']})"
+
+        if tool == "plan":
+            answer = "[no answer returned]"
+            async with _http.stream(
+                "POST", f"{_BASE}/api/plan",
+                json={"goal": args.get("goal") or text},
+            ) as resp:
+                resp.raise_for_status()
+                buf = ""
+                async for chunk in resp.aiter_text():
+                    buf += chunk
+                    lines = buf.split("\n")
+                    buf   = lines.pop()
+                    for line in lines:
+                        if not line.startswith("data: "):
+                            continue
+                        try:
+                            ev = json.loads(line[6:])
+                            if ev.get("type") == "done":
+                                answer = ev.get("answer", answer)
+                        except json.JSONDecodeError:
+                            pass
+            return answer
+
+        return (
+            f"Unknown tool: {tool!r}. "
+            "Available: ask, browse, wallet_balance, plan"
+        )
+
+    except httpx.HTTPStatusError as exc:
+        log.warning("API error for tool=%r: %s", tool, exc.response.text[:200])
+        return f"Error: the local API returned {exc.response.status_code}"
+    except Exception as exc:
+        log.exception("Tool call failed for tool=%r", tool)
+        return f"Error processing your request: {exc}"
 
 
 class _DMHandler(HandleNotification):
-    def __init__(self, client: Client, keys: Keys):
-        self._client = client
-        self._keys   = keys
+    def __init__(self, client: Client, allowed: set[str] | None):
+        self._client  = client
+        self._allowed = allowed
 
     async def handle(self, relay_url: str, subscription_id, event) -> None:
         if event.kind().as_u16() != 4:
             return
 
-        sender = event.author()
+        sender     = event.author()
+        sender_hex = sender.to_hex()
+
+        if self._allowed is not None and sender_hex not in self._allowed:
+            log.debug("DM from unlisted pubkey %s — ignored", sender.to_bech32())
+            return
+
         try:
             plaintext = await self._client.nip04_decrypt(sender, event.content())
         except Exception:
@@ -128,7 +157,7 @@ class _DMHandler(HandleNotification):
             return
 
         log.info("DM from %s: %r", sender.to_bech32(), plaintext[:120])
-        response = await _tool_call(plaintext)
+        response = await _tool_call(sender_hex, plaintext)
         log.debug("Replying: %r", response[:120])
 
         try:
@@ -151,12 +180,21 @@ async def start() -> None:
         log.info("VOKTER_NOSTR_RELAYS not set — Nostr listener disabled")
         return
 
+    allowed = _allowed_pubkeys()
+
     privkey_bytes = get_nostr_privkey()
     secret_key    = SecretKey.from_slice(privkey_bytes)
     keys          = Keys(secret_key=secret_key)
     npub          = keys.public_key().to_bech32()
     log.info("Nostr identity: %s", npub)
     log.info("Nostr relays:   %s", relays)
+    if allowed:
+        log.info("Nostr allowlist: %d pubkey(s)", len(allowed))
+    else:
+        log.warning(
+            "VOKTER_NOSTR_ALLOWED_PUBKEYS not set — "
+            "accepting DMs from any Nostr pubkey"
+        )
 
     while True:
         client: Client | None = None
@@ -172,7 +210,7 @@ async def start() -> None:
             await client.subscribe([dm_filter], None)
             log.info("Nostr listener ready — npub: %s", npub)
 
-            await client.handle_notifications(_DMHandler(client, keys))
+            await client.handle_notifications(_DMHandler(client, allowed))
 
         except asyncio.CancelledError:
             log.info("Nostr listener shutting down")
@@ -181,7 +219,11 @@ async def start() -> None:
             log.exception(
                 "Nostr listener error — reconnecting in %ds", _RECONNECT_DELAY
             )
-            await asyncio.sleep(_RECONNECT_DELAY)
+            try:
+                await asyncio.sleep(_RECONNECT_DELAY)
+            except asyncio.CancelledError:
+                log.info("Nostr listener shutting down during reconnect wait")
+                return
         finally:
             if client is not None:
                 try:

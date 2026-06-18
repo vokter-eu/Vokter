@@ -90,29 +90,70 @@
     border-bottom: 1px solid var(--line);
     padding: 64px 24px;
   }
-  .install-inner { max-width: 760px; margin: 0 auto; }
-  .install h2 { font-size: 1.6rem; margin-bottom: 8px; }
-  .install p  { color: var(--muted); margin-bottom: 40px; }
-  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
-  .step {
-    background: var(--bg); border: 1px solid var(--line);
-    border-radius: 12px; padding: 20px;
+  .install-inner { max-width: 720px; margin: 0 auto; }
+  .install > .install-inner > h2 { font-size: 1.6rem; margin-bottom: 8px; }
+  .install > .install-inner > p  { color: var(--muted); margin-bottom: 48px; }
+
+  .istep {
+    display: flex; gap: 20px; align-items: flex-start;
+    margin-bottom: 40px;
   }
-  .step-num {
-    width: 28px; height: 28px; border-radius: 50%;
-    background: #4cc38a22; border: 1px solid #4cc38a44;
-    color: var(--accent); font-size: .85rem; font-weight: 700;
+  .istep-num {
+    flex-shrink: 0;
+    width: 40px; height: 40px; border-radius: 50%;
+    background: #4cc38a18; border: 1px solid #4cc38a44;
+    color: var(--accent); font-size: 1rem; font-weight: 800;
     display: flex; align-items: center; justify-content: center;
-    margin-bottom: 12px;
   }
-  .step h3 { font-size: .95rem; margin-bottom: 8px; }
-  .step code {
-    display: block; background: #0e1116;
-    border: 1px solid var(--line); border-radius: 6px;
-    padding: 8px 10px; font-family: monospace; font-size: .8rem;
-    color: var(--accent); white-space: pre-wrap; word-break: break-all;
+  .istep-body { flex: 1; }
+  .istep-body h3 { font-size: 1.05rem; margin-bottom: 6px; }
+  .istep-body > p { color: var(--muted); font-size: .9rem; margin-bottom: 16px; }
+
+  /* Docker buttons (Step 1) */
+  .docker-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+  .docker-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px 16px; text-decoration: none;
+    color: var(--text); font-size: .88rem; font-weight: 500;
+    background: var(--bg);
   }
-  .step p { color: var(--muted); font-size: .85rem; margin-top: 8px; margin-bottom: 0; }
+  .docker-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Download buttons (Step 2) */
+  .dl-btns { display: flex; flex-direction: column; gap: 10px; }
+  .dl-btn {
+    display: flex; align-items: center; gap: 16px;
+    background: var(--bg); border: 1px solid var(--line);
+    border-radius: 12px; padding: 14px 18px;
+    text-decoration: none; color: var(--text);
+    transition: border-color .15s;
+  }
+  .dl-btn:hover { border-color: var(--accent); }
+  .dl-btn.active { border-color: var(--accent); background: #4cc38a08; }
+  .dl-icon { font-size: 1.6rem; flex-shrink: 0; }
+  .dl-label strong { display: block; font-size: .95rem; margin-bottom: 2px; }
+  .dl-label small { color: var(--muted); font-size: .8rem; }
+  .dl-arrow { margin-left: auto; color: var(--accent); font-size: 1.1rem; }
+
+  /* Step 3 done box */
+  .done-box {
+    background: var(--bg); border: 1px solid var(--line);
+    border-radius: 12px; padding: 18px 20px;
+    color: var(--muted); font-size: .9rem; line-height: 1.6;
+  }
+  .done-box strong { color: var(--text); }
+
+  /* Coming soon */
+  .coming-soon {
+    margin-top: 40px;
+    background: var(--bg); border: 1px dashed var(--line);
+    border-radius: 12px; padding: 16px 20px;
+    display: flex; align-items: center; gap: 14px;
+    color: var(--muted); font-size: .88rem;
+  }
+  .coming-soon-icon { font-size: 1.5rem; flex-shrink: 0; }
+  .coming-soon strong { color: var(--text); display: block; margin-bottom: 2px; }
 
   /* ── Features ── */
   .features { max-width: 760px; margin: 0 auto; padding: 80px 24px; }
@@ -207,7 +248,7 @@
 <nav>
   <a class="nav-logo" href="/">🛡️ Vokter</a>
   <div class="nav-links">
-    <a href="#install">Install</a>
+    <a href="#install">Download</a>
     <a href="#features">Features</a>
     <a href="#principles">Principles</a>
     <a href="MANIFESTO.html">Manifesto</a>
@@ -224,39 +265,92 @@
     without your explicit permission.
   </p>
   <div class="hero-actions">
-    <a class="btn-primary" href="#install">Get started in 3 steps</a>
+    <a class="btn-primary" href="#install">Download Vokter — free</a>
     <a class="btn-secondary" href="https://github.com/vokter-eu/Vokter" target="_blank">★ Star on GitHub</a>
   </div>
 </section>
 
 <section class="install" id="install">
   <div class="install-inner">
-    <h2>Up and running in minutes</h2>
-    <p>Requirements: Docker and Docker Compose. Minimum 8 GB RAM.</p>
-    <div class="steps">
-      <div class="step">
-        <div class="step-num">1</div>
-        <h3>Clone and configure</h3>
-        <code>git clone https://github.com/vokter-eu/Vokter
-cd Vokter
-cp .env.example .env</code>
-        <p>Open <code>.env</code> and set <code>VOKTER_DB_KEY</code> to a strong passphrase. That's the only required change.</p>
+    <h2>Set up in 3 steps — no technical knowledge needed</h2>
+    <p>No coding, no terminal, no configuration. Total time: about 10 minutes, mostly waiting for downloads.</p>
+
+    <!-- Step 1 -->
+    <div class="istep">
+      <div class="istep-num">1</div>
+      <div class="istep-body">
+        <h3>Install Docker Desktop — it's free</h3>
+        <p>Docker is a free app that lets Vokter run safely in its own space on your computer, like a sandbox. Install it like any normal app. You only do this once.</p>
+        <div class="docker-btns">
+          <a class="docker-btn" href="https://www.docker.com/products/docker-desktop/" target="_blank">
+            🍎 Docker for Mac
+          </a>
+          <a class="docker-btn" href="https://www.docker.com/products/docker-desktop/" target="_blank">
+            🪟 Docker for Windows
+          </a>
+          <a class="docker-btn" href="https://docs.docker.com/desktop/install/linux/" target="_blank">
+            🐧 Docker for Linux
+          </a>
+        </div>
       </div>
-      <div class="step">
-        <div class="step-num">2</div>
-        <h3>Start the stack</h3>
-        <code>docker compose up -d --build
-docker exec -it vokter-ollama \
-  ollama pull llama3.2:3b
-docker exec -it vokter-ollama \
-  ollama pull nomic-embed-text</code>
-        <p>First run downloads the AI models. After that, everything is local — no internet needed.</p>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="istep">
+      <div class="istep-num">2</div>
+      <div class="istep-body">
+        <h3>Download and open the Vokter installer</h3>
+        <p>Download the file for your computer. Open it. The installer does everything for you — no setup, no typing, no configuration.</p>
+        <div class="dl-btns">
+          <a class="dl-btn" id="dl-mac" href="install/vokter-mac.zip" download>
+            <span class="dl-icon">🍎</span>
+            <div class="dl-label">
+              <strong>Download for Mac</strong>
+              <small>Unzip → double-click "vokter-mac.command". First time: right-click → Open</small>
+            </div>
+            <span class="dl-arrow">↓</span>
+          </a>
+          <a class="dl-btn" id="dl-win" href="install/vokter-windows.bat" download>
+            <span class="dl-icon">🪟</span>
+            <div class="dl-label">
+              <strong>Download for Windows</strong>
+              <small>Double-click the downloaded file. If Windows asks, click "More info → Run anyway"</small>
+            </div>
+            <span class="dl-arrow">↓</span>
+          </a>
+          <a class="dl-btn" id="dl-linux" href="install/vokter-linux.sh" download>
+            <span class="dl-icon">🐧</span>
+            <div class="dl-label">
+              <strong>Download for Linux</strong>
+              <small>Run in terminal: bash vokter-linux.sh</small>
+            </div>
+            <span class="dl-arrow">↓</span>
+          </a>
+        </div>
       </div>
-      <div class="step">
-        <div class="step-num">3</div>
-        <h3>Open your guardian</h3>
-        <code>http://localhost:8080</code>
-        <p>Upload a document and ask it anything. Your data never leaves this address.</p>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="istep">
+      <div class="istep-num">3</div>
+      <div class="istep-body">
+        <h3>Your browser opens automatically</h3>
+        <div class="done-box">
+          The installer downloads the AI model (~2 GB — takes 5-10 minutes the first time),
+          generates a <strong>unique encryption key</strong> for your data, and opens Vokter
+          at <strong>http://localhost:8080</strong>.<br><br>
+          Next time, Vokter starts automatically when you open Docker Desktop.
+          <strong>No need to run the installer again.</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile coming soon -->
+    <div class="coming-soon">
+      <span class="coming-soon-icon">📱</span>
+      <div>
+        <strong>Android &amp; tablet app — coming soon</strong>
+        Connect to your home Vokter from your phone or tablet, anywhere on your local network.
       </div>
     </div>
   </div>
@@ -419,5 +513,16 @@ docker exec -it vokter-ollama \
   </div>
 </footer>
 
+<script>
+// Highlight the download button that matches the visitor's OS
+(function() {
+  var ua = navigator.userAgent;
+  var id = ua.indexOf('Win') > -1 ? 'dl-win'
+          : ua.indexOf('Linux') > -1 && ua.indexOf('Android') === -1 ? 'dl-linux'
+          : 'dl-mac';
+  var el = document.getElementById(id);
+  if (el) el.classList.add('active');
+})();
+</script>
 </body>
 </html>

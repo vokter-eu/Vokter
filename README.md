@@ -27,23 +27,23 @@ Vokter (Norwegian: *guardian*) is a personal, sovereign AI agent that runs on **
 
 ## Quick start
 
-Requirements: [Docker](https://docs.docker.com/get-docker/) and Docker Compose. Minimum 8 GB RAM.
+### No-code install (recommended)
+
+Download and double-click the installer for your OS — it sets everything up automatically:
+
+- 🍎 **Mac** → [vokter-mac.zip](https://vokterai.com/install/vokter-mac.zip) (unzip → double-click)
+- 🪟 **Windows** → [vokter-windows.bat](https://vokterai.com/install/vokter-windows.bat) (double-click)
+- 🐧 **Linux** → [vokter-linux.sh](https://vokterai.com/install/vokter-linux.sh) (`bash vokter-linux.sh`)
+
+Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/) (free). The installer downloads the AI model, generates your encryption key, and opens Vokter at **http://localhost:8080** automatically.
+
+### Manual install (developers)
 
 ```bash
 git clone https://github.com/vokter-eu/Vokter.git
 cd Vokter
 cp .env.example .env
-```
-
-Open `.env` and **set `VOKTER_DB_KEY`** to a strong, unique passphrase before anything else. Generate one with:
-
-```bash
-openssl rand -hex 32
-```
-
-Then start the stack and pull the AI models:
-
-```bash
+# Set VOKTER_DB_KEY in .env (generate with: openssl rand -hex 32)
 docker compose up -d --build
 docker exec -it vokter-ollama ollama pull llama3.2:3b
 docker exec -it vokter-ollama ollama pull nomic-embed-text
