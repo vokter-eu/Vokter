@@ -149,12 +149,23 @@
     border:1px solid var(--line); background:var(--panel);
     color:var(--text); font-size:.83rem; }
   #cfg-status { font-size:.82rem; color:var(--muted); }
+  #hdr-avatar { width:32px;height:32px;border-radius:50%;object-fit:cover;
+                border:2px solid var(--line);display:none; }
+  #cfg-avatar-preview { width:52px;height:52px;border-radius:50%;object-fit:cover;
+                         border:2px solid var(--line);display:none; }
+  #cfg-avatar-placeholder { width:52px;height:52px;border-radius:50%;
+                              background:var(--panel);border:2px dashed var(--line);
+                              display:flex;align-items:center;justify-content:center;
+                              font-size:1.4rem; }
+  .cfg-avatar-upload { color:var(--accent);font-size:.82rem;cursor:pointer; }
+  .cfg-avatar-upload input { display:none; }
 </style>
 </head>
 <body>
 <header>
-  <div style="display:flex;align-items:baseline;gap:10px">
-    <h1>🛡️ <span id="hdr-agent-name">Vokter</span> <span style="color:var(--muted);font-size:.8rem">v0.6</span></h1>
+  <div style="display:flex;align-items:center;gap:10px">
+    <img id="hdr-avatar" alt="avatar">
+    <h1>🛡️ <span id="hdr-agent-name">Vokter</span> <span style="color:var(--muted);font-size:.8rem">v0.7</span></h1>
     <button class="btn-sm" id="btn-settings" style="font-size:.78rem;padding:4px 9px">⚙ Settings</button>
   </div>
   <div class="tag">Everything runs on your machine. Not a single byte leaves here.</div>
@@ -213,6 +224,19 @@
     <div class="cfg-field">
       <label>RAG chunks per answer (1–20)</label>
       <input type="number" id="cfg-rag-chunks" min="1" max="20">
+    </div>
+    <div class="cfg-field" style="grid-column:1/-1">
+      <label>Avatar</label>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
+        <img id="cfg-avatar-preview" alt="avatar">
+        <div id="cfg-avatar-placeholder">🛡️</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label class="cfg-avatar-upload">Upload image (jpg, png, webp)
+            <input type="file" id="cfg-avatar-file" accept=".jpg,.jpeg,.png,.webp,.gif">
+          </label>
+          <button class="btn-sm danger" id="btn-cfg-avatar-remove" style="font-size:.78rem;display:none">Remove avatar</button>
+        </div>
+      </div>
     </div>
   </div>
   <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
@@ -1016,11 +1040,54 @@ async function loadConfig() {
   } catch {}
 }
 
+async function loadAvatar() {
+  const hdr     = document.getElementById('hdr-avatar');
+  const preview = document.getElementById('cfg-avatar-preview');
+  const placeholder = document.getElementById('cfg-avatar-placeholder');
+  const removeBtn   = document.getElementById('btn-cfg-avatar-remove');
+  try {
+    const r = await fetch('/api/config/avatar', {method: 'HEAD'});
+    if (r.ok) {
+      const url = '/api/config/avatar?t=' + Date.now();
+      hdr.src     = url;  hdr.style.display = '';
+      preview.src = url;  preview.style.display = '';
+      placeholder.style.display = 'none';
+      removeBtn.style.display   = '';
+    } else {
+      hdr.style.display     = 'none';
+      preview.style.display = 'none';
+      placeholder.style.display = '';
+      removeBtn.style.display   = 'none';
+    }
+  } catch {
+    hdr.style.display = 'none';
+  }
+}
+
+document.getElementById('cfg-avatar-file').onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const r = await fetch('/api/config/avatar', {method: 'POST', body: fd});
+    if (r.ok) { await loadAvatar(); }
+    else { const j = await r.json(); alert(j.detail || 'Upload failed'); }
+  } catch (err) { alert('Error: ' + err); }
+  e.target.value = '';
+};
+
+document.getElementById('btn-cfg-avatar-remove').onclick = async () => {
+  if (!confirm('Remove avatar?')) return;
+  await fetch('/api/config/avatar', {method: 'DELETE'});
+  loadAvatar();
+};
+
 document.getElementById('btn-settings').onclick = () => {
   const p = document.getElementById('settings');
   const open = p.style.display !== 'none';
   p.style.display = open ? 'none' : '';
-  if (!open) loadConfig();
+  if (!open) { loadConfig(); loadAvatar(); }
 };
 
 document.getElementById('btn-cfg-save').onclick = async () => {
@@ -1058,6 +1125,7 @@ document.getElementById('btn-cfg-save').onclick = async () => {
 };
 
 loadConfig();
+loadAvatar();
 </script>
 </body>
 </html>

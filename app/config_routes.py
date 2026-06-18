@@ -1,18 +1,27 @@
 """
 Agent personalisation API.
 
-GET  /api/config        — returns current settings (with defaults for unset keys)
-PATCH /api/config       — update one or more settings; returns full config after save
+GET    /api/config          — returns current settings (with defaults for unset keys)
+PATCH  /api/config          — update one or more settings; returns full config after save
+POST   /api/config/avatar   — upload avatar image (jpg/png/webp/gif)
+GET    /api/config/avatar   — serve current avatar image
+DELETE /api/config/avatar   — remove avatar
 """
-from fastapi import APIRouter, HTTPException
+import os
+import shutil
+
+from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from agent_config import DEFAULTS, get_config, set_config
+from config import DATA_DIR
 
 router = APIRouter()
 
 _VALID_TONE = {"formal", "neutral", "friendly"}
 _VALID_MODE = {"productive", "conversational"}
+_AVATAR_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 
 
 class ConfigPatch(BaseModel):
@@ -73,3 +82,45 @@ def config_patch(patch: ConfigPatch):
     if updates:
         set_config(updates)
     return get_config()
+
+
+def _avatar_path() -> str | None:
+    for ext in _AVATAR_EXTS:
+        p = os.path.join(DATA_DIR, f"avatar{ext}")
+        if os.path.exists(p):
+            return p
+    return None
+
+
+@router.post("/api/config/avatar")
+async def avatar_upload(file: UploadFile = File(...)):
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in _AVATAR_EXTS:
+        raise HTTPException(400, f"Unsupported format. Use: jpg, png, webp, gif")
+    os.makedirs(DATA_DIR, exist_ok=True)
+    # Remove previous avatar (any extension)
+    for old_ext in _AVATAR_EXTS:
+        old = os.path.join(DATA_DIR, f"avatar{old_ext}")
+        if os.path.exists(old):
+            os.remove(old)
+    dest = os.path.join(DATA_DIR, f"avatar{ext}")
+    with open(dest, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+    return {"ok": True, "url": "/api/config/avatar"}
+
+
+@router.get("/api/config/avatar")
+def avatar_get():
+    path = _avatar_path()
+    if not path:
+        raise HTTPException(404, "No avatar set")
+    return FileResponse(path)
+
+
+@router.delete("/api/config/avatar")
+def avatar_delete():
+    path = _avatar_path()
+    if not path:
+        raise HTTPException(404, "No avatar to delete")
+    os.remove(path)
+    return {"ok": True}

@@ -5,6 +5,7 @@ OLLAMA_URL  = os.getenv("VOKTER_OLLAMA_URL",  "http://ollama:11434")
 CHAT_MODEL  = os.getenv("VOKTER_CHAT_MODEL",  "llama3.2:3b")
 EMBED_MODEL = os.getenv("VOKTER_EMBED_MODEL", "nomic-embed-text")
 DB_PATH     = os.getenv("VOKTER_DB",          "/data/vokter.db")
+DATA_DIR    = os.path.dirname(DB_PATH) or "/data"
 DB_KEY      = os.getenv("VOKTER_DB_KEY",      "")
 
 CHUNK_SIZE    = 900
