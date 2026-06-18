@@ -2,12 +2,14 @@
 
 **Your agent. Your data. Your money. By right.**
 
+🌐 **[vokterai.com](https://vokterai.com)** — [Manifesto](https://vokterai.com/MANIFESTO.html) — [GitHub](https://github.com/vokter-eu/Vokter)
+
 Vokter (Norwegian: *guardian*) is a personal, sovereign AI agent that runs on **your** machine. No third-party cloud, no accounts, no telemetry. It only knows what you teach it, and you can audit every line of code that makes it work.
 
 > There's a right older than the internet: what is yours cannot be taken. Norwegians call it *odel*. Vokter is its digital guardian.
-> — [Read the full manifesto](docs/MANIFESTO.md)
+> — [Read the full manifesto](https://vokterai.com/MANIFESTO.html)
 
-## What Vokter does today (v0.7.0)
+## What Vokter does today (v0.8.0)
 
 | Capability | Details |
 |---|---|
