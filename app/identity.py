@@ -88,6 +88,16 @@ def get_session_key(session_id: str) -> bytes:
     return _derive(bytes(row[0]), row[1])
 
 
+def get_nostr_privkey() -> bytes:
+    """Derive a deterministic secp256k1 private key for Vokter's Nostr identity.
+
+    Derived from the master key via HMAC-SHA256 with a fixed domain label.
+    Returns the same 32 bytes every time (Layer 3 identity — stable Nostr npub),
+    unlinkable to the ephemeral session keys used for other external interactions.
+    """
+    return hmac.digest(_master_key, b"vokter:nostr:identity:v1", hashlib.sha256)
+
+
 def _derive(nonce: bytes, context: str) -> bytes:
     # HMAC-SHA256(master_key, nonce || context) — one-way, unlinkable per nonce
     return hmac.digest(_master_key, nonce + context.encode(), hashlib.sha256)

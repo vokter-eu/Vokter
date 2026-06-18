@@ -24,18 +24,21 @@ from wallet_routes import router as wallet_router
 from schedule_routes import router as schedule_router
 from config_routes import router as config_router
 from scheduler import scheduler_loop, _running_tasks
+import nostr_listener
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    task = asyncio.create_task(scheduler_loop())
+    sched_task  = asyncio.create_task(scheduler_loop())
+    nostr_task  = asyncio.create_task(nostr_listener.start())
     yield
-    # Cancel the loop first so no new tasks are spawned during shutdown.
-    task.cancel()
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
+    # Cancel background tasks
+    for t in (sched_task, nostr_task):
+        t.cancel()
+        try:
+            await t
+        except asyncio.CancelledError:
+            pass
     # Cancel and await all in-flight _run_task coroutines.
     if _running_tasks:
         for t in list(_running_tasks):
@@ -43,7 +46,7 @@ async def lifespan(_app: FastAPI):
         await asyncio.gather(*_running_tasks, return_exceptions=True)
 
 
-app = FastAPI(title="Vokter", version="0.6.0", lifespan=lifespan)
+app = FastAPI(title="Vokter", version="0.8.0", lifespan=lifespan)
 app.include_router(ingestion_router)
 app.include_router(chat_router)
 app.include_router(email_router)

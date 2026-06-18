@@ -94,6 +94,9 @@ services:
       - VOKTER_BTC_RPC_URL=${VOKTER_BTC_RPC_URL:-}
       - VOKTER_BTC_RPC_USER=${VOKTER_BTC_RPC_USER:-}
       - VOKTER_BTC_RPC_PASS=${VOKTER_BTC_RPC_PASS:-}
+      # Nostr — leave empty to disable the DM listener
+      # Format: comma-separated WSS relay URLs
+      - VOKTER_NOSTR_RELAYS=${VOKTER_NOSTR_RELAYS:-}
     depends_on:
       - ollama
 
