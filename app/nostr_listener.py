@@ -2,8 +2,13 @@
 Vokter Nostr listener — Phase 6 interoperability.
 
 Layer 3 identity: a stable secp256k1 keypair derived from the master key.
-Listens for NIP-04 encrypted DMs addressed to Vokter's Nostr public key
-and routes them to the local tool registry via HTTP.
+Listens for NIP-17 private direct messages (NIP-59 gift wrap) addressed to
+Vokter's Nostr public key and routes them to the local tool registry via HTTP.
+
+Unlike NIP-04, gift wrap hides metadata: the outer event (kind 1059) is signed
+by a throwaway key, so relays cannot see who is talking to whom. The real
+sender is revealed only after unwrapping and is cryptographically authenticated
+by the inner seal signature.
 
 DM format accepted:
   Plain text   → treated as a question for the 'ask' tool
@@ -140,28 +145,32 @@ class _DMHandler(HandleNotification):
         self._allowed = allowed
 
     async def handle(self, relay_url: str, subscription_id, event) -> None:
-        if event.kind().as_u16() != 4:
+        if event.kind().as_u16() != 1059:  # NIP-59 gift wrap
             return
 
-        sender     = event.author()
+        # The gift wrap is signed by a throwaway key, so event.author() is NOT
+        # the real sender. Unwrap first; the inner seal authenticates the true
+        # sender, and only then is the allowlist meaningful.
+        try:
+            unwrapped = await self._client.unwrap_gift_wrap(event)
+        except Exception:
+            log.debug("Could not unwrap gift wrap — ignoring")
+            return
+
+        sender     = unwrapped.sender()
         sender_hex = sender.to_hex()
 
         if self._allowed is not None and sender_hex not in self._allowed:
             log.debug("DM from unlisted pubkey %s — ignored", sender.to_bech32())
             return
 
-        try:
-            plaintext = await self._client.nip04_decrypt(sender, event.content())
-        except Exception:
-            log.debug("Could not decrypt DM from %s — ignoring", sender.to_bech32())
-            return
-
+        plaintext = unwrapped.rumor().content()
         log.info("DM from %s: %r", sender.to_bech32(), plaintext[:120])
         response = await _tool_call(sender_hex, plaintext)
         log.debug("Replying: %r", response[:120])
 
         try:
-            await self._client.send_direct_msg(sender, response, None)
+            await self._client.send_private_msg(sender, response, [])
         except Exception as exc:
             log.error("Failed to send reply to %s: %s", sender.to_bech32(), exc)
 
@@ -172,8 +181,8 @@ class _DMHandler(HandleNotification):
 async def start() -> None:
     """
     Background asyncio task.  Connect to configured Nostr relays, subscribe
-    to NIP-04 DMs addressed to Vokter's public key, and handle them.
-    Reconnects automatically on error.  Exits cleanly on CancelledError.
+    to NIP-17 gift-wrapped DMs addressed to Vokter's public key, and handle
+    them.  Reconnects automatically on error.  Exits cleanly on CancelledError.
     """
     relays = _configured_relays()
     if not relays:
@@ -206,8 +215,9 @@ async def start() -> None:
                 await client.add_relay(relay_url)
             await client.connect()
 
-            dm_filter = Filter().kind(Kind(4)).pubkey(keys.public_key())
-            await client.subscribe([dm_filter], None)
+            # kind 1059 = NIP-59 gift wrap. limit(0) = only new wraps, no backlog.
+            gw_filter = Filter().kind(Kind(1059)).pubkey(keys.public_key()).limit(0)
+            await client.subscribe([gw_filter], None)
             log.info("Nostr listener ready — npub: %s", npub)
 
             await client.handle_notifications(_DMHandler(client, allowed))
