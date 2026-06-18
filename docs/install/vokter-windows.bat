@@ -5,7 +5,7 @@ title Vokter Installer
 cls
 echo.
 echo  ===============================================================
-echo    ^|^|  Vokter -- Personal AI Agent -- Installer for Windows
+echo    Vokter -- Personal AI Agent -- Installer for Windows
 echo  ===============================================================
 echo.
 
@@ -56,7 +56,7 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-:: ── Step 5: Generate encrypted config ───────────────────────────────
+:: ── Step 5: Config + model choice ───────────────────────────────────
 if not exist .env (
     curl -fsSL "https://raw.githubusercontent.com/vokter-eu/Vokter/main/.env.example" -o .env
     for /f "delims=" %%k in ('powershell -NoProfile -Command ^
@@ -65,8 +65,33 @@ if not exist .env (
     powershell -NoProfile -Command ^
         "(Get-Content .env) -replace '^VOKTER_DB_KEY=.*', 'VOKTER_DB_KEY=!DB_KEY!' | Set-Content .env -Encoding UTF8"
     echo  [OK] Encryption key generated -- your data is protected
+    echo.
+    echo  Choose your AI model:
+    echo.
+    echo    [1] Compact  -- llama3.2:1b  (~800 MB^)
+    echo        Fast download. Good for questions and summaries.
+    echo        Best if your PC has 8 GB RAM.
+    echo.
+    echo    [2] Standard -- llama3.2:3b  (~2 GB^)  ^<-- recommended
+    echo        Better quality answers. Works well on 8 GB+ RAM.
+    echo.
+    choice /c 12 /d 2 /t 30 /m "  Your choice (1=Compact, 2=Standard, auto-selects Standard in 30s)"
+    if !errorlevel!==1 (
+        set "CHAT_MODEL=llama3.2:1b"
+        set "MODEL_SIZE=~800 MB"
+    ) else (
+        set "CHAT_MODEL=llama3.2:3b"
+        set "MODEL_SIZE=~2 GB"
+    )
+    powershell -NoProfile -Command ^
+        "(Get-Content .env) -replace '^VOKTER_CHAT_MODEL=.*', 'VOKTER_CHAT_MODEL=!CHAT_MODEL!' | Set-Content .env -Encoding UTF8"
+    echo.
+    echo  [OK] Model selected: !CHAT_MODEL! (!MODEL_SIZE!^)
 ) else (
+    for /f "tokens=2 delims==" %%m in ('findstr /b "VOKTER_CHAT_MODEL=" .env') do set "CHAT_MODEL=%%m"
+    if "!CHAT_MODEL!"=="" set "CHAT_MODEL=llama3.2:3b"
     echo  [OK] Existing configuration found -- keeping it
+    echo  Model: !CHAT_MODEL!
 )
 
 :: ── Step 6: Start Vokter ────────────────────────────────────────────
@@ -74,16 +99,22 @@ echo.
 echo  Starting Vokter...
 docker compose up -d
 
-:: ── Step 7: Download AI models ──────────────────────────────────────
+:: ── Step 7: Wait for Ollama ─────────────────────────────────────────
+echo  Waiting for Ollama to start...
+:wait_ollama
+timeout /t 3 /nobreak >nul
+docker exec vokter-ollama ollama list >nul 2>&1
+if %errorlevel% neq 0 goto wait_ollama
+
+:: ── Step 8: Download AI models ──────────────────────────────────────
 echo.
-echo  Downloading AI model -- llama3.2:3b (~2 GB)
-echo  This takes 5-10 minutes the first time.
+echo  Downloading !CHAT_MODEL!...
 echo  Please wait, do not close this window.
 echo.
-docker exec vokter-ollama ollama pull llama3.2:3b
+docker exec vokter-ollama ollama pull !CHAT_MODEL!
 docker exec vokter-ollama ollama pull nomic-embed-text
 
-:: ── Step 8: Open browser ────────────────────────────────────────────
+:: ── Step 9: Open browser ────────────────────────────────────────────
 echo.
 echo  ===============================================================
 echo    Vokter is ready!

@@ -65,7 +65,7 @@ if ! curl -fsSL \
     exit 1
 fi
 
-# ── Step 6: Generate encrypted config ────────────────────────
+# ── Step 6: Config + model choice ────────────────────────────
 if [ ! -f .env ]; then
     curl -fsSL \
         "https://raw.githubusercontent.com/vokter-eu/Vokter/main/.env.example" \
@@ -73,8 +73,31 @@ if [ ! -f .env ]; then
     DB_KEY=$(openssl rand -hex 32)
     sed -i "s/^VOKTER_DB_KEY=.*/VOKTER_DB_KEY=$DB_KEY/" .env
     echo "🔑 Encryption key generated — your data is protected"
+    echo ""
+
+    echo "🤖 Choose your AI model:"
+    echo ""
+    echo "   [1] Compact  — llama3.2:1b  (~800 MB)"
+    echo "       Fast download. Good for questions and summaries."
+    echo "       Best if your machine has 8 GB RAM."
+    echo ""
+    echo "   [2] Standard — llama3.2:3b  (~2 GB)  ← recommended"
+    echo "       Better quality answers. Works well on 8 GB+ RAM."
+    echo ""
+    read -rp "   Your choice (1 or 2, or just press Enter for Standard): " MODEL_CHOICE
+    case "$MODEL_CHOICE" in
+        1) CHAT_MODEL="llama3.2:1b" ; MODEL_SIZE="~800 MB" ;;
+        *) CHAT_MODEL="llama3.2:3b" ; MODEL_SIZE="~2 GB"   ;;
+    esac
+    sed -i "s/^VOKTER_CHAT_MODEL=.*/VOKTER_CHAT_MODEL=$CHAT_MODEL/" .env
+    echo ""
+    echo "   ✅ Model selected: $CHAT_MODEL ($MODEL_SIZE)"
 else
+    CHAT_MODEL=$(grep "^VOKTER_CHAT_MODEL=" .env | cut -d= -f2 | tr -d '[:space:]')
+    CHAT_MODEL="${CHAT_MODEL:-llama3.2:3b}"
+    MODEL_SIZE="already downloaded"
     echo "🔑 Existing configuration found — keeping it"
+    echo "   Model: $CHAT_MODEL"
 fi
 
 # ── Step 7: Start Vokter ─────────────────────────────────────
@@ -82,16 +105,24 @@ echo ""
 echo "🚀 Starting Vokter..."
 $COMPOSE up -d
 
-# ── Step 8: Download AI models ───────────────────────────────
+# ── Step 8: Wait for Ollama to be ready ──────────────────────
+echo "⏳ Waiting for Ollama to start..."
+for i in $(seq 1 15); do
+    if docker exec vokter-ollama ollama list &>/dev/null 2>&1; then
+        break
+    fi
+    sleep 3
+done
+
+# ── Step 9: Download AI models ───────────────────────────────
 echo ""
-echo "🤖 Downloading AI model — llama3.2:3b (~2 GB)"
-echo "   This takes 5-10 minutes the first time."
+echo "🤖 Downloading $CHAT_MODEL ($MODEL_SIZE)..."
 echo "   Please wait, do not close this window."
 echo ""
-docker exec vokter-ollama ollama pull llama3.2:3b
+docker exec vokter-ollama ollama pull "$CHAT_MODEL"
 docker exec vokter-ollama ollama pull nomic-embed-text
 
-# ── Step 9: Open browser ─────────────────────────────────────
+# ── Step 10: Open browser ─────────────────────────────────────
 echo ""
 echo "┌─────────────────────────────────────────────────────┐"
 echo "│   ✅  Vokter is ready!                              │"
@@ -99,10 +130,9 @@ echo "│                                                     │"
 echo "│   Open your browser and go to:                      │"
 echo "│       http://localhost:8080                         │"
 echo "│                                                     │"
-echo "│   Next time: docker compose up -d  (in ~/Vokter)   │"
+echo "│   Next time: cd ~/Vokter && docker compose up -d   │"
 echo "└─────────────────────────────────────────────────────┘"
 echo ""
-# Try to open browser (works on most desktop Linux)
 xdg-open "http://localhost:8080" &>/dev/null || \
     sensible-browser "http://localhost:8080" &>/dev/null || \
     echo "Open http://localhost:8080 in your browser."
