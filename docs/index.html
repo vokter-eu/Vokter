@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vokter — Your AI. Your machine. Your data.</title>
+<title data-i18n="page_title">Vokter — Your AI. Your machine. Your data.</title>
 <meta name="description" content="Vokter is a sovereign AI agent that runs entirely on your machine. No cloud, no accounts, no telemetry. Your documents, emails, wallet, and voice — all local.">
 <meta property="og:title" content="Vokter — Your AI. Your machine. Your data.">
 <meta property="og:description" content="A sovereign AI agent that runs entirely on your machine. Open source, AGPL-3.0.">
@@ -231,6 +231,41 @@
   footer a:hover { color: var(--accent); }
   .footer-links { display: flex; gap: 20px; }
 
+  /* ── Vision / Roadmap ── */
+  .vision {
+    background: #0e1116;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding: 80px 24px;
+  }
+  .vision-inner { max-width: 760px; margin: 0 auto; }
+  .vision h2 { font-size: 1.6rem; margin-bottom: 8px; }
+  .vision-sub { color: var(--muted); margin-bottom: 20px; }
+  .vision-badge {
+    display: inline-block; margin-bottom: 40px;
+    background: #7c3aed12; border: 1px solid #7c3aed44;
+    color: #a78bfa; font-size: .78rem; font-weight: 600;
+    padding: 4px 14px; border-radius: 20px;
+  }
+  .vision-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+  }
+  .vision-card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 20px;
+    display: flex; flex-direction: column;
+  }
+  .vision-card-icon { font-size: 1.5rem; margin-bottom: 10px; }
+  .vision-card h3 { font-size: .95rem; margin-bottom: 6px; }
+  .vision-card-desc { color: var(--muted); font-size: .84rem; line-height: 1.5; margin-bottom: 14px; flex: 1; }
+  .vision-card-agents {
+    font-size: .76rem; color: #a78bfa;
+    border-top: 1px solid var(--line); padding-top: 10px;
+  }
+  .vision-card-agents .agents-label { color: var(--muted); margin-right: 4px; }
+
   @media (max-width: 600px) {
     nav { padding: 12px 16px; }
     .nav-links { display: none; }
@@ -362,6 +397,52 @@
   </div>
 </section>
 
+<section class="vision" id="vision">
+  <div class="vision-inner">
+    <h2 data-i18n="vis_h2">The future of your agent</h2>
+    <p class="vision-sub" data-i18n="vis_sub">Where Vokter is going: your agent negotiates for you with the AI agents of every service — never revealing your personal data to anyone.</p>
+    <div class="vision-badge" data-i18n="vis_badge">🔮 Future vision</div>
+    <div class="vision-grid">
+      <div class="vision-card">
+        <div class="vision-card-icon">✈️</div>
+        <h3 data-i18n="v1_title">Plan your trip to the Alps</h3>
+        <p class="vision-card-desc" data-i18n="v1_desc">Tell Vokter where you want to go. It checks the weather, suggests what to pack for the snow, and books everything.</p>
+        <div class="vision-card-agents"><span class="agents-label" data-i18n="vis_agents">Talks with:</span> <span data-i18n="v1_agents">Airline AI · Hotel AI · Experiences AI</span></div>
+      </div>
+      <div class="vision-card">
+        <div class="vision-card-icon">🚗</div>
+        <h3 data-i18n="v2_title">Strange noise in the engine</h3>
+        <p class="vision-card-desc" data-i18n="v2_desc">Vokter identifies the part, finds the best price across online stores, and negotiates the repair slot with local mechanics.</p>
+        <div class="vision-card-agents"><span class="agents-label" data-i18n="vis_agents">Talks with:</span> <span data-i18n="v2_agents">Parts store AIs · Mechanic AIs</span></div>
+      </div>
+      <div class="vision-card">
+        <div class="vision-card-icon">👗</div>
+        <h3 data-i18n="v3_title">Carnival outfit needed</h3>
+        <p class="vision-card-desc" data-i18n="v3_desc">Vokter knows your style and size, compares shops, negotiates prices, and pays — with crypto — when you say yes.</p>
+        <div class="vision-card-agents"><span class="agents-label" data-i18n="vis_agents">Talks with:</span> <span data-i18n="v3_agents">Shop AIs · Payment network</span></div>
+      </div>
+      <div class="vision-card">
+        <div class="vision-card-icon">🎭</div>
+        <h3 data-i18n="v4_title">Concert tickets</h3>
+        <p class="vision-card-desc" data-i18n="v4_desc">Vokter monitors seat availability, connects with the venue's AI to secure the best seats, and confirms without queuing.</p>
+        <div class="vision-card-agents"><span class="agents-label" data-i18n="vis_agents">Talks with:</span> <span data-i18n="v4_agents">Theater AI · Ticketing AI</span></div>
+      </div>
+      <div class="vision-card">
+        <div class="vision-card-icon">🏥</div>
+        <h3 data-i18n="v5_title">Find the right specialist</h3>
+        <p class="vision-card-desc" data-i18n="v5_desc">Describe your need. Vokter finds relevant specialists near you and books your appointment through their AI.</p>
+        <div class="vision-card-agents"><span class="agents-label" data-i18n="vis_agents">Talks with:</span> <span data-i18n="v5_agents">Clinic AIs · Booking AI</span></div>
+      </div>
+      <div class="vision-card">
+        <div class="vision-card-icon">🏠</div>
+        <h3 data-i18n="v6_title">Too expensive? Let's fix that</h3>
+        <p class="vision-card-desc" data-i18n="v6_desc">Vokter audits your subscriptions and bills, finds better deals, and switches providers — always with your approval.</p>
+        <div class="vision-card-agents"><span class="agents-label" data-i18n="vis_agents">Talks with:</span> <span data-i18n="v6_agents">Energy AI · Telecom AI · Bank AI</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="features" id="features">
   <h2 data-i18n="feat_h2">Everything runs locally</h2>
   <p data-i18n="feat_sub">Vokter is not a wrapper around a cloud AI. It is a complete local stack.</p>
@@ -434,6 +515,7 @@
 <script>
 const T = {
   en: {
+    page_title: "Vokter — Your AI. Your machine. Your data.",
     nav_download: "Download", nav_features: "Features", nav_principles: "Principles",
     nav_manifesto: "Manifesto", nav_github: "View on GitHub →",
     badge_european: "European project",
@@ -477,10 +559,21 @@ const T = {
     hw_r4_model: "Any model above", hw_r4_speed: "5–10× faster",
     manifesto_quote: "“There’s a right older than the internet: <strong>what is yours cannot be taken</strong>. Norwegians call it <em>odel</em> — the land that no crown, bank, or lord can wrest from a family, protected in their Constitution for centuries. A thousand years later, we apply that right to your digital life.”",
     manifesto_link: "Read the full manifesto →",
-    footer_tagline: "an independent European project", footer_contribute: "Contribute"
+    footer_tagline: "an independent European project", footer_contribute: "Contribute",
+    vis_h2: "The future of your agent",
+    vis_sub: "Where Vokter is going: your agent negotiates for you with the AI agents of every service — never revealing your personal data to anyone.",
+    vis_badge: "🔮 Future vision",
+    vis_agents: "Talks with:",
+    v1_title: "Plan your trip to the Alps", v1_desc: "Tell Vokter where you want to go. It checks the weather, suggests what to pack for the snow, and books everything.", v1_agents: "Airline AI · Hotel AI · Experiences AI",
+    v2_title: "Strange noise in the engine", v2_desc: "Vokter identifies the part, finds the best price across online stores, and negotiates the repair slot with local mechanics.", v2_agents: "Parts store AIs · Mechanic AIs",
+    v3_title: "Carnival outfit needed", v3_desc: "Vokter knows your style and size, compares shops, negotiates prices, and pays — with crypto — when you say yes.", v3_agents: "Shop AIs · Payment network",
+    v4_title: "Concert tickets", v4_desc: "Vokter monitors seat availability, connects with the venue's AI to secure the best seats, and confirms without queuing.", v4_agents: "Theater AI · Ticketing AI",
+    v5_title: "Find the right specialist", v5_desc: "Describe your need. Vokter finds relevant specialists near you and books your appointment through their AI.", v5_agents: "Clinic AIs · Booking AI",
+    v6_title: "Too expensive? Let's fix that", v6_desc: "Vokter audits your subscriptions and bills, finds better deals, and switches providers — always with your approval.", v6_agents: "Energy AI · Telecom AI · Bank AI"
   },
 
   es: {
+    page_title: "Vokter — Tu IA. Tu máquina. Tus datos.",
     nav_download: "Descargar", nav_features: "Funciones", nav_principles: "Principios",
     nav_manifesto: "Manifiesto", nav_github: "Ver en GitHub →",
     badge_european: "Proyecto europeo",
@@ -524,10 +617,21 @@ const T = {
     hw_r4_model: "Cualquiera de los anteriores", hw_r4_speed: "5–10× más rápido",
     manifesto_quote: "“Existe un derecho más antiguo que internet: <strong>lo que es tuyo no puede ser arrebatado</strong>. Los noruegos lo llaman <em>odel</em> — la tierra que ninguna corona, banco ni señor puede quitarle a una familia, protegida en su Constitución durante siglos. Mil años después, aplicamos ese derecho a tu vida digital.”",
     manifesto_link: "Leer el manifiesto completo →",
-    footer_tagline: "un proyecto europeo independiente", footer_contribute: "Contribuir"
+    footer_tagline: "un proyecto europeo independiente", footer_contribute: "Contribuir",
+    vis_h2: "El futuro de tu agente",
+    vis_sub: "Hacia dónde va Vokter: tu agente negocia por ti con los agentes IA de cada servicio, sin revelar tus datos personales.",
+    vis_badge: "🔮 Visión de futuro",
+    vis_agents: "Habla con:",
+    v1_title: "Planifica tu viaje a los Alpes", v1_desc: "Dile a Vokter dónde quieres ir. Consulta el tiempo, te sugiere qué ropa llevar para la nieve y reserva todo.", v1_agents: "IA Aerolínea · IA Hotel · IA Experiencias",
+    v2_title: "Ruido extraño en el motor", v2_desc: "Vokter identifica la pieza, encuentra el mejor precio en tiendas online y negocia el turno con los mecánicos locales.", v2_agents: "IA Tiendas de piezas · IA Talleres",
+    v3_title: "Disfraz para el Carnaval", v3_desc: "Vokter conoce tu talla y estilo, compara tiendas, negocia precios y paga — con crypto — cuando tú dices sí.", v3_agents: "IA Tiendas · Red de pago",
+    v4_title: "Entradas para el concierto", v4_desc: "Vokter monitoriza disponibilidad, conecta con la IA del teatro para conseguir los mejores asientos y confirma sin colas.", v4_agents: "IA Teatro · IA Ticketing",
+    v5_title: "Encuentra al especialista adecuado", v5_desc: "Describe tu necesidad. Vokter busca especialistas cercanos y reserva tu cita a través de su IA.", v5_agents: "IA Clínicas · IA Reservas",
+    v6_title: "¿Demasiado caro? Lo arreglamos", v6_desc: "Vokter audita tus suscripciones y facturas, encuentra mejores ofertas y cambia de proveedor — siempre con tu aprobación.", v6_agents: "IA Energía · IA Telecom · IA Banca"
   },
 
   fr: {
+    page_title: "Vokter — Ton IA. Ta machine. Tes données.",
     nav_download: "Télécharger", nav_features: "Fonctions", nav_principles: "Principes",
     nav_manifesto: "Manifeste", nav_github: "Voir sur GitHub →",
     badge_european: "Projet européen",
@@ -571,10 +675,21 @@ const T = {
     hw_r4_model: "N'importe lequel ci-dessus", hw_r4_speed: "5–10× plus rapide",
     manifesto_quote: "« Il existe un droit plus ancien qu’internet : <strong>ce qui est à vous ne peut vous être pris</strong>. Les Norvégiens l’appellent <em>odel</em> — la terre qu’aucune couronne, banque ou seigneur ne peut arracher à une famille, protégée dans leur Constitution depuis des siècles. Mille ans plus tard, nous appliquons ce droit à votre vie numérique. »",
     manifesto_link: "Lire le manifeste complet →",
-    footer_tagline: "un projet européen indépendant", footer_contribute: "Contribuer"
+    footer_tagline: "un projet européen indépendant", footer_contribute: "Contribuer",
+    vis_h2: "L'avenir de ton agent",
+    vis_sub: "Là où Vokter se dirige : ton agent négocie pour toi avec les agents IA de chaque service — sans jamais révéler tes données personnelles.",
+    vis_badge: "🔮 Vision future",
+    vis_agents: "Parle avec :",
+    v1_title: "Planifie ton voyage dans les Alpes", v1_desc: "Dis à Vokter où tu veux aller. Il vérifie la météo, suggère quoi emporter pour la neige et réserve tout.", v1_agents: "IA Compagnie aérienne · IA Hôtel · IA Expériences",
+    v2_title: "Bruit étrange dans le moteur", v2_desc: "Vokter identifie la pièce, trouve le meilleur prix en ligne et négocie le rendez-vous avec les garagistes locaux.", v2_agents: "IA Pièces auto · IA Garages",
+    v3_title: "Costume pour le Carnaval", v3_desc: "Vokter connaît ta taille et ton style, compare les boutiques, négocie les prix et paie — en crypto — quand tu dis oui.", v3_agents: "IA Boutiques · Réseau de paiement",
+    v4_title: "Billets de concert", v4_desc: "Vokter surveille les disponibilités, contacte l'IA du théâtre pour les meilleures places et confirme sans faire la queue.", v4_agents: "IA Théâtre · IA Billetterie",
+    v5_title: "Trouver le bon spécialiste", v5_desc: "Décris ton besoin. Vokter trouve les spécialistes proches et réserve ton rendez-vous via leur IA.", v5_agents: "IA Cliniques · IA Réservations",
+    v6_title: "Trop cher ? On arrange ça", v6_desc: "Vokter audite tes abonnements et factures, trouve de meilleures offres et change de fournisseur — toujours avec ton accord.", v6_agents: "IA Énergie · IA Telecom · IA Banque"
   },
 
   de: {
+    page_title: "Vokter — Deine KI. Deine Maschine. Deine Daten.",
     nav_download: "Download", nav_features: "Funktionen", nav_principles: "Grundsätze",
     nav_manifesto: "Manifest", nav_github: "Auf GitHub ansehen →",
     badge_european: "Europäisches Projekt",
@@ -618,10 +733,21 @@ const T = {
     hw_r4_model: "Jedes der obigen", hw_r4_speed: "5–10× schneller",
     manifesto_quote: "„Es gibt ein Recht, das älter ist als das Internet: <strong>Was Ihnen gehört, kann Ihnen nicht genommen werden</strong>. Die Norweger nennen es <em>odel</em> — das Land, das keine Krone, keine Bank und kein Herr einer Familie entreißen kann, seit Jahrhunderten in ihrer Verfassung verankert. Tausend Jahre später wenden wir dieses Recht auf Ihr digitales Leben an.“",
     manifesto_link: "Das vollständige Manifest lesen →",
-    footer_tagline: "ein unabhängiges europäisches Projekt", footer_contribute: "Beitragen"
+    footer_tagline: "ein unabhängiges europäisches Projekt", footer_contribute: "Beitragen",
+    vis_h2: "Die Zukunft deines Agenten",
+    vis_sub: "Wohin Vokter führt: Dein Agent verhandelt in deinem Namen mit den KI-Agenten jedes Dienstleisters — ohne deine Daten preiszugeben.",
+    vis_badge: "🔮 Zukunftsvision",
+    vis_agents: "Spricht mit:",
+    v1_title: "Deine Reise in die Alpen planen", v1_desc: "Sag Vokter, wohin du willst. Er prüft das Wetter, schlägt vor, was du einpacken sollst, und bucht alles.", v1_agents: "KI Airline · KI Hotel · KI Erlebnisse",
+    v2_title: "Komisches Geräusch im Motor", v2_desc: "Vokter identifiziert das Ersatzteil, findet den besten Preis online und verhandelt den Termin mit lokalen Werkstätten.", v2_agents: "KI Ersatzteillager · KI Werkstätten",
+    v3_title: "Kostüm für den Karneval", v3_desc: "Vokter kennt deine Größe und deinen Stil, vergleicht Shops, handelt Preise aus und zahlt — mit Krypto — wenn du ja sagst.", v3_agents: "KI Shops · Zahlungsnetzwerk",
+    v4_title: "Konzerttickets", v4_desc: "Vokter überwacht die Verfügbarkeit, kontaktiert die KI des Theaters für die besten Plätze und bestätigt ohne Warteschlange.", v4_agents: "KI Theater · KI Ticketing",
+    v5_title: "Den richtigen Spezialisten finden", v5_desc: "Beschreibe dein Anliegen. Vokter findet passende Spezialisten in der Nähe und bucht deinen Termin über deren KI.", v5_agents: "KI Kliniken · KI Buchung",
+    v6_title: "Zu teuer? Das ändern wir", v6_desc: "Vokter prüft deine Abonnements und Rechnungen, findet bessere Angebote und wechselt Anbieter — immer mit deiner Zustimmung.", v6_agents: "KI Energie · KI Telekom · KI Bank"
   },
 
   it: {
+    page_title: "Vokter — La tua IA. La tua macchina. I tuoi dati.",
     nav_download: "Scarica", nav_features: "Funzioni", nav_principles: "Principi",
     nav_manifesto: "Manifesto", nav_github: "Vedi su GitHub →",
     badge_european: "Progetto europeo",
@@ -665,18 +791,30 @@ const T = {
     hw_r4_model: "Qualsiasi dei precedenti", hw_r4_speed: "5–10× più veloce",
     manifesto_quote: "«Esiste un diritto più antico di internet: <strong>ciò che è tuo non può essere tolto</strong>. I norvegesi lo chiamano <em>odel</em> — la terra che nessuna corona, banca o signore può strappare a una famiglia, protetta nella loro Costituzione da secoli. Mille anni dopo, applichiamo quel diritto alla tua vita digitale.»",
     manifesto_link: "Leggi il manifesto completo →",
-    footer_tagline: "un progetto europeo indipendente", footer_contribute: "Contribuisci"
+    footer_tagline: "un progetto europeo indipendente", footer_contribute: "Contribuisci",
+    vis_h2: "Il futuro del tuo agente",
+    vis_sub: "Dove sta andando Vokter: il tuo agente negozia per te con gli agenti IA di ogni servizio — senza mai rivelare i tuoi dati personali.",
+    vis_badge: "🔮 Visione futura",
+    vis_agents: "Parla con:",
+    v1_title: "Pianifica il tuo viaggio sulle Alpi", v1_desc: "Di' a Vokter dove vuoi andare. Controlla il meteo, suggerisce cosa mettere in valigia per la neve e prenota tutto.", v1_agents: "IA Compagnia aerea · IA Hotel · IA Esperienze",
+    v2_title: "Rumore strano nel motore", v2_desc: "Vokter identifica il pezzo, trova il prezzo migliore nei negozi online e negocia l'appuntamento con i meccanici locali.", v2_agents: "IA Ricambi · IA Officine",
+    v3_title: "Costume per il Carnevale", v3_desc: "Vokter conosce la tua taglia e il tuo stile, confronta i negozi, negozia i prezzi e paga — in crypto — quando dici sì.", v3_agents: "IA Negozi · Rete di pagamento",
+    v4_title: "Biglietti per il concerto", v4_desc: "Vokter monitora la disponibilità, contatta l'IA del teatro per i posti migliori e conferma senza code.", v4_agents: "IA Teatro · IA Ticketing",
+    v5_title: "Trovare lo specialista giusto", v5_desc: "Descrivi il tuo bisogno. Vokter trova gli specialisti vicino a te e prenota la visita tramite la loro IA.", v5_agents: "IA Cliniche · IA Prenotazioni",
+    v6_title: "Troppo caro? Lo sistemiamo", v6_desc: "Vokter controlla i tuoi abbonamenti e le bollette, trova offerte migliori e cambia fornitore — sempre con la tua approvazione.", v6_agents: "IA Energia · IA Telecom · IA Banca"
   }
 };
 
 function applyLang(code) {
   var t = T[code] || T.en;
-  document.querySelectorAll('[data-i18n]').forEach(function(el) {
-    if (t[el.dataset.i18n] !== undefined) el.textContent = t[el.dataset.i18n];
-  });
-  document.querySelectorAll('[data-i18n-html]').forEach(function(el) {
-    if (t[el.dataset.i18nHtml] !== undefined) el.innerHTML = t[el.dataset.i18nHtml];
-  });
+  if (document.documentElement.lang !== code) {
+    document.querySelectorAll('[data-i18n]').forEach(function(el) {
+      if (t[el.dataset.i18n] !== undefined) el.textContent = t[el.dataset.i18n];
+    });
+    document.querySelectorAll('[data-i18n-html]').forEach(function(el) {
+      if (t[el.dataset.i18nHtml] !== undefined) el.innerHTML = t[el.dataset.i18nHtml];
+    });
+  }
   document.documentElement.lang = code;
   localStorage.setItem('vokter-lang', code);
   document.querySelectorAll('.lang-btn').forEach(function(btn) {
@@ -691,11 +829,12 @@ document.querySelectorAll('.lang-btn').forEach(function(btn) {
 // OS highlight
 (function() {
   var ua = navigator.userAgent;
-  var id = ua.indexOf('Win') > -1 ? 'dl-win'
-          : ua.indexOf('Linux') > -1 && ua.indexOf('Android') === -1 ? 'dl-linux'
-          : 'dl-mac';
-  var el = document.getElementById(id);
-  if (el) el.classList.add('active');
+  var id = (ua.indexOf('Android') > -1 || ua.indexOf('iPhone') > -1 || ua.indexOf('iPad') > -1) ? null
+         : ua.indexOf('Win')   > -1 ? 'dl-win'
+         : ua.indexOf('Linux') > -1 ? 'dl-linux'
+         : ua.indexOf('Mac')   > -1 ? 'dl-mac'
+         : null;
+  if (id) document.getElementById(id).classList.add('active');
 })();
 
 // Language detection
