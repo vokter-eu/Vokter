@@ -79,7 +79,9 @@ See `.env.example` for the full list with comments.
 - [x] **Phase 3 — Your agent pays**: non-custodial wallet, Cashu e-cash, pluggable adapter architecture (Lightning, MiCA stablecoins, Monero, Bitcoin). Human confirmation and spend limits always.
 - [x] **Phase 4 — Your agent works while you sleep**: scheduled background tasks with configurable intervals, run history, autonomous execution via the planner pipeline.
 - [x] **Phase 5 — Make it yours**: agent personalisation (name, tone, language, model selection, conversation history). Docker-first setup with `.env.example`. SQLCipher encryption active in Docker.
-- [ ] **Phase 6 — Your agent talks to other agents**: MCP server adapter (connect to Claude Desktop and other MCP hosts), Nostr adapter (DMs as tool calls, identity derived from master key).
+- [x] **Phase 6 — Your agent talks to other agents**: MCP server adapter (connect to Claude Desktop and other MCP hosts), Nostr adapter (DMs as tool calls, identity derived from master key).
+- [ ] **Phase 7 — Sovereign cloud compute (optional)**: for users without local hardware (mobile, old machines), opt-in confidential compute via TEE (Intel TDX / AMD SEV-SNP). Pay per use with Cashu/Lightning — no account, no identity. Remote attestation gives users cryptographic proof of privacy before sending anything. No trust required: the hardware itself signs the guarantee.
+- [ ] **Phase 8 — Vokter Infrastructure**: own European datacenter with confidential compute hardware. Third-party security audits published openly. Operator (Vokter) is architecturally unable to access user data — verifiable, not promised.
 
 ## Non-negotiable principles
 
