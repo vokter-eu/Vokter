@@ -68,6 +68,12 @@ async def browse(req: BrowseRequest):
             403, "URL not in allowlist. Add a permission pattern first."
         )
 
+    # Block SSRF *before* the request is made, not only after redirects — an
+    # allowlisted domain that resolves to an internal address (incl. DNS
+    # rebinding) must never be reached at all.
+    if _is_private_host(parsed.hostname or ""):
+        raise HTTPException(403, "URL resolves to a private/internal address.")
+
     # One ephemeral session key per browse request — stored locally, never sent out.
     session_id, _ = new_session_key(context=f"browse:{url}")
 

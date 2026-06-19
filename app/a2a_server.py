@@ -17,6 +17,7 @@ header to decide trust and translates JSON-RPC ↔ dispatch_message.
 
 Adapter only — no business logic here.
 """
+import hmac
 import uuid
 
 from fastapi import APIRouter, Request
@@ -56,7 +57,8 @@ def _is_trusted(request: Request) -> bool:
     if not A2A_TOKEN:
         return False
     scheme, _, token = request.headers.get("authorization", "").partition(" ")
-    return scheme.lower() == "bearer" and token == A2A_TOKEN
+    # Constant-time compare so the token can't be recovered by timing.
+    return scheme.lower() == "bearer" and hmac.compare_digest(token, A2A_TOKEN)
 
 
 @router.post("/a2a")
