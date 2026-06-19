@@ -12,6 +12,7 @@ A2A work — expose only /a2a + /.well-known via a reverse proxy.
   GET  /api/agents           — list known agents (incl. trust level)
   POST /api/agents/rate      — set a peer's PRIVATE trust (blocked|neutral|trusted)
   POST /api/agents/attest    — publish a PUBLIC signed reputation attestation (Nostr)
+  GET  /api/agents/reputation — what the network says about a peer (web of trust)
   POST /api/agents/forget    — delete one agent (real deletion)
   POST /api/agents/discover  — fetch a peer's agent card over HTTP
   POST /api/agents/talk      — initiate: send a message to a peer, get the reply
@@ -25,7 +26,7 @@ from pydantic import BaseModel
 from agent_client import call_a2a, fetch_card
 from agent_profile import build_agent_card
 from known_agents import TRUST_LEVELS, forget_agent, list_agents, set_trust
-from reputation import ATTESTATION_LABELS, publish_attestation
+from reputation import ATTESTATION_LABELS, publish_attestation, reputation_of
 
 router = APIRouter()
 
@@ -88,6 +89,15 @@ async def agents_attest(req: AttestReq):
     if event_id is None:
         raise HTTPException(503, "no Nostr relays configured (VOKTER_NOSTR_RELAYS)")
     return {"published": event_id, "label": req.label}
+
+
+@router.get("/api/agents/reputation")
+async def agents_reputation(id: str):
+    """What the network says about a peer (hex pubkey), weighted by web of trust."""
+    try:
+        return await reputation_of(id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
 
 
 @contextmanager

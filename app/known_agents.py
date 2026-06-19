@@ -96,14 +96,19 @@ def set_trust(agent_id: str, trust: str) -> bool:
         return cur.rowcount > 0
 
 
-def is_blocked(agent_id: str) -> bool:
-    """True if this peer has been blocked by the human. Unknown peers are not
-    blocked (return False) — blocking is an explicit decision."""
+def get_trust(agent_id: str) -> str:
+    """The peer's local trust level, or 'neutral' for an unknown peer."""
     with closing(get_db()) as db:
         row = db.execute(
             "SELECT trust FROM known_agents WHERE id = ?", (agent_id,)
         ).fetchone()
-    return bool(row) and row[0] == "blocked"
+    return row[0] if row else "neutral"
+
+
+def is_blocked(agent_id: str) -> bool:
+    """True if this peer has been blocked by the human. Unknown peers are not
+    blocked — blocking is an explicit decision."""
+    return get_trust(agent_id) == "blocked"
 
 
 def forget_agent(agent_id: str) -> bool:
