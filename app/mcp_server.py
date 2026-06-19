@@ -29,13 +29,13 @@ import sys
 import httpx
 from mcp.server.fastmcp import FastMCP
 
-from config import ADMIN_TOKEN
+from auth import admin_headers
 
 _BASE    = "http://localhost:8080"
 _TIMEOUT = httpx.Timeout(connect=5.0, read=300.0, write=10.0, pool=5.0)
 # This adapter authenticates to the local admin API (H1 gate) with the admin
 # token, present in the container env.
-_HEADERS = {"X-Vokter-Admin-Token": ADMIN_TOKEN} if ADMIN_TOKEN else {}
+_HEADERS = admin_headers()
 
 mcp = FastMCP(
     "Vokter",

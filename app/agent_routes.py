@@ -15,6 +15,8 @@ A2A work — expose only /a2a + /.well-known via a reverse proxy.
   POST /api/agents/discover  — fetch a peer's agent card over HTTP
   POST /api/agents/talk      — initiate: send a message to a peer, get the reply
 """
+from contextlib import contextmanager
+
 import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -64,18 +66,26 @@ def agents_rate(req: RateReq):
     return {"id": req.id, "trust": req.trust}
 
 
+@contextmanager
+def _peer_errors():
+    """Map outbound-peer failures (SSRF gate, blocked, bad URL, unreachable) to
+    HTTP responses — shared by the endpoints that call another agent."""
+    try:
+        yield
+    except ValueError as exc:                       # SSRF gate / blocked / bad URL
+        raise HTTPException(400, str(exc))
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, f"could not reach peer: {exc}")
+
+
 class DiscoverReq(BaseModel):
     url: str
 
 
 @router.post("/api/agents/discover")
 async def agents_discover(req: DiscoverReq):
-    try:
+    with _peer_errors():
         return await fetch_card(req.url)
-    except ValueError as exc:                       # SSRF gate / bad URL
-        raise HTTPException(400, str(exc))
-    except httpx.HTTPError as exc:
-        raise HTTPException(502, f"could not reach peer: {exc}")
 
 
 class TalkReq(BaseModel):
@@ -92,10 +102,5 @@ async def agents_talk(req: TalkReq):
         raise HTTPException(
             501, "Nostr outbound is not implemented yet — use an A2A http(s) URL"
         )
-    try:
-        reply = await call_a2a(target, req.message, token=req.token)
-        return {"reply": reply}
-    except ValueError as exc:                       # SSRF gate / bad URL
-        raise HTTPException(400, str(exc))
-    except httpx.HTTPError as exc:
-        raise HTTPException(502, f"could not reach peer: {exc}")
+    with _peer_errors():
+        return {"reply": await call_a2a(target, req.message, token=req.token)}

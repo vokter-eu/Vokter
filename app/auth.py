@@ -38,3 +38,9 @@ def admin_token_ok(provided: str | None) -> bool:
     if not ADMIN_TOKEN:
         return True                       # opt-in: gate disabled when unset
     return hmac.compare_digest((provided or "").encode(), ADMIN_TOKEN.encode())
+
+
+def admin_headers() -> dict:
+    """Header an internal, trusted component (dispatch, MCP) sends to reach the
+    local admin API. Empty (no-op) when the gate is disabled."""
+    return {"X-Vokter-Admin-Token": ADMIN_TOKEN} if ADMIN_TOKEN else {}
