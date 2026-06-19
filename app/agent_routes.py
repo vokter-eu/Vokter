@@ -10,7 +10,8 @@ see and reach other agents. NOTE: like the rest of the app, these are
 unauthenticated and assume localhost. Do NOT expose port 8080 publicly to make
 A2A work — expose only /a2a + /.well-known via a reverse proxy.
   GET  /api/agents           — list known agents (incl. trust level)
-  POST /api/agents/rate      — set a peer's trust (blocked | neutral | trusted)
+  POST /api/agents/rate      — set a peer's PRIVATE trust (blocked|neutral|trusted)
+  POST /api/agents/attest    — publish a PUBLIC signed reputation attestation (Nostr)
   POST /api/agents/forget    — delete one agent (real deletion)
   POST /api/agents/discover  — fetch a peer's agent card over HTTP
   POST /api/agents/talk      — initiate: send a message to a peer, get the reply
@@ -24,6 +25,7 @@ from pydantic import BaseModel
 from agent_client import call_a2a, fetch_card
 from agent_profile import build_agent_card
 from known_agents import TRUST_LEVELS, forget_agent, list_agents, set_trust
+from reputation import ATTESTATION_LABELS, publish_attestation
 
 router = APIRouter()
 
@@ -64,6 +66,28 @@ def agents_rate(req: RateReq):
     if not set_trust(req.id, req.trust):
         raise HTTPException(404, "unknown agent")
     return {"id": req.id, "trust": req.trust}
+
+
+class AttestReq(BaseModel):
+    id:    str            # the target agent's hex Nostr pubkey
+    label: str            # 'trusted' | 'blocked' | 'spam'
+    note:  str = ""
+
+
+@router.post("/api/agents/attest")
+async def agents_attest(req: AttestReq):
+    """Publish a signed, PUBLIC NIP-32 reputation attestation about a peer.
+
+    Explicit and opt-in: this broadcasts the human's judgement to Nostr relays.
+    Distinct from /rate, which only updates the private local trust list.
+    """
+    try:
+        event_id = await publish_attestation(req.id, req.label, req.note)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    if event_id is None:
+        raise HTTPException(503, "no Nostr relays configured (VOKTER_NOSTR_RELAYS)")
+    return {"published": event_id, "label": req.label}
 
 
 @contextmanager
