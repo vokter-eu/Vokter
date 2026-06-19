@@ -12,7 +12,8 @@ by the inner seal signature.
 
 DM format accepted:
   Plain text   → treated as a question for the 'ask' tool
-  JSON         → {"tool": "browse|ask|wallet_balance|plan", "args": {...}}
+  JSON         → {"tool": "hello|browse|ask|wallet_balance|plan", "args": {...}}
+  'hello'      → returns Vokter's A2A agent card (public identity + capabilities)
 
 Start: disabled unless VOKTER_NOSTR_RELAYS is set.
 Relay format: comma-separated WSS URLs.
@@ -39,6 +40,7 @@ from nostr_sdk import (
     Kind,
     NostrSigner,
     RelayMessage,
+    RelayUrl,
     SecretKey,
 )
 
@@ -76,7 +78,17 @@ async def _tool_call(sender_hex: str, text: str) -> str:
     except (json.JSONDecodeError, AttributeError):
         tool, args = "ask", {"question": text}
 
+    # A bare greeting (plain text or {"tool":"hello"}) is the handshake.
+    if text.strip().lower() in ("hello", "whoami"):
+        tool = "hello"
+
     try:
+        if tool in ("hello", "whoami"):
+            # Agent-to-agent handshake: return Vokter's public A2A agent card.
+            r = await _http.get(f"{_BASE}/api/agent/card")
+            r.raise_for_status()
+            return json.dumps(r.json())
+
         if tool == "ask":
             payload = {"question": args.get("question") or text}
             conv_id = _conversations.get(sender_hex)
@@ -192,7 +204,7 @@ async def start() -> None:
     allowed = _allowed_pubkeys()
 
     privkey_bytes = get_nostr_privkey()
-    secret_key    = SecretKey.from_slice(privkey_bytes)
+    secret_key    = SecretKey.from_bytes(privkey_bytes)
     keys          = Keys(secret_key=secret_key)
     npub          = keys.public_key().to_bech32()
     log.info("Nostr identity: %s", npub)
@@ -212,12 +224,12 @@ async def start() -> None:
             client = Client(signer)
 
             for relay_url in relays:
-                await client.add_relay(relay_url)
+                await client.add_relay(RelayUrl.parse(relay_url))
             await client.connect()
 
             # kind 1059 = NIP-59 gift wrap. limit(0) = only new wraps, no backlog.
             gw_filter = Filter().kind(Kind(1059)).pubkey(keys.public_key()).limit(0)
-            await client.subscribe([gw_filter], None)
+            await client.subscribe(gw_filter)
             log.info("Nostr listener ready — npub: %s", npub)
 
             await client.handle_notifications(_DMHandler(client, allowed))

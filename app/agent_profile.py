@@ -1,0 +1,102 @@
+"""
+Agent identity card — Phase 6 (agent-to-agent presentation).
+
+When another agent meets Vokter, it needs to learn, in a standard format,
+"who is this and what can it do". Rather than invent a Vokter-only dialect,
+the card conforms to the **A2A (Agent2Agent) Agent Card** schema — the
+cross-vendor standard for agent capability discovery — so any A2A-aware peer
+can parse it.
+
+A2A required fields: name, description, version, url, skills (>= 1).
+We additionally declare Vokter's sovereignty guarantees as an A2A capability
+**extension** (capabilities.extensions), so a peer can read — in machine form —
+that this agent acts only for its human, never pays or shares data without
+explicit human approval, and is non-custodial.
+
+Deliberately minimal outward surface: the card advertises exactly ONE honest
+skill ('introduce') — identity/capability exchange, which is what is actually
+implemented today. It does NOT expose the human's local tools (ask over private
+documents, wallet_send, scheduling); those are driven by the human locally, and
+advertising them to strangers' agents would be over-disclosure and attack
+surface. New outward skills are added here only when they are real.
+
+Built in the core and served via REST (/.well-known/agent-card.json); the Nostr
+and MCP adapters only translate — no business logic lives in them.
+"""
+from agent_config import get_config
+from config import VOKTER_VERSION
+from identity import get_nostr_npub
+
+# Bump when the card schema / sovereignty extension semantics change.
+SOVEREIGN_POLICY_EXT = "https://vokter.eu/a2a/ext/sovereign-policy/v1"
+
+
+def build_agent_card() -> dict:
+    """Return Vokter's public identity as an A2A-conformant Agent Card.
+
+    Contains only public information (network identity, name, policy, the
+    introduce skill). Safe to hand to any peer.
+    """
+    cfg  = get_config()
+    name = cfg.get("agent_name", "Vokter")
+    npub = get_nostr_npub()
+
+    return {
+        # A2A core (required) ------------------------------------------------
+        "protocolVersion": "0.3.0",
+        "name": name,
+        "description": (
+            f"{name} is a sovereign personal AI agent that runs entirely on its "
+            "human's own machine. It acts solely on behalf of that human, makes "
+            "no commitment and discloses no personal data without explicit, "
+            "revocable approval, and holds funds non-custodially."
+        ),
+        "version": VOKTER_VERSION,
+        # The agent is reached over Nostr (NIP-17 private DMs) at this identity.
+        "url": f"nostr:{npub}",
+        "preferredTransport": "nostr+nip17",
+        "documentationUrl": "https://vokterai.com",
+        "provider": {
+            "organization": "Vokter",
+            "url": "https://vokterai.com",
+        },
+        "defaultInputModes":  ["text/plain"],
+        "defaultOutputModes": ["text/plain"],
+        # Capabilities + sovereignty extension ------------------------------
+        "capabilities": {
+            "streaming": False,
+            "pushNotifications": False,
+            "extensions": [
+                {
+                    "uri": SOVEREIGN_POLICY_EXT,
+                    "description": (
+                        "Sovereignty guarantees this personal agent operates "
+                        "under. A peer can rely on these without trusting Vokter "
+                        "— the code is open and the keys never leave the device."
+                    ),
+                    "params": {
+                        "actsFor": "human",
+                        "payments": "require-human-approval",
+                        "dataSharing": "none-without-explicit-permission",
+                        "custody": "non-custodial",
+                        "localFirst": True,
+                    },
+                }
+            ],
+        },
+        # Outward skills (curated, honest, minimal) -------------------------
+        "skills": [
+            {
+                "id": "introduce",
+                "name": "Introduce and exchange capabilities",
+                "description": (
+                    "Exchange identity and capability information with another "
+                    "agent. This agent represents a human; it makes no "
+                    "commitments and shares no personal data without that "
+                    "human's explicit, revocable approval."
+                ),
+                "tags": ["personal-agent", "handshake", "sovereign", "nostr"],
+                "examples": ["hello", '{"tool": "hello"}'],
+            }
+        ],
+    }

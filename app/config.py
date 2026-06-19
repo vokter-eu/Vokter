@@ -1,6 +1,8 @@
 import os
 import sqlite3 as _plain_sqlite3
 
+VOKTER_VERSION = "0.8.0"  # single source of truth — used by main.py and the agent card
+
 OLLAMA_URL  = os.getenv("VOKTER_OLLAMA_URL",  "http://ollama:11434")
 CHAT_MODEL  = os.getenv("VOKTER_CHAT_MODEL",  "llama3.2:3b")
 EMBED_MODEL = os.getenv("VOKTER_EMBED_MODEL", "nomic-embed-text")

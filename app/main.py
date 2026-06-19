@@ -23,6 +23,8 @@ from planner import router as planner_router
 from wallet_routes import router as wallet_router
 from schedule_routes import router as schedule_router
 from config_routes import router as config_router
+from agent_routes import router as agent_router
+from config import VOKTER_VERSION
 from scheduler import scheduler_loop, _running_tasks
 import nostr_listener
 
@@ -46,7 +48,7 @@ async def lifespan(_app: FastAPI):
         await asyncio.gather(*_running_tasks, return_exceptions=True)
 
 
-app = FastAPI(title="Vokter", version="0.8.0", lifespan=lifespan)
+app = FastAPI(title="Vokter", version=VOKTER_VERSION, lifespan=lifespan)
 app.include_router(ingestion_router)
 app.include_router(chat_router)
 app.include_router(email_router)
@@ -57,6 +59,7 @@ app.include_router(planner_router)
 app.include_router(wallet_router)
 app.include_router(schedule_router)
 app.include_router(config_router)
+app.include_router(agent_router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 

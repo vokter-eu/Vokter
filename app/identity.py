@@ -98,6 +98,20 @@ def get_nostr_privkey() -> bytes:
     return hmac.digest(_master_key, b"vokter:nostr:identity:v1", hashlib.sha256)
 
 
+def get_nostr_npub() -> str:
+    """Return Vokter's stable Nostr public identity as a bech32 npub.
+
+    This is the agent's public name on the network (Layer 3 identity). It is
+    always derivable from the master key, whether or not the Nostr listener is
+    running. nostr_sdk is imported lazily so this module stays importable (and
+    fast to import) when the npub is never requested.
+    """
+    from nostr_sdk import Keys, SecretKey
+
+    keys = Keys(secret_key=SecretKey.from_bytes(get_nostr_privkey()))
+    return keys.public_key().to_bech32()
+
+
 def _derive(nonce: bytes, context: str) -> bytes:
     # HMAC-SHA256(master_key, nonce || context) — one-way, unlinkable per nonce
     return hmac.digest(_master_key, nonce + context.encode(), hashlib.sha256)
