@@ -38,6 +38,17 @@ WALLET_ADAPTER      = os.getenv("VOKTER_WALLET_ADAPTER",    "cashu")
 CASHU_MINT_URL      = os.getenv("VOKTER_CASHU_MINT_URL",    "")
 WALLET_SPEND_LIMIT  = int(os.getenv("VOKTER_WALLET_SPEND_LIMIT", "0"))  # per 24h in adapter unit; 0 = no limit
 
+# A2A (Agent2Agent) HTTP transport — Phase 6 interoperability.
+# VOKTER_A2A_URL: the *publicly reachable* JSON-RPC endpoint for this Vokter.
+#   Leave empty (default) when Vokter is only reachable locally / via Nostr —
+#   the agent card then advertises Nostr, not an unreachable localhost URL.
+#   Set it (e.g. via a tunnel) to advertise the HTTP A2A interface.
+# VOKTER_A2A_TOKEN: optional bearer token. When set, an HTTP caller presenting
+#   it is 'trusted' (may use ask/wallet/plan/browse). Unauthenticated callers
+#   can only use the public 'introduce' handshake.
+A2A_URL   = os.getenv("VOKTER_A2A_URL",   "")
+A2A_TOKEN = os.getenv("VOKTER_A2A_TOKEN", "")
+
 sqlite_impl = _plain_sqlite3
 
 _DEFAULT_DB_KEY = "change-me-before-first-run"

@@ -27,11 +27,9 @@ Architecture: protocol adapter only — all business logic runs in the
 FastAPI app, called via HTTP on localhost:8080.
 """
 import asyncio
-import json
 import logging
 import os
 
-import httpx
 from nostr_sdk import (
     Client,
     Filter,
@@ -44,17 +42,12 @@ from nostr_sdk import (
     SecretKey,
 )
 
+from agent_dispatch import dispatch_message
 from identity import get_nostr_privkey
 
 log = logging.getLogger("vokter.nostr")
 
-_BASE            = "http://localhost:8080"
 _RECONNECT_DELAY = 30  # seconds between reconnect attempts
-_HTTP_TIMEOUT    = httpx.Timeout(connect=5.0, read=300.0, write=10.0, pool=5.0)
-_http            = httpx.AsyncClient(timeout=_HTTP_TIMEOUT)
-
-# Conversation continuity: map sender hex pubkey → last conversation_id.
-_conversations: dict[str, str] = {}
 
 
 def _configured_relays() -> list[str]:
@@ -67,88 +60,6 @@ def _allowed_pubkeys() -> set[str] | None:
     raw  = os.getenv("VOKTER_NOSTR_ALLOWED_PUBKEYS", "")
     keys = {k.strip() for k in raw.split(",") if k.strip()}
     return keys if keys else None
-
-
-async def _tool_call(sender_hex: str, text: str) -> str:
-    """Route a decrypted DM to the local REST API and return the response."""
-    try:
-        obj  = json.loads(text)
-        tool = (obj.get("tool") or "ask").lower().strip()
-        args = obj.get("args") or {}
-    except (json.JSONDecodeError, AttributeError):
-        tool, args = "ask", {"question": text}
-
-    # A bare greeting (plain text or {"tool":"hello"}) is the handshake.
-    if text.strip().lower() in ("hello", "whoami"):
-        tool = "hello"
-
-    try:
-        if tool in ("hello", "whoami"):
-            # Agent-to-agent handshake: return Vokter's public A2A agent card.
-            r = await _http.get(f"{_BASE}/api/agent/card")
-            r.raise_for_status()
-            return json.dumps(r.json())
-
-        if tool == "ask":
-            payload = {"question": args.get("question") or text}
-            conv_id = _conversations.get(sender_hex)
-            if conv_id:
-                payload["conversation_id"] = conv_id
-            r = await _http.post(f"{_BASE}/api/ask", json=payload)
-            r.raise_for_status()
-            data = r.json()
-            _conversations[sender_hex] = data["conversation_id"]
-            return data["answer"]
-
-        if tool == "browse":
-            r = await _http.post(
-                f"{_BASE}/api/browse",
-                json={"url": args.get("url", "")},
-            )
-            r.raise_for_status()
-            d = r.json()
-            return f"Stored {d['chunks']} chunks from {d['doc']}."
-
-        if tool == "wallet_balance":
-            r = await _http.get(f"{_BASE}/api/wallet/balance")
-            r.raise_for_status()
-            d = r.json()
-            return f"{d['balance']:,} {d['unit']} ({d['adapter']})"
-
-        if tool == "plan":
-            answer = "[no answer returned]"
-            async with _http.stream(
-                "POST", f"{_BASE}/api/plan",
-                json={"goal": args.get("goal") or text},
-            ) as resp:
-                resp.raise_for_status()
-                buf = ""
-                async for chunk in resp.aiter_text():
-                    buf += chunk
-                    lines = buf.split("\n")
-                    buf   = lines.pop()
-                    for line in lines:
-                        if not line.startswith("data: "):
-                            continue
-                        try:
-                            ev = json.loads(line[6:])
-                            if ev.get("type") == "done":
-                                answer = ev.get("answer", answer)
-                        except json.JSONDecodeError:
-                            pass
-            return answer
-
-        return (
-            f"Unknown tool: {tool!r}. "
-            "Available: ask, browse, wallet_balance, plan"
-        )
-
-    except httpx.HTTPStatusError as exc:
-        log.warning("API error for tool=%r: %s", tool, exc.response.text[:200])
-        return f"Error: the local API returned {exc.response.status_code}"
-    except Exception as exc:
-        log.exception("Tool call failed for tool=%r", tool)
-        return f"Error processing your request: {exc}"
 
 
 class _DMHandler(HandleNotification):
@@ -178,7 +89,9 @@ class _DMHandler(HandleNotification):
 
         plaintext = unwrapped.rumor().content()
         log.info("DM from %s: %r", sender.to_bech32(), plaintext[:120])
-        response = await _tool_call(sender_hex, plaintext)
+        # The sender is NIP-17-authenticated and passed the allowlist gate
+        # above, so the human has authorised this peer for private tools.
+        response = await dispatch_message(plaintext, sender_hex, trusted=True)
         log.debug("Replying: %r", response[:120])
 
         try:

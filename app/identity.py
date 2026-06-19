@@ -12,6 +12,7 @@ import hashlib
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 
 from db import get_db
 
@@ -98,13 +99,16 @@ def get_nostr_privkey() -> bytes:
     return hmac.digest(_master_key, b"vokter:nostr:identity:v1", hashlib.sha256)
 
 
+@lru_cache(maxsize=1)
 def get_nostr_npub() -> str:
     """Return Vokter's stable Nostr public identity as a bech32 npub.
 
     This is the agent's public name on the network (Layer 3 identity). It is
     always derivable from the master key, whether or not the Nostr listener is
-    running. nostr_sdk is imported lazily so this module stays importable (and
-    fast to import) when the npub is never requested.
+    running. Cached: the npub is a deterministic function of the master key,
+    which is fixed for the process lifetime. nostr_sdk is imported lazily so
+    this module stays importable (and fast to import) when the npub is never
+    requested.
     """
     from nostr_sdk import Keys, SecretKey
 

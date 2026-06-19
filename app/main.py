@@ -24,6 +24,7 @@ from wallet_routes import router as wallet_router
 from schedule_routes import router as schedule_router
 from config_routes import router as config_router
 from agent_routes import router as agent_router
+from a2a_server import router as a2a_router
 from config import VOKTER_VERSION
 from scheduler import scheduler_loop, _running_tasks
 import nostr_listener
@@ -60,6 +61,7 @@ app.include_router(wallet_router)
 app.include_router(schedule_router)
 app.include_router(config_router)
 app.include_router(agent_router)
+app.include_router(a2a_router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 

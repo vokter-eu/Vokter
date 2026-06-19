@@ -24,7 +24,7 @@ Built in the core and served via REST (/.well-known/agent-card.json); the Nostr
 and MCP adapters only translate — no business logic lives in them.
 """
 from agent_config import get_config
-from config import VOKTER_VERSION
+from config import VOKTER_VERSION, A2A_URL, A2A_TOKEN
 from identity import get_nostr_npub
 
 # Bump when the card schema / sovereignty extension semantics change.
@@ -41,7 +41,22 @@ def build_agent_card() -> dict:
     name = cfg.get("agent_name", "Vokter")
     npub = get_nostr_npub()
 
-    return {
+    # Transports. A2A-over-HTTP is the cross-vendor lingua franca, but a
+    # local-first Vokter behind NAT is not reachable on HTTP unless the human
+    # exposes a port and sets VOKTER_A2A_URL. Nostr relays, by contrast, reach
+    # it without exposing anything — so advertise HTTP only when it is really
+    # reachable, and otherwise advertise Nostr as the live transport. We never
+    # list an unreachable URL as an interface.
+    a2a_url     = A2A_URL.strip()
+    nostr_iface = {"url": f"nostr:{npub}", "transport": "nostr+nip17"}
+    if a2a_url:
+        primary_url, preferred = a2a_url, "JSONRPC"
+        interfaces = [{"url": a2a_url, "transport": "JSONRPC"}, nostr_iface]
+    else:
+        primary_url, preferred = f"nostr:{npub}", "nostr+nip17"
+        interfaces = [nostr_iface]
+
+    card = {
         # A2A core (required) ------------------------------------------------
         "protocolVersion": "0.3.0",
         "name": name,
@@ -52,9 +67,9 @@ def build_agent_card() -> dict:
             "revocable approval, and holds funds non-custodially."
         ),
         "version": VOKTER_VERSION,
-        # The agent is reached over Nostr (NIP-17 private DMs) at this identity.
-        "url": f"nostr:{npub}",
-        "preferredTransport": "nostr+nip17",
+        "url": primary_url,
+        "preferredTransport": preferred,
+        "additionalInterfaces": interfaces,
         "documentationUrl": "https://vokterai.com",
         "provider": {
             "organization": "Vokter",
@@ -100,3 +115,11 @@ def build_agent_card() -> dict:
             }
         ],
     }
+
+    # When an HTTP endpoint is exposed with a bearer token, declare it so a
+    # trusted caller knows how to authenticate for more than 'introduce'. The
+    # 'introduce' handshake itself stays public (no top-level security req).
+    if a2a_url and A2A_TOKEN:
+        card["securitySchemes"] = {"bearer": {"type": "http", "scheme": "bearer"}}
+
+    return card
