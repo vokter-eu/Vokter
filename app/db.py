@@ -108,4 +108,17 @@ def get_db():
     conn.execute(
         "CREATE INDEX IF NOT EXISTS conversations_conv_id_idx ON conversations(conv_id)"
     )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS known_agents (
+               id           TEXT PRIMARY KEY,   -- nostr hex pubkey, or a2a endpoint url
+               npub         TEXT,               -- bech32, for display (nostr peers)
+               name         TEXT,               -- from their agent card, if known
+               transport    TEXT NOT NULL,      -- 'nostr' | 'a2a-http'
+               direction    TEXT NOT NULL,      -- 'inbound' | 'outbound' | 'both'
+               card_json    TEXT,               -- their A2A card, if fetched
+               interactions INTEGER NOT NULL DEFAULT 0,
+               first_seen   REAL NOT NULL,
+               last_seen    REAL NOT NULL
+           )"""
+    )
     return conn

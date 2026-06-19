@@ -44,6 +44,7 @@ from nostr_sdk import (
 
 from agent_dispatch import dispatch_message
 from identity import get_nostr_privkey
+from known_agents import record_interaction
 
 log = logging.getLogger("vokter.nostr")
 
@@ -86,6 +87,12 @@ class _DMHandler(HandleNotification):
         if self._allowed is not None and sender_hex not in self._allowed:
             log.debug("DM from unlisted pubkey %s — ignored", sender.to_bech32())
             return
+
+        # The sender is NIP-17-authenticated — record it in the address book.
+        record_interaction(
+            sender_hex, transport="nostr", direction="inbound",
+            npub=sender.to_bech32(),
+        )
 
         plaintext = unwrapped.rumor().content()
         log.info("DM from %s: %r", sender.to_bech32(), plaintext[:120])
