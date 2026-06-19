@@ -29,11 +29,16 @@ import logging
 
 import httpx
 
+from config import ADMIN_TOKEN
+
 log = logging.getLogger("vokter.dispatch")
 
 _BASE    = "http://localhost:8080"
 _TIMEOUT = httpx.Timeout(connect=5.0, read=300.0, write=10.0, pool=5.0)
-_http    = httpx.AsyncClient(timeout=_TIMEOUT)
+# This dispatcher is part of the trusted server, so it authenticates to the
+# local admin API (gated by the H1 middleware) with the admin token.
+_HEADERS = {"X-Vokter-Admin-Token": ADMIN_TOKEN} if ADMIN_TOKEN else {}
+_http    = httpx.AsyncClient(timeout=_TIMEOUT, headers=_HEADERS)
 
 # Verbs any caller may use — they reveal only the public agent card.
 _PUBLIC_VERBS = {"introduce", "hello", "whoami"}

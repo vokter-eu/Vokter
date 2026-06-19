@@ -31,11 +31,19 @@ user exposes 8080 (tunnel, `0.0.0.0` mapping, LAN IP), every admin endpoint —
 including `wallet/send` (whose only gate is a `confirmed: true` boolean any
 caller can set) — becomes reachable by attackers.
 
-- **Status:** open (recommendation, not a one-line fix).
-- **Fix:** never expose all of 8080. Expose **only** `/a2a` + `/.well-known/`
-  through a reverse proxy, OR split the public agent transport into its own
-  app/port. Longer term, add authentication to the sensitive routers so safety
-  does not depend on the network boundary at all.
+- **Status:** mitigated in-app; deployment guidance still applies.
+- **Done:** an admin gate (`auth.py` + middleware in `main.py`) now requires
+  `VOKTER_ADMIN_TOKEN` on every `/api/` path except the public agent card. The
+  public agent surface (`/a2a`, `/.well-known/`) stays open and is already
+  fail-closed via the dispatch trust floor. Two trust domains kept separate:
+  `VOKTER_ADMIN_TOKEN` (human admin API) vs `VOKTER_A2A_TOKEN` (peer agent over
+  `/a2a`). Opt-in (the default loopback bind keeps local UX); config prints a
+  loud warning if `VOKTER_A2A_URL` is set without an admin token. Internal
+  adapters (dispatch, MCP) authenticate to the local API with the token.
+  Assumption recorded: the human never reaches `/api/*` from off-box (browser UI
+  is loopback-only); a remote admin UI (e.g. Phase 7 TEE) would need real auth.
+- **Still recommended at deploy time:** reverse-proxy exposing **only** `/a2a` +
+  `/.well-known/`, and rate limiting at the proxy (belongs there, not in-app).
 
 ### M1 — Bearer token compared in non-constant time — FIXED
 `a2a_server._is_trusted` compared the A2A bearer token with `==`, leaking it to

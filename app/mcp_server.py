@@ -29,8 +29,13 @@ import sys
 import httpx
 from mcp.server.fastmcp import FastMCP
 
+from config import ADMIN_TOKEN
+
 _BASE    = "http://localhost:8080"
 _TIMEOUT = httpx.Timeout(connect=5.0, read=300.0, write=10.0, pool=5.0)
+# This adapter authenticates to the local admin API (H1 gate) with the admin
+# token, present in the container env.
+_HEADERS = {"X-Vokter-Admin-Token": ADMIN_TOKEN} if ADMIN_TOKEN else {}
 
 mcp = FastMCP(
     "Vokter",
@@ -46,14 +51,14 @@ mcp = FastMCP(
 
 
 async def _get(path: str) -> dict:
-    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+    async with httpx.AsyncClient(timeout=_TIMEOUT, headers=_HEADERS) as client:
         r = await client.get(f"{_BASE}{path}")
         r.raise_for_status()
         return r.json()
 
 
 async def _post(path: str, body: dict) -> dict:
-    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+    async with httpx.AsyncClient(timeout=_TIMEOUT, headers=_HEADERS) as client:
         r = await client.post(f"{_BASE}{path}", json=body)
         r.raise_for_status()
         return r.json()
@@ -118,7 +123,7 @@ async def plan(goal: str) -> str:
     and synthesise a final answer. Best for research tasks that need
     several information sources. Returns the synthesised answer."""
     answer = ""
-    async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+    async with httpx.AsyncClient(timeout=_TIMEOUT, headers=_HEADERS) as client:
         async with client.stream("POST", f"{_BASE}/api/plan", json={"goal": goal}) as r:
             r.raise_for_status()
             buf = ""

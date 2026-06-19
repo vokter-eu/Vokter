@@ -49,6 +49,14 @@ WALLET_SPEND_LIMIT  = int(os.getenv("VOKTER_WALLET_SPEND_LIMIT", "0"))  # per 24
 A2A_URL   = os.getenv("VOKTER_A2A_URL",   "")
 A2A_TOKEN = os.getenv("VOKTER_A2A_TOKEN", "")
 
+# Admin token — gates the HUMAN's admin API (everything under /api/ except the
+# public agent card). A SEPARATE trust domain from VOKTER_A2A_TOKEN, which only
+# elevates a peer *agent* over /a2a; a peer must never hold the admin token.
+# Opt-in: when empty the admin API is unprotected (safe only because the app is
+# loopback-bound by default and the browser UI is loopback-only). Set this
+# before exposing Vokter to any network.
+ADMIN_TOKEN = os.getenv("VOKTER_ADMIN_TOKEN", "")
+
 sqlite_impl = _plain_sqlite3
 
 _DEFAULT_DB_KEY = "change-me-before-first-run"
@@ -65,3 +73,11 @@ if DB_KEY:
 else:
     print("WARNING: VOKTER_DB_KEY not set — database stored in plaintext. "
           "Set it in docker-compose.yml to enable encryption.")
+
+# Secure-by-default signal: exposing Vokter (A2A_URL set) without an admin token
+# leaves wallet/config/docs reachable by anyone who can reach the port.
+if A2A_URL and not ADMIN_TOKEN:
+    print("SECURITY WARNING: VOKTER_A2A_URL is set (Vokter is being exposed to a "
+          "network) but VOKTER_ADMIN_TOKEN is empty — the admin API (wallet, "
+          "config, documents, email) is UNPROTECTED. Set VOKTER_ADMIN_TOKEN "
+          "before exposing Vokter, and reverse-proxy only /a2a and /.well-known.")

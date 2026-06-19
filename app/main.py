@@ -7,9 +7,11 @@ this code talks to is the local Ollama container.
 import asyncio
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+
+from auth import admin_token_ok, requires_admin
 
 import identity  # noqa: F401 — triggers master key init on startup
 
@@ -50,6 +52,23 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Vokter", version=VOKTER_VERSION, lifespan=lifespan)
+
+
+@app.middleware("http")
+async def admin_gate(request: Request, call_next):
+    """Gate the human's admin API (H1). The public agent surface (/a2a,
+    /.well-known, /api/agent/card) and the loopback-only UI pass through."""
+    if requires_admin(request.url.path):
+        token = request.headers.get("x-vokter-admin-token")
+        if not token:
+            scheme, _, bearer = request.headers.get("authorization", "").partition(" ")
+            if scheme.lower() == "bearer":
+                token = bearer
+        if not admin_token_ok(token):
+            return JSONResponse(
+                {"detail": "Unauthorized — admin token required"}, status_code=401
+            )
+    return await call_next(request)
 app.include_router(ingestion_router)
 app.include_router(chat_router)
 app.include_router(email_router)
