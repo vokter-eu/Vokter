@@ -161,6 +161,10 @@ async def reputation_of(target_hex: str) -> dict:
     trusted_says: dict[str, int] = {}
     others_say:   dict[str, int] = {}
     for author, a in latest.items():
+        # Count only recognised labels — an author can't pollute the aggregation
+        # (or inject an arbitrary string as a bucket key) with a made-up label.
+        if a["label"] not in ATTESTATION_LABELS:
+            continue
         bucket = trusted_says if get_trust(author) == "trusted" else others_say
         bucket[a["label"]] = bucket.get(a["label"], 0) + 1
 
