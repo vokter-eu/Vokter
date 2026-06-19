@@ -44,7 +44,7 @@ from nostr_sdk import (
 
 from agent_dispatch import dispatch_message
 from identity import get_nostr_privkey
-from known_agents import record_interaction
+from known_agents import is_blocked, record_interaction
 
 log = logging.getLogger("vokter.nostr")
 
@@ -83,6 +83,12 @@ class _DMHandler(HandleNotification):
 
         sender     = unwrapped.sender()
         sender_hex = sender.to_hex()
+
+        # Reputation: a blocked peer is dropped silently, before any work or DB
+        # write — don't let a blocked spammer cost us anything.
+        if is_blocked(sender_hex):
+            log.debug("DM from blocked pubkey %s — dropped", sender.to_bech32())
+            return
 
         if self._allowed is not None and sender_hex not in self._allowed:
             log.debug("DM from unlisted pubkey %s — ignored", sender.to_bech32())

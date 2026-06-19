@@ -9,7 +9,8 @@ Local-only admin endpoints — the human (or, later, the planner) drives these t
 see and reach other agents. NOTE: like the rest of the app, these are
 unauthenticated and assume localhost. Do NOT expose port 8080 publicly to make
 A2A work — expose only /a2a + /.well-known via a reverse proxy.
-  GET  /api/agents           — list known agents
+  GET  /api/agents           — list known agents (incl. trust level)
+  POST /api/agents/rate      — set a peer's trust (blocked | neutral | trusted)
   POST /api/agents/forget    — delete one agent (real deletion)
   POST /api/agents/discover  — fetch a peer's agent card over HTTP
   POST /api/agents/talk      — initiate: send a message to a peer, get the reply
@@ -20,7 +21,7 @@ from pydantic import BaseModel
 
 from agent_client import call_a2a, fetch_card
 from agent_profile import build_agent_card
-from known_agents import forget_agent, list_agents
+from known_agents import TRUST_LEVELS, forget_agent, list_agents, set_trust
 
 router = APIRouter()
 
@@ -47,6 +48,20 @@ class ForgetReq(BaseModel):
 @router.post("/api/agents/forget")
 def agents_forget(req: ForgetReq):
     return {"removed": forget_agent(req.id)}
+
+
+class RateReq(BaseModel):
+    id:    str
+    trust: str   # 'blocked' | 'neutral' | 'trusted'
+
+
+@router.post("/api/agents/rate")
+def agents_rate(req: RateReq):
+    if req.trust not in TRUST_LEVELS:
+        raise HTTPException(400, f"trust must be one of: {', '.join(TRUST_LEVELS)}")
+    if not set_trust(req.id, req.trust):
+        raise HTTPException(404, "unknown agent")
+    return {"id": req.id, "trust": req.trust}
 
 
 class DiscoverReq(BaseModel):

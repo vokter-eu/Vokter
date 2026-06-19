@@ -25,13 +25,15 @@ from urllib.parse import urlparse, urlunparse
 
 import httpx
 
-from known_agents import record_interaction
+from known_agents import is_blocked, record_interaction
 
 _TIMEOUT = httpx.Timeout(connect=5.0, read=60.0, write=10.0, pool=5.0)
 
 
 def _guard_url(url: str) -> None:
     """Raise ValueError if url is not a safe outbound http(s) target."""
+    if is_blocked(url):
+        raise ValueError("this agent is blocked")
     p = urlparse(url)
     if p.scheme not in ("http", "https"):
         raise ValueError("only http(s) targets are allowed")

@@ -15,6 +15,12 @@ from contextlib import closing
 
 from db import get_db
 
+# Local trust levels. Security rule: reputation may only DOWNGRADE access —
+# 'blocked' is enforced (the peer is dropped). 'trusted' is, for now, a human
+# annotation only; it never silently elevates access past the explicit allowlist
+# / token gates. Elevation stays governed by those, not by this label.
+TRUST_LEVELS = ("blocked", "neutral", "trusted")
+
 
 def record_interaction(
     agent_id: str,
@@ -56,7 +62,7 @@ def list_agents() -> list[dict]:
     with closing(get_db()) as db:
         rows = db.execute(
             """SELECT id, npub, name, transport, direction, card_json,
-                      interactions, first_seen, last_seen
+                      trust, interactions, first_seen, last_seen
                  FROM known_agents
                 ORDER BY last_seen DESC"""
         ).fetchall()
@@ -68,12 +74,36 @@ def list_agents() -> list[dict]:
             "transport": r[3],
             "direction": r[4],
             "has_card": r[5] is not None,
-            "interactions": r[6],
-            "first_seen": r[7],
-            "last_seen": r[8],
+            "trust": r[6],
+            "interactions": r[7],
+            "first_seen": r[8],
+            "last_seen": r[9],
         }
         for r in rows
     ]
+
+
+def set_trust(agent_id: str, trust: str) -> bool:
+    """Set a peer's trust level. Returns False if the level is invalid or the
+    agent is unknown."""
+    if trust not in TRUST_LEVELS:
+        return False
+    with closing(get_db()) as db:
+        cur = db.execute(
+            "UPDATE known_agents SET trust = ? WHERE id = ?", (trust, agent_id)
+        )
+        db.commit()
+        return cur.rowcount > 0
+
+
+def is_blocked(agent_id: str) -> bool:
+    """True if this peer has been blocked by the human. Unknown peers are not
+    blocked (return False) — blocking is an explicit decision."""
+    with closing(get_db()) as db:
+        row = db.execute(
+            "SELECT trust FROM known_agents WHERE id = ?", (agent_id,)
+        ).fetchone()
+    return bool(row) and row[0] == "blocked"
 
 
 def forget_agent(agent_id: str) -> bool:
