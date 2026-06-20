@@ -43,10 +43,13 @@ from nostr_sdk import (
     Tag,
 )
 
-from agent_dispatch import dispatch_message
+from agent_dispatch import dispatch_message, is_public_request
 from identity import get_nostr_privkey
-from known_agents import is_blocked, record_interaction
+from known_agents import get_trust, is_blocked, record_interaction
 from nostr_outbound import CORR_TAG, resolve
+from ratelimit import inbound_allowed
+
+log = logging.getLogger("vokter.nostr")
 
 
 def _corr_id(tags) -> str | None:
@@ -57,7 +60,21 @@ def _corr_id(tags) -> str | None:
             return vec[1]
     return None
 
-log = logging.getLogger("vokter.nostr")
+
+def _inbound_trusted(sender_hex: str, allowed: set[str] | None) -> bool:
+    """Decide PRIVATE-tool access for an inbound peer — local checks only.
+
+    No network here: a per-message web-of-trust lookup would let a pubkey-rotating
+    spammer force one relay query per message. Trust is granted by explicit local
+    signals: the human's allowlist, a 'trusted' rating, or the trust-all override
+    (only sane on a private relay). Everyone else gets the public card only.
+    Auto-elevation by who-vouches-for-whom is a separate, deliberate layer.
+    """
+    if os.getenv("VOKTER_NOSTR_TRUST_ALL") == "1":
+        return True
+    if allowed is not None and sender_hex in allowed:
+        return True
+    return get_trust(sender_hex) == "trusted"
 
 _RECONNECT_DELAY = 30  # seconds between reconnect attempts
 
@@ -113,21 +130,36 @@ class _DMHandler(HandleNotification):
             log.debug("Correlated reply from %s (corr=%s)", sender.to_bech32(), corr_id)
             return
 
-        # A fresh inbound request — apply the allowlist gate.
-        if self._allowed is not None and sender_hex not in self._allowed:
-            log.debug("DM from unlisted pubkey %s — ignored", sender.to_bech32())
-            return
+        # Trust is decided locally (no network). Compute it FIRST so a flood of
+        # untrusted spam can never throttle our own trusted/allowlisted agents.
+        trusted = _inbound_trusted(sender_hex, self._allowed)
 
-        # The sender is NIP-17-authenticated — record it in the address book.
-        record_interaction(
-            sender_hex, transport="nostr", direction="inbound",
-            npub=sender.to_bech32(),
-        )
+        if not trusted:
+            # Rate-limit untrusted peers before any reply — this also covers
+            # public-card answers, so an unknown peer can't turn us into a
+            # reflector. (Correlated replies bypassed this above; trusted peers
+            # are exempt so spam can't deny them service.)
+            if not inbound_allowed(sender_hex):
+                log.debug("Rate-limited %s — dropped", sender.to_bech32())
+                return
 
-        log.info("DM from %s: %r", sender.to_bech32(), plaintext[:120])
-        # The sender is NIP-17-authenticated and passed the allowlist gate
-        # above, so the human has authorised this peer for private tools.
-        response = await dispatch_message(plaintext, sender_hex, trusted=True)
+            # An untrusted peer asking for something private gets SILENCE, not a
+            # refusal — replying would reflect a free message off us and confirm
+            # we are online. Public 'hello'/'introduce' is still answered below.
+            if not is_public_request(plaintext):
+                log.info("Untrusted private request from %s — ignored", sender.to_bech32())
+                return
+
+        # Record only peers we actually engage with as trusted — don't let
+        # anonymous public-card pings flood the address book.
+        if trusted:
+            record_interaction(
+                sender_hex, transport="nostr", direction="inbound",
+                npub=sender.to_bech32(),
+            )
+
+        log.info("DM from %s (trusted=%s): %r", sender.to_bech32(), trusted, plaintext[:120])
+        response = await dispatch_message(plaintext, sender_hex, trusted=trusted)
         log.debug("Replying: %r", response[:120])
 
         # Echo the request's correlation tag so the initiator can pair our reply
@@ -162,11 +194,16 @@ async def start() -> None:
     log.info("Nostr identity: %s", npub)
     log.info("Nostr relays:   %s", relays)
     if allowed:
-        log.info("Nostr allowlist: %d pubkey(s)", len(allowed))
-    else:
+        log.info("Nostr private-tool allowlist: %d pubkey(s)", len(allowed))
+    elif os.getenv("VOKTER_NOSTR_TRUST_ALL") == "1":
         log.warning(
-            "VOKTER_NOSTR_ALLOWED_PUBKEYS not set — "
-            "accepting DMs from any Nostr pubkey"
+            "VOKTER_NOSTR_TRUST_ALL=1 — every Nostr sender is granted private "
+            "tools. Only safe on a private relay."
+        )
+    else:
+        log.info(
+            "No allowlist — unknown peers get the public card only; private "
+            "tools require an allowlisted or 'trusted' peer."
         )
 
     while True:

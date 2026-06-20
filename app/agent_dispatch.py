@@ -68,6 +68,17 @@ def _parse_verb(text: str) -> tuple[str, dict]:
     return tool, args
 
 
+def is_public_request(text: str) -> bool:
+    """True if text asks only for the public agent card (safe for any caller).
+
+    Adapters use this to decide whether to engage an untrusted peer at all —
+    e.g. the Nostr listener answers a public 'hello' but stays silent on a
+    private request from an unknown peer rather than reflecting a refusal back.
+    """
+    tool, _ = _parse_verb(text)
+    return tool in _PUBLIC_VERBS
+
+
 async def dispatch_message(text: str, context_key: str, *, trusted: bool = False) -> str:
     """Route an incoming agent message to a local tool and return a text answer.
 
