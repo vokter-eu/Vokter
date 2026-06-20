@@ -22,6 +22,7 @@ there is no correlation problem — a short-lived client connects, sends, leaves
 """
 import logging
 import os
+import time
 from datetime import timedelta
 
 from nostr_sdk import (
@@ -39,6 +40,7 @@ from nostr_sdk import (
 
 from identity import get_nostr_privkey
 from known_agents import get_trust
+from ratelimit import SlidingWindow, _int_env
 
 log = logging.getLogger("vokter.reputation")
 
@@ -46,6 +48,23 @@ _NAMESPACE = "vokter.reputation"
 # Labels Vokter will attest. Negative and positive; 'neutral' is never worth
 # broadcasting.
 ATTESTATION_LABELS = ("trusted", "blocked", "spam")
+
+
+def _anchors() -> set[str]:
+    """Hex pubkeys configured as trust anchors (e.g. AIRadar).
+
+    An anchor's attestations weigh as if the human rated it 'trusted', WITHOUT
+    writing to the local trust DB — so anchors never become weighting authors in
+    a way that could cascade. Opt-in and human-controlled: if empty there is no
+    anchor, so this never reintroduces a mandatory central authority.
+    """
+    out: set[str] = set()
+    for item in (x.strip() for x in os.getenv("VOKTER_TRUST_ANCHORS", "").split(",") if x.strip()):
+        try:
+            out.add(PublicKey.parse(item).to_hex())
+        except Exception:
+            log.warning("Ignoring invalid VOKTER_TRUST_ANCHORS entry: %r", item)
+    return out
 
 
 def _relays() -> list[str]:
@@ -158,6 +177,7 @@ async def reputation_of(target_hex: str) -> dict:
         if cur is None or a["created_at"] > cur["created_at"]:
             latest[a["author"]] = a
 
+    anchors = _anchors()
     trusted_says: dict[str, int] = {}
     others_say:   dict[str, int] = {}
     for author, a in latest.items():
@@ -165,7 +185,9 @@ async def reputation_of(target_hex: str) -> dict:
         # (or inject an arbitrary string as a bucket key) with a made-up label.
         if a["label"] not in ATTESTATION_LABELS:
             continue
-        bucket = trusted_says if get_trust(author) == "trusted" else others_say
+        # A weighting author is one the human trusts OR a configured anchor.
+        weighs = get_trust(author) == "trusted" or author in anchors
+        bucket = trusted_says if weighs else others_say
         bucket[a["label"]] = bucket.get(a["label"], 0) + 1
 
     return {
@@ -174,3 +196,59 @@ async def reputation_of(target_hex: str) -> dict:
         "others_say": others_say,       # everyone else — Sybil-prone, informational
         "attestations": list(latest.values()),
     }
+
+
+# ── Vouching: web-of-trust elevation for an otherwise-untrusted peer ──────────
+# Kept modest so a revocation (an anchor later publishing 'spam') takes effect
+# within the window rather than lingering for the whole positive TTL.
+_VOUCH_TTL      = float(_int_env("VOKTER_VOUCH_TTL", 300))
+# Global ceiling on relay lookups — a pubkey-rotating spammer hitting private
+# verbs must not turn each message into a relay fan-out.
+_vouch_lookups  = SlidingWindow(_int_env("VOKTER_VOUCH_LOOKUPS", 30), 60)
+# target hex → (verdict, expiry_monotonic). Only REAL fetched verdicts are cached;
+# a "couldn't check" (rate-limited / relay error) is never cached, so it retries.
+_vouch_cache: dict[str, tuple[bool, float]] = {}
+_vouch_last_sweep = 0.0
+
+
+def _sweep_vouch_cache(now: float) -> None:
+    # Bound memory under a rotating-pubkey flood; runs at most once per TTL.
+    global _vouch_last_sweep
+    if now - _vouch_last_sweep < _VOUCH_TTL:
+        return
+    for k in [k for k, (_, exp) in _vouch_cache.items() if exp <= now]:
+        del _vouch_cache[k]
+    _vouch_last_sweep = now
+
+
+async def is_vouched(target_hex: str) -> bool:
+    """True if a weighting author (human-'trusted' or a configured anchor) vouches
+    'trusted' for target_hex and none label it 'blocked'/'spam'.
+
+    Cache BEFORE budget so cached hits cost nothing; spend a lookup slot only on a
+    miss; fail closed (return False, do NOT cache) when the budget is exhausted or
+    the relay fetch errors — that's "couldn't check", which must stay retryable.
+    A negative label only withholds elevation; it never auto-blocks.
+    """
+    if not _is_hex_pubkey(target_hex):
+        return False
+
+    now = time.monotonic()
+    _sweep_vouch_cache(now)
+    cached = _vouch_cache.get(target_hex)
+    if cached is not None and cached[1] > now:
+        return cached[0]
+
+    if not _vouch_lookups.allow("*"):
+        log.debug("Vouch lookup budget exhausted — not elevating %s", target_hex[:12])
+        return False
+    try:
+        rep = await reputation_of(target_hex)
+    except Exception:
+        log.debug("Vouch lookup failed for %s — not elevating", target_hex[:12])
+        return False
+
+    ts = rep.get("trusted_says", {})
+    verdict = ts.get("trusted", 0) > 0 and ts.get("blocked", 0) == 0 and ts.get("spam", 0) == 0
+    _vouch_cache[target_hex] = (verdict, now + _VOUCH_TTL)
+    return verdict

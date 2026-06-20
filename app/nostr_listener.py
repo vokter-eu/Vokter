@@ -48,6 +48,7 @@ from identity import get_nostr_privkey
 from known_agents import get_trust, is_blocked, record_interaction
 from nostr_outbound import CORR_TAG, resolve
 from ratelimit import inbound_allowed
+from reputation import is_vouched
 
 log = logging.getLogger("vokter.nostr")
 
@@ -147,8 +148,19 @@ class _DMHandler(HandleNotification):
             # refusal — replying would reflect a free message off us and confirm
             # we are online. Public 'hello'/'introduce' is still answered below.
             if not is_public_request(plaintext):
-                log.info("Untrusted private request from %s — ignored", sender.to_bech32())
-                return
+                # Last chance before silence: is this peer vouched by someone we
+                # weight (a 'trusted' rating or a configured trust anchor like
+                # AIRadar)? The lookup is cached + globally rate-limited, and the
+                # elevation is for THIS interaction only — never persisted, so it
+                # can't make the peer a weighting author and cascade.
+                if await is_vouched(sender_hex):
+                    trusted = True
+                    log.info("Vouched peer %s — elevated for this request",
+                             sender.to_bech32())
+                else:
+                    log.info("Untrusted private request from %s — ignored",
+                             sender.to_bech32())
+                    return
 
         # Record only peers we actually engage with as trusted — don't let
         # anonymous public-card pings flood the address book.
