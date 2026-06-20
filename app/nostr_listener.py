@@ -40,11 +40,22 @@ from nostr_sdk import (
     RelayMessage,
     RelayUrl,
     SecretKey,
+    Tag,
 )
 
 from agent_dispatch import dispatch_message
 from identity import get_nostr_privkey
 from known_agents import is_blocked, record_interaction
+from nostr_outbound import CORR_TAG, resolve
+
+
+def _corr_id(tags) -> str | None:
+    """Return the correlation id carried by a rumor, if any."""
+    for tag in tags.to_vec():
+        vec = tag.as_vec()
+        if len(vec) >= 2 and vec[0] == CORR_TAG:
+            return vec[1]
+    return None
 
 log = logging.getLogger("vokter.nostr")
 
@@ -85,11 +96,24 @@ class _DMHandler(HandleNotification):
         sender_hex = sender.to_hex()
 
         # Reputation: a blocked peer is dropped silently, before any work or DB
-        # write — don't let a blocked spammer cost us anything.
+        # write — don't let a blocked spammer cost us anything. Block wins even
+        # over a correlated reply below.
         if is_blocked(sender_hex):
             log.debug("DM from blocked pubkey %s — dropped", sender.to_bech32())
             return
 
+        plaintext = unwrapped.rumor().content()
+        corr_id   = _corr_id(unwrapped.rumor().tags())
+
+        # Is this the reply to a conversation WE initiated (call_nostr)? If so,
+        # resolve the waiting Future and stop — we already authorised this peer
+        # by contacting it, so this path intentionally bypasses the inbound
+        # allowlist gate. resolve() still checks the sender matches our request.
+        if corr_id and resolve(corr_id, sender_hex, plaintext):
+            log.debug("Correlated reply from %s (corr=%s)", sender.to_bech32(), corr_id)
+            return
+
+        # A fresh inbound request — apply the allowlist gate.
         if self._allowed is not None and sender_hex not in self._allowed:
             log.debug("DM from unlisted pubkey %s — ignored", sender.to_bech32())
             return
@@ -100,15 +124,17 @@ class _DMHandler(HandleNotification):
             npub=sender.to_bech32(),
         )
 
-        plaintext = unwrapped.rumor().content()
         log.info("DM from %s: %r", sender.to_bech32(), plaintext[:120])
         # The sender is NIP-17-authenticated and passed the allowlist gate
         # above, so the human has authorised this peer for private tools.
         response = await dispatch_message(plaintext, sender_hex, trusted=True)
         log.debug("Replying: %r", response[:120])
 
+        # Echo the request's correlation tag so the initiator can pair our reply
+        # with its pending call (no-op for peers that didn't send one).
+        reply_tags = [Tag.parse([CORR_TAG, corr_id])] if corr_id else []
         try:
-            await self._client.send_private_msg(sender, response, [])
+            await self._client.send_private_msg(sender, response, reply_tags)
         except Exception as exc:
             log.error("Failed to send reply to %s: %s", sender.to_bech32(), exc)
 

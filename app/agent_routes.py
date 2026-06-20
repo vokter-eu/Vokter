@@ -24,6 +24,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from agent_client import call_a2a, fetch_card
+from nostr_outbound import call_nostr
 from agent_profile import build_agent_card
 from known_agents import TRUST_LEVELS, forget_agent, list_agents, set_trust
 from reputation import ATTESTATION_LABELS, publish_attestation, reputation_of
@@ -132,9 +133,14 @@ class TalkReq(BaseModel):
 async def agents_talk(req: TalkReq):
     target = req.target.strip()
     if target.startswith("nostr:"):
-        # Outbound over Nostr needs reply correlation (its own step); not yet.
-        raise HTTPException(
-            501, "Nostr outbound is not implemented yet — use an A2A http(s) URL"
-        )
+        # Fire-and-forget transport: call_nostr publishes the DM and waits for the
+        # correlated reply (see nostr_outbound). Needs the listener running.
+        try:
+            reply = await call_nostr(target, req.message)
+        except ValueError as exc:        # bad target / blocked / no relays set
+            raise HTTPException(400, str(exc))
+        except TimeoutError as exc:      # no reply within the TTL
+            raise HTTPException(504, str(exc))
+        return {"reply": reply}
     with _peer_errors():
         return {"reply": await call_a2a(target, req.message, token=req.token)}
