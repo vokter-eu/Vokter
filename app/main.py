@@ -28,13 +28,25 @@ from config_routes import router as config_router
 from agent_routes import router as agent_router
 from negotiation_routes import router as negotiation_router
 from a2a_server import router as a2a_router
-from config import VOKTER_VERSION
+from config import VOKTER_VERSION, A2A_URL, ADMIN_TOKEN
 from scheduler import scheduler_loop, _running_tasks
 import nostr_listener
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    # Fail closed: refuse to start when exposed without an admin token. A2A_URL
+    # set signals intent to expose; without ADMIN_TOKEN the admin API (wallet,
+    # config, documents, email) would be reachable by anyone who can reach the
+    # port. (Heuristic, not proof of exposure — pair with a reverse proxy that
+    # publishes only /a2a and /.well-known.)
+    if A2A_URL and not ADMIN_TOKEN:
+        raise RuntimeError(
+            "Refusing to start: VOKTER_A2A_URL is set (Vokter is being exposed) "
+            "but VOKTER_ADMIN_TOKEN is empty — the admin API (wallet, config, "
+            "documents, email) would be UNPROTECTED. Set VOKTER_ADMIN_TOKEN, and "
+            "reverse-proxy only /a2a and /.well-known."
+        )
     sched_task  = asyncio.create_task(scheduler_loop())
     nostr_task  = asyncio.create_task(nostr_listener.start())
     yield

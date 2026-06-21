@@ -76,3 +76,20 @@ def inbound_allowed(peer_key: str) -> bool:
     if not _per_peer.allow(peer_key):
         return False
     return _global.allow(_GLOBAL_KEY)
+
+
+# A2A-over-HTTP reuses the SlidingWindow mechanism but keeps its OWN ceiling — a
+# Nostr flood must not drain the A2A budget or vice versa. Only a GLOBAL cap
+# here: per-IP belongs at the reverse proxy. Behind it every client appears as
+# 127.0.0.1, and these counters are per-worker, so an in-app per-IP window would
+# just throttle everyone to one peer's share. The global cap protects regardless
+# of topology.
+_a2a_global = SlidingWindow(
+    _int_env("VOKTER_A2A_RATE_GLOBAL", 120),
+    float(_int_env("VOKTER_A2A_RATE_WINDOW", 60)),
+)
+
+
+def a2a_allowed() -> bool:
+    """True if another inbound /a2a request may be processed (global cap only)."""
+    return _a2a_global.allow(_GLOBAL_KEY)

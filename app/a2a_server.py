@@ -18,13 +18,15 @@ header to decide trust and translates JSON-RPC ↔ dispatch_message.
 Adapter only — no business logic here.
 """
 import hmac
+import json
 import uuid
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from agent_dispatch import dispatch_message
-from config import A2A_TOKEN
+from config import A2A_MAX_BODY, A2A_TOKEN
+from ratelimit import a2a_allowed
 
 router = APIRouter()
 
@@ -33,12 +35,32 @@ _PARSE_ERROR      = -32700
 _INVALID_REQUEST  = -32600
 _METHOD_NOT_FOUND = -32601
 _INVALID_PARAMS   = -32602
+_RATE_LIMITED     = -32000   # server-error range (no standard JSON-RPC code)
 
 
-def _err(id_, code: int, message: str) -> JSONResponse:
+def _err(id_, code: int, message: str, status: int = 200) -> JSONResponse:
     return JSONResponse(
-        {"jsonrpc": "2.0", "id": id_, "error": {"code": code, "message": message}}
+        {"jsonrpc": "2.0", "id": id_, "error": {"code": code, "message": message}},
+        status_code=status,
     )
+
+
+class _BodyTooLarge(Exception):
+    pass
+
+
+async def _read_capped(request: Request, cap: int) -> bytes:
+    """Read the body, aborting once it exceeds cap bytes. Streamed so an
+    oversized body is rejected without being fully buffered — a Content-Length
+    header is bypassable (chunked / lying), so this is the real cap."""
+    chunks: list[bytes] = []
+    total = 0
+    async for chunk in request.stream():
+        total += len(chunk)
+        if total > cap:
+            raise _BodyTooLarge
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 def _extract_text(message: dict) -> str:
@@ -63,8 +85,20 @@ def _is_trusted(request: Request) -> bool:
 
 @router.post("/a2a")
 async def a2a_rpc(request: Request):
+    # Trust check first (header-only, cheap): trusted peers are exempt from the
+    # rate limit so a flood can't knock over your own fleet, and untrusted load
+    # is shed before the capped read + the expensive LLM dispatch.
+    trusted = _is_trusted(request)
+    if not trusted and not a2a_allowed():
+        return _err(None, _RATE_LIMITED, "Rate limit exceeded", status=429)
+
     try:
-        body = await request.json()
+        raw = await _read_capped(request, A2A_MAX_BODY)
+    except _BodyTooLarge:
+        return _err(None, _INVALID_REQUEST, "Request body too large", status=413)
+
+    try:
+        body = json.loads(raw)
     except Exception:
         return _err(None, _PARSE_ERROR, "Parse error")
 
@@ -85,7 +119,7 @@ async def a2a_rpc(request: Request):
 
     # contextId carries conversation continuity; generate one for a new thread.
     context_id = message.get("contextId") or str(uuid.uuid4())
-    answer = await dispatch_message(text, context_id, trusted=_is_trusted(request))
+    answer = await dispatch_message(text, context_id, trusted=trusted)
 
     # Respond with a direct A2A Message (kind="message").
     return JSONResponse({

@@ -170,7 +170,8 @@ class _DMHandler(HandleNotification):
                 npub=sender.to_bech32(),
             )
 
-        log.info("DM from %s (trusted=%s): %r", sender.to_bech32(), trusted, plaintext[:120])
+        log.info("DM from %s (trusted=%s, %d chars)", sender.to_bech32(), trusted, len(plaintext))
+        log.debug("DM content from %s: %r", sender.to_bech32(), plaintext[:120])
         response = await dispatch_message(plaintext, sender_hex, trusted=trusted)
         log.debug("Replying: %r", response[:120])
 

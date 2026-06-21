@@ -57,6 +57,13 @@ A2A_TOKEN = os.getenv("VOKTER_A2A_TOKEN", "")
 # before exposing Vokter to any network.
 ADMIN_TOKEN = os.getenv("VOKTER_ADMIN_TOKEN", "")
 
+# Max request body accepted on the public /a2a endpoint (bytes). Bounds memory
+# against an oversized-body DoS on the one networked-by-design surface.
+try:
+    A2A_MAX_BODY = int(os.getenv("VOKTER_A2A_MAX_BODY", "262144"))
+except ValueError:
+    A2A_MAX_BODY = 262144
+
 sqlite_impl = _plain_sqlite3
 
 _DEFAULT_DB_KEY = "change-me-before-first-run"
@@ -74,10 +81,5 @@ else:
     print("WARNING: VOKTER_DB_KEY not set — database stored in plaintext. "
           "Set it in docker-compose.yml to enable encryption.")
 
-# Secure-by-default signal: exposing Vokter (A2A_URL set) without an admin token
-# leaves wallet/config/docs reachable by anyone who can reach the port.
-if A2A_URL and not ADMIN_TOKEN:
-    print("SECURITY WARNING: VOKTER_A2A_URL is set (Vokter is being exposed to a "
-          "network) but VOKTER_ADMIN_TOKEN is empty — the admin API (wallet, "
-          "config, documents, email) is UNPROTECTED. Set VOKTER_ADMIN_TOKEN "
-          "before exposing Vokter, and reverse-proxy only /a2a and /.well-known.")
+# The "exposed without an admin token" case is now enforced as a hard refusal to
+# start (see main.lifespan), not just a warning — fail closed before serving.

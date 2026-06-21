@@ -30,16 +30,35 @@ class AllowRequest(BaseModel):
     pattern: str
 
 
+def _internal_addr(addr) -> bool:
+    return (addr.is_private or addr.is_loopback or addr.is_link_local
+            or addr.is_reserved or addr.is_multicast or addr.is_unspecified)
+
+
 def _is_private_host(host: str) -> bool:
-    """Return True if host resolves to a loopback or private/link-local address."""
+    """Return True if host is, or resolves to, a non-public address.
+
+    Fails closed: an unresolvable name returns True (blocked). Checks EVERY
+    resolved address (getaddrinfo: IPv4 + IPv6), so a name with one public and
+    one internal record is still blocked. NOTE: the lookup here and the one at
+    fetch time are separate, so DNS rebinding can slip between them — this
+    catches most SSRF, not all.
+    """
     try:
-        addr = ipaddress.ip_address(host)
+        return _internal_addr(ipaddress.ip_address(host))
     except ValueError:
+        pass
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except OSError:
+        return True  # can't resolve → fail closed
+    for info in infos:
         try:
-            addr = ipaddress.ip_address(socket.gethostbyname(host))
-        except OSError:
-            return False
-    return addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved
+            if _internal_addr(ipaddress.ip_address(info[4][0])):
+                return True
+        except ValueError:
+            continue
+    return False
 
 
 def _is_allowed(url: str) -> bool:
