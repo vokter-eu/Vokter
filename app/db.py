@@ -128,4 +128,15 @@ def get_db():
         conn.execute(
             "ALTER TABLE known_agents ADD COLUMN trust TEXT NOT NULL DEFAULT 'neutral'"
         )
+    # What the human is willing to sell, and the bounds Vokter negotiates within.
+    # 'floor' is the secret reserve price — it is never serialised into a message.
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS negotiation_listings (
+               item       TEXT PRIMARY KEY,
+               opening    INTEGER NOT NULL,   -- first asking price (sats)
+               floor      INTEGER NOT NULL,   -- reserve; never sell below, never disclosed
+               max_rounds INTEGER NOT NULL DEFAULT 4,
+               unit       TEXT NOT NULL DEFAULT 'sat'
+           )"""
+    )
     return conn

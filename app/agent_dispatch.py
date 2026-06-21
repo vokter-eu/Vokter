@@ -100,6 +100,12 @@ async def dispatch_message(text: str, context_key: str, *, trusted: bool = False
             log.info("Untrusted caller requested %r — refused", tool)
             return _UNTRUSTED_REPLY
 
+        if tool == "negotiate":
+            # Seller-side state machine. context_key is the authenticated peer,
+            # which negotiation binds the session to — only the opener advances it.
+            from negotiation import handle_inbound
+            return handle_inbound(context_key, args)
+
         if tool == "ask":
             payload = {"question": args.get("question") or text}
             conv_id = _conversations.get(context_key)
