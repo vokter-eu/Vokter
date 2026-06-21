@@ -26,15 +26,27 @@ if %errorlevel% neq 0 (
 
 :: ── Step 2: Start Docker if not running ──────────────────────────────
 docker info >nul 2>&1
-if %errorlevel% neq 0 (
-    echo  Docker is installed but not running. Starting it...
-    start "" "C:\Program Files\Docker\Docker\Docker Desktop.exe"
-    echo  Waiting for Docker to start (this may take 30-60 seconds)...
-    :wait_docker
-    timeout /t 3 /nobreak >nul
-    docker info >nul 2>&1
-    if %errorlevel% neq 0 goto wait_docker
+if %errorlevel% equ 0 goto docker_ready
+echo  Docker is installed but not running. Starting it...
+start "" "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+echo  Waiting for Docker to start (this may take 30-60 seconds)...
+set /a DOCKER_WAIT=0
+:wait_docker
+timeout /t 3 /nobreak >nul
+docker info >nul 2>&1
+if %errorlevel% equ 0 goto docker_ready
+set /a DOCKER_WAIT+=3
+if !DOCKER_WAIT! geq 120 (
+    echo.
+    echo  Docker did not start within 2 minutes.
+    echo  Please open Docker Desktop manually, wait until it shows "running",
+    echo  then run this installer again.
+    echo.
+    pause
+    exit /b 1
 )
+goto wait_docker
+:docker_ready
 
 echo  [OK] Docker is running
 echo.
@@ -101,10 +113,15 @@ docker compose up -d
 
 :: ── Step 7: Wait for Ollama ─────────────────────────────────────────
 echo  Waiting for Ollama to start...
+set /a OLLAMA_WAIT=0
 :wait_ollama
 timeout /t 3 /nobreak >nul
 docker exec vokter-ollama ollama list >nul 2>&1
-if %errorlevel% neq 0 goto wait_ollama
+if %errorlevel% equ 0 goto ollama_ready
+set /a OLLAMA_WAIT+=3
+if !OLLAMA_WAIT! geq 60 goto ollama_ready
+goto wait_ollama
+:ollama_ready
 
 :: ── Step 8: Download AI models ──────────────────────────────────────
 echo.
