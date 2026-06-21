@@ -27,7 +27,12 @@ from agent_client import call_a2a, fetch_card
 from nostr_outbound import call_nostr
 from agent_profile import build_agent_card
 from known_agents import TRUST_LEVELS, forget_agent, list_agents, set_trust
-from reputation import ATTESTATION_LABELS, publish_attestation, reputation_of
+from reputation import (
+    ATTESTATION_LABELS,
+    publish_attestation,
+    reliability_of,
+    reputation_of,
+)
 
 router = APIRouter()
 
@@ -97,6 +102,20 @@ async def agents_reputation(id: str):
     """What the network says about a peer (hex pubkey), weighted by web of trust."""
     try:
         return await reputation_of(id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@router.get("/api/agents/reliability")
+async def agents_reliability(id: str):
+    """What trust anchors (e.g. AIRadar) attest about a provider's reliability.
+
+    An OUTBOUND signal for deciding which provider to use — expired claims are
+    dropped (revocation). This never grants inbound access; that is /reputation
+    + the web-of-trust gate.
+    """
+    try:
+        return await reliability_of(id)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
 

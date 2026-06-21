@@ -252,3 +252,78 @@ async def is_vouched(target_hex: str) -> bool:
     verdict = ts.get("trusted", 0) > 0 and ts.get("blocked", 0) == 0 and ts.get("spam", 0) == 0
     _vouch_cache[target_hex] = (verdict, now + _VOUCH_TTL)
     return verdict
+
+
+# ── Reliability: an OUTBOUND signal from trust anchors (e.g. AIRadar) ─────────
+# Distinct from is_vouched/reputation_of (the inbound, NIP-32 trust layer). These
+# are AIRadar-style reliability claims about a *provider* ("good uptime"), used
+# when Vokter decides which provider to USE/contact. They deliberately grant NO
+# inbound access — "reliable endpoint" is not "may read my human's private data".
+RELIABILITY_KIND = 30421                 # parameterized-replaceable: one live event per provider
+RELIABILITY_NS   = "airadar.reliability"
+RELIABILITY_LABEL = "reliable"
+
+
+async def reliability_of(target_hex: str) -> dict:
+    """What configured trust anchors attest about a provider's reliability.
+
+    Reads the anchors' kind-30421 events about target_hex, drops anything whose
+    `expiry` tag has passed (a provider AIRadar stopped vouching for lets its
+    event expire — that is the revocation), and returns the surviving claims.
+    Anchors are opt-in (VOKTER_TRUST_ANCHORS); with none configured there is
+    nothing to consult.
+    """
+    try:
+        target = PublicKey.parse(target_hex)        # accept npub or hex
+    except Exception as exc:
+        raise ValueError(f"invalid target pubkey: {exc}") from exc
+    target_hex = target.to_hex()
+
+    anchors = _anchors()
+    relays  = _relays()
+    if not anchors or not relays:
+        return {"target": target_hex, "reliable": False, "claims": []}
+
+    keys   = Keys(secret_key=SecretKey.from_bytes(get_nostr_privkey()))
+    client = Client(NostrSigner.keys(keys))
+    try:
+        for relay in relays:
+            await client.add_relay(RelayUrl.parse(relay))
+        await client.connect()
+
+        f = (Filter().kind(Kind(RELIABILITY_KIND))
+             .authors([PublicKey.parse(a) for a in anchors])
+             .pubkey(target))
+        events = await client.fetch_events(f, timedelta(seconds=8))
+
+        now    = int(time.time())
+        claims = []
+        for ev in events.to_vec():
+            if not ev.verify():                      # never trust an unsigned claim
+                continue
+            tags = {v[0]: v for v in (t.as_vec() for t in ev.tags().to_vec()) if v}
+            L, l = tags.get("L"), tags.get("l")
+            if not (L and len(L) >= 2 and L[1] == RELIABILITY_NS):
+                continue
+            if not (l and len(l) >= 2 and l[1] == RELIABILITY_LABEL):
+                continue
+            exp = tags.get("expiry")
+            if exp and len(exp) >= 2 and exp[1].isdigit() and int(exp[1]) < now:
+                continue                             # expired = revoked
+
+            def _int(tag):
+                v = tags.get(tag)
+                return int(v[1]) if v and len(v) >= 2 and v[1].lstrip("-").isdigit() else None
+
+            claims.append({
+                "author":     ev.author().to_hex(),
+                "score":      _int("score"),
+                "uptime_pct": _int("uptime"),
+                "expiry":     _int("expiry"),
+            })
+        return {"target": target_hex, "reliable": bool(claims), "claims": claims}
+    finally:
+        try:
+            await client.disconnect()
+        except Exception:
+            pass
