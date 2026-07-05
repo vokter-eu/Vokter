@@ -70,7 +70,7 @@ async def speak(req: SpeakRequest):
         voice = _get_voice()
         buf = io.BytesIO()
         with wave.open(buf, "wb") as wav_file:
-            voice.synthesize(req.text, wav_file)
+            voice.synthesize_wav(req.text, wav_file)
         return Response(content=buf.getvalue(), media_type="audio/wav")
     except HTTPException:
         raise
