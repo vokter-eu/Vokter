@@ -5,6 +5,8 @@ Not a single call leaves your machine. Check it: the only host
 this code talks to is the local Ollama container.
 """
 import asyncio
+import os
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -96,9 +98,14 @@ app.include_router(agent_router)
 app.include_router(negotiation_router)
 app.include_router(a2a_router)
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Resolve static/ from this file (or the PyInstaller bundle when frozen),
+# never from the process CWD — the frozen binary is launched from anywhere.
+_STATIC_DIR = os.path.join(
+    getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__))), "static"
+)
+app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
 
 
 @app.get("/")
 def index():
-    return FileResponse("static/index.html")
+    return FileResponse(os.path.join(_STATIC_DIR, "index.html"))
