@@ -154,6 +154,10 @@ def start_backend(db_key: str) -> None:
     env["VOKTER_VOICE_MODELS_DIR"] = str(DATA_DIR / "models")
     env["VOKTER_CHAT_MODEL"]  = CHAT_MODEL
     env["VOKTER_EMBED_MODEL"] = EMBED_MODEL
+    # The frozen binary (Phase 2+) reads these instead of uvicorn CLI flags —
+    # export them so every backend flavour binds where wait_http() checks.
+    env["VOKTER_BIND"] = "127.0.0.1"
+    env["VOKTER_PORT"] = str(BACKEND_PORT)
     log(f"starting backend (uvicorn) on http://127.0.0.1:{BACKEND_PORT}")
     _procs.append(subprocess.Popen(
         [str(VENV_PY), "-m", "uvicorn", "main:app",

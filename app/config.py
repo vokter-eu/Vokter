@@ -22,6 +22,16 @@ WHISPER_MODEL    = os.getenv("VOKTER_WHISPER_MODEL",    "base")
 WHISPER_DEVICE   = os.getenv("VOKTER_WHISPER_DEVICE",   "cpu")
 PIPER_VOICE      = os.getenv("VOKTER_PIPER_VOICE",      "en_US-lessac-medium")
 
+# Bind address/port for entry points that serve the app themselves (the frozen
+# desktop binary). Docker and the orchestrator pass uvicorn CLI flags instead,
+# but every launch path must honour these same env names. Loopback by default:
+# the admin API is unprotected when ADMIN_TOKEN is empty (see below).
+BIND = os.getenv("VOKTER_BIND", "127.0.0.1")
+try:
+    PORT = int(os.getenv("VOKTER_PORT", "8080"))
+except ValueError:
+    PORT = 8080
+
 EMAIL_IMAP_HOST = os.getenv("VOKTER_EMAIL_IMAP_HOST",  "")
 EMAIL_IMAP_PORT = int(os.getenv("VOKTER_EMAIL_IMAP_PORT", "993"))
 EMAIL_USER      = os.getenv("VOKTER_EMAIL_USER",        "")

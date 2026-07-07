@@ -1,5 +1,6 @@
 import io
 import os
+import threading
 import urllib.request
 import wave
 
@@ -12,6 +13,8 @@ from config import PIPER_VOICE, VOICE_MODELS_DIR
 router = APIRouter()
 
 _voice = None
+# speak() runs in FastAPI's threadpool, so first-use download/load can race
+_voice_lock = threading.Lock()
 
 
 class SpeakRequest(BaseModel):
@@ -38,6 +41,24 @@ def _voice_urls(voice_id: str) -> tuple[str, str]:
     return f"{base}.onnx", f"{base}.onnx.json"
 
 
+def _download_voice(model_path: str, config_path: str) -> None:
+    # Download to .part names and promote only when BOTH files are complete —
+    # an interrupted download must not satisfy the exists() check forever.
+    onnx_url, cfg_url = _voice_urls(PIPER_VOICE)
+    print(f"voice: downloading piper voice '{PIPER_VOICE}'…")
+    try:
+        urllib.request.urlretrieve(onnx_url, model_path + ".part")
+        urllib.request.urlretrieve(cfg_url, config_path + ".part")
+    except Exception:
+        for part in (model_path + ".part", config_path + ".part"):
+            if os.path.exists(part):
+                os.remove(part)
+        raise
+    os.replace(model_path + ".part", model_path)
+    os.replace(config_path + ".part", config_path)
+    print("voice: piper voice ready.")
+
+
 def _get_voice():
     global _voice
     if _voice is not None:
@@ -47,23 +68,22 @@ def _get_voice():
     except ImportError:
         raise HTTPException(503, "piper-tts not installed — add it to requirements.txt")
 
-    d = _models_dir()
-    model_path = os.path.join(d, f"{PIPER_VOICE}.onnx")
-    config_path = os.path.join(d, f"{PIPER_VOICE}.onnx.json")
-
-    if not os.path.exists(model_path):
-        onnx_url, cfg_url = _voice_urls(PIPER_VOICE)
-        print(f"voice: downloading piper voice '{PIPER_VOICE}'…")
-        urllib.request.urlretrieve(onnx_url, model_path)
-        urllib.request.urlretrieve(cfg_url, config_path)
-        print("voice: piper voice ready.")
-
-    _voice = PiperVoice.load(model_path, config_path=config_path, use_cuda=False)
+    with _voice_lock:
+        if _voice is not None:
+            return _voice
+        d = _models_dir()
+        model_path = os.path.join(d, f"{PIPER_VOICE}.onnx")
+        config_path = os.path.join(d, f"{PIPER_VOICE}.onnx.json")
+        if not (os.path.exists(model_path) and os.path.exists(config_path)):
+            _download_voice(model_path, config_path)
+        _voice = PiperVoice.load(model_path, config_path=config_path, use_cuda=False)
     return _voice
 
 
 @router.post("/api/voice/speak")
-async def speak(req: SpeakRequest):
+def speak(req: SpeakRequest):
+    # sync on purpose: FastAPI runs it in the threadpool, so CPU-bound
+    # synthesis (and the first-use download) cannot freeze the event loop
     if not req.text.strip():
         raise HTTPException(400, "text is empty")
     try:
@@ -74,5 +94,9 @@ async def speak(req: SpeakRequest):
         return Response(content=buf.getvalue(), media_type="audio/wav")
     except HTTPException:
         raise
+    except wave.Error:
+        # piper yielded zero audio chunks (e.g. punctuation-only text), so the
+        # wav header was never set and wave raises on close: caller's problem
+        raise HTTPException(400, "text contains nothing speakable")
     except Exception as exc:
         raise HTTPException(500, f"TTS failed: {exc}")
