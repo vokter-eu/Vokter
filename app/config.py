@@ -1,14 +1,56 @@
 import os
+import sys
 import sqlite3 as _plain_sqlite3
 
 VOKTER_VERSION = "0.8.0"  # single source of truth — used by main.py and the agent card
 
+_FROZEN = bool(getattr(sys, "frozen", False))  # running as the desktop binary
+
+
+def _die(message: str) -> None:
+    # Fatal misconfiguration: explain in plain words and refuse to run.
+    # A desktop user must never see a raw traceback — or a silently
+    # weakened Vokter.
+    print(message, file=sys.stderr)
+    sys.exit(1)
+
+
+def _default_db_path() -> str:
+    # Docker/venv keep the historical /data; the desktop binary defaults to
+    # the platform's standard per-user application-data directory.
+    if not _FROZEN:
+        return "/data/vokter.db"
+    if sys.platform == "darwin":
+        base = os.path.expanduser("~/Library/Application Support/Vokter")
+    elif os.name == "nt":
+        base = os.path.join(
+            os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "Vokter"
+        )
+    else:
+        base = os.path.join(
+            os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")),
+            "vokter",
+        )
+    return os.path.join(base, "vokter.db")
+
+
 OLLAMA_URL  = os.getenv("VOKTER_OLLAMA_URL",  "http://ollama:11434")
 CHAT_MODEL  = os.getenv("VOKTER_CHAT_MODEL",  "llama3.2:3b")
 EMBED_MODEL = os.getenv("VOKTER_EMBED_MODEL", "nomic-embed-text")
-DB_PATH     = os.getenv("VOKTER_DB",          "/data/vokter.db")
+DB_PATH     = os.getenv("VOKTER_DB") or _default_db_path()
 DATA_DIR    = os.path.dirname(DB_PATH) or "/data"
 DB_KEY      = os.getenv("VOKTER_DB_KEY",      "")
+
+try:
+    os.makedirs(DATA_DIR, exist_ok=True)
+except OSError as exc:
+    _die(
+        "ERROR: Vokter could not create its data folder:\n"
+        f"  {DATA_DIR}\n"
+        f"({exc.strerror or exc})\n\n"
+        "Check that you can write to that location, or set VOKTER_DB\n"
+        "to a folder of your choice."
+    )
 
 CHUNK_SIZE    = 900
 CHUNK_OVERLAP = 150
@@ -17,7 +59,11 @@ TOP_K         = 4
 # WARNING: process-local dict — do NOT run with multiple uvicorn workers
 MAX_HISTORY   = 20
 
-VOICE_MODELS_DIR = os.getenv("VOKTER_VOICE_MODELS_DIR", "/data/models")
+# Frozen default follows DATA_DIR so voice models land in the same per-user
+# application-data folder as the DB, not in Docker's /data.
+VOICE_MODELS_DIR = os.getenv("VOKTER_VOICE_MODELS_DIR") or (
+    os.path.join(DATA_DIR, "models") if _FROZEN else "/data/models"
+)
 WHISPER_MODEL    = os.getenv("VOKTER_WHISPER_MODEL",    "base")
 WHISPER_DEVICE   = os.getenv("VOKTER_WHISPER_DEVICE",   "cpu")
 PIPER_VOICE      = os.getenv("VOKTER_PIPER_VOICE",      "en_US-lessac-medium")
@@ -85,8 +131,28 @@ if DB_KEY:
     try:
         from sqlcipher3 import dbapi2 as sqlite_impl  # type: ignore[no-redef]
     except ImportError:
-        DB_KEY = ""
-        print("WARNING: sqlcipher3 not installed — database is NOT encrypted")
+        # Principle 4 (real privacy): an encryption key was provided, so
+        # silently storing data in plaintext is never acceptable.
+        _die(
+            "ERROR: Vokter cannot start safely.\n\n"
+            "Your data is set to be encrypted, but the encryption component\n"
+            "(SQLCipher) could not be loaded on this machine. Starting anyway\n"
+            "would store your documents and keys UNPROTECTED on disk, so\n"
+            "Vokter refuses to run.\n\n"
+            "What you can do: reinstall Vokter. If the problem persists,\n"
+            "please report it: https://github.com/vokter-eu/Vokter/issues"
+        )
+elif _FROZEN:
+    # The desktop binary has no legitimate unencrypted mode: the desktop app
+    # (orchestrator) always creates a key. Keyless plaintext stays available
+    # only as the long-documented dev/Docker opt-in below.
+    _die(
+        "ERROR: Vokter cannot start safely.\n\n"
+        "Vokter was started without an encryption key (VOKTER_DB_KEY), so\n"
+        "your documents and keys would be stored UNPROTECTED on disk.\n\n"
+        "Start Vokter through the desktop app, which creates a key for you.\n"
+        "If you are launching this binary by hand, set VOKTER_DB_KEY."
+    )
 else:
     print("WARNING: VOKTER_DB_KEY not set — database stored in plaintext. "
           "Set it in docker-compose.yml to enable encryption.")
