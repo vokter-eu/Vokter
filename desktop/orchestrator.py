@@ -9,7 +9,8 @@ supervises both, with NO Docker involved:
 
 Goal of this file: PROVE the difficult pieces start together outside Docker.
 It is intentionally throwaway-quality. Later phases replace it:
-  * Phase 2 — the venv Python is swapped for a frozen, self-contained executable.
+  * Phase 2 — DONE: the backend can run as a frozen, self-contained executable
+             (see backend_flavour(); build recipe in desktop/freeze/).
   * Phase 3 — the Electron shell performs this same supervision from the app,
              and the DB key moves from a local file to the OS keychain.
 
@@ -35,6 +36,7 @@ REPO      = HERE.parent                               # …/Vokter
 APP_DIR   = REPO / "app"                              # the FastAPI backend
 RUNTIME   = HERE / "runtime"                          # app-local, git-ignored
 VENV_PY   = RUNTIME / "venv" / "bin" / "python"       # backend interpreter
+FROZEN_BIN = HERE / "freeze" / "dist" / "vokter-backend" / "vokter-backend"
 OLLAMA_BIN = RUNTIME / "ollama" / "bin" / "ollama"    # native Ollama binary
 DATA_DIR  = RUNTIME / "data"                          # SQLite DB + voice models
 OLLAMA_MODELS_DIR = RUNTIME / "ollama-models"         # app-local model store
@@ -61,13 +63,33 @@ def log(msg: str) -> None:
     print(f"[orchestrator] {msg}", flush=True)
 
 
-def preflight() -> None:
+def backend_flavour() -> str:
+    """Which backend to launch: 'venv' or 'frozen'.
+
+    Dev default is the venv — never silently run a possibly-stale frozen
+    build next to freshly edited app/ code. A user machine has no venv, so
+    it gets the frozen binary automatically. VOKTER_DESKTOP_BACKEND forces
+    either one (that is also how the frozen path is tested on a dev box).
+    """
+    choice = os.environ.get("VOKTER_DESKTOP_BACKEND", "").strip().lower()
+    if choice in ("venv", "frozen"):
+        return choice
+    if choice:
+        log(f"FATAL: VOKTER_DESKTOP_BACKEND must be 'venv' or 'frozen', not {choice!r}")
+        sys.exit(1)
+    return "venv" if VENV_PY.exists() else "frozen"
+
+
+def preflight(flavour: str) -> None:
     """Fail loud and early with an actionable message if setup is missing."""
     problems = []
     if not OLLAMA_BIN.exists():
         problems.append(f"native Ollama not found at {OLLAMA_BIN} — run desktop/setup.sh")
-    if not VENV_PY.exists():
+    if flavour == "venv" and not VENV_PY.exists():
         problems.append(f"backend venv not found at {VENV_PY} — run desktop/setup.sh")
+    if flavour == "frozen" and not FROZEN_BIN.exists():
+        problems.append(f"frozen backend not found at {FROZEN_BIN} — build it first "
+                        f"(see desktop/freeze/README.md)")
     if problems:
         for p in problems:
             log("MISSING: " + p)
@@ -146,7 +168,7 @@ def ensure_models() -> None:
             die(f"failed to pull model {model}")
 
 
-def start_backend(db_key: str) -> None:
+def start_backend(db_key: str, flavour: str) -> None:
     env = os.environ.copy()
     env["VOKTER_OLLAMA_URL"] = OLLAMA_URL        # ← native Ollama, not Docker DNS
     env["VOKTER_DB_KEY"]     = db_key            # real encryption
@@ -158,12 +180,17 @@ def start_backend(db_key: str) -> None:
     # export them so every backend flavour binds where wait_http() checks.
     env["VOKTER_BIND"] = "127.0.0.1"
     env["VOKTER_PORT"] = str(BACKEND_PORT)
-    log(f"starting backend (uvicorn) on http://127.0.0.1:{BACKEND_PORT}")
-    _procs.append(subprocess.Popen(
-        [str(VENV_PY), "-m", "uvicorn", "main:app",
-         "--host", "127.0.0.1", "--port", str(BACKEND_PORT)],
-        cwd=str(APP_DIR), env=env,
-    ))
+    if flavour == "frozen":
+        # Self-contained: no interpreter, no cwd dependence.
+        cmd, cwd = [str(FROZEN_BIN)], None
+        log(f"starting backend (FROZEN binary {FROZEN_BIN}) "
+            f"on http://127.0.0.1:{BACKEND_PORT}")
+    else:
+        cmd = [str(VENV_PY), "-m", "uvicorn", "main:app",
+               "--host", "127.0.0.1", "--port", str(BACKEND_PORT)]
+        cwd = str(APP_DIR)
+        log(f"starting backend (venv uvicorn) on http://127.0.0.1:{BACKEND_PORT}")
+    _procs.append(subprocess.Popen(cmd, cwd=cwd, env=env))
     if not wait_http(f"http://127.0.0.1:{BACKEND_PORT}/", timeout=60):
         die("backend did not come up")
     log(f"backend is up — open http://127.0.0.1:{BACKEND_PORT}")
@@ -192,11 +219,12 @@ def die(msg: str) -> None:
 def main() -> None:
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
-    preflight()
+    flavour = backend_flavour()
+    preflight(flavour)
     db_key = ensure_db_key()
     start_ollama()
     ensure_models()
-    start_backend(db_key)
+    start_backend(db_key, flavour)
     log("all pieces are up. Ctrl-C to stop. Now open the UI and verify a chat.")
     # Supervise: if either child dies, take the whole thing down.
     while True:
