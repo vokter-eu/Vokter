@@ -17,6 +17,7 @@ DEFAULTS: dict[str, str] = {
     "embed_model": "",                # "" = use VOKTER_EMBED_MODEL env var
     "max_history": "20",
     "rag_chunks":  "4",
+    "onboarded":   "0",               # "1" once the first-run welcome wizard is done
 }
 
 

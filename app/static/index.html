@@ -159,9 +159,58 @@
                               font-size:1.4rem; }
   .cfg-avatar-upload { color:var(--accent);font-size:.82rem;cursor:pointer; }
   .cfg-avatar-upload input { display:none; }
+  /* first-run onboarding wizard */
+  #onboarding { display:none; position:fixed; inset:0; z-index:200; overflow:auto;
+                background:var(--bg); padding:24px 16px;
+                align-items:center; justify-content:center; }
+  #onboarding.open { display:flex; }
+  #onb-card { background:var(--panel); border:1px solid var(--line); border-radius:16px;
+              padding:26px 28px; max-width:460px; width:100%; }
+  .onb-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
+  .onb-dots { display:flex; gap:6px; }
+  .onb-dot { width:8px; height:8px; border-radius:50%; background:var(--line); }
+  .onb-dot.on { background:var(--accent); }
+  #onb-skip { background:none; border:none; color:var(--muted); font-size:.82rem;
+              cursor:pointer; padding:2px 4px; }
+  #onb-skip:hover { color:var(--text); }
+  .onb-h { font-size:1.35rem; margin-bottom:8px; }
+  .onb-sub { color:var(--muted); font-size:.9rem; margin-bottom:18px; }
+  .onb-note { color:var(--muted); font-size:.78rem; margin-top:10px; }
+  .onb-field-label { font-size:.8rem; color:var(--muted); margin:14px 0 6px; }
+  #onb-name { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line);
+              background:var(--bg); color:var(--text); font-size:1rem; }
+  .onb-opt { display:block; width:100%; text-align:left; padding:10px 14px; margin-top:8px;
+             border-radius:10px; border:1px solid var(--line); background:var(--bg);
+             color:var(--text); cursor:pointer; font-size:.9rem; }
+  .onb-opt:hover { border-color:var(--muted); }
+  .onb-opt.sel { border-color:var(--accent); background:#4cc38a12; }
+  .onb-opt .onb-opt-d { display:block; color:var(--muted); font-size:.78rem; margin-top:2px; }
+  .onb-avatar-row { display:flex; align-items:center; gap:14px; margin-top:6px; }
+  #onb-avatar-preview { width:56px; height:56px; border-radius:50%; object-fit:cover;
+                        border:2px solid var(--line); display:none; }
+  #onb-avatar-placeholder { width:56px; height:56px; border-radius:50%; background:var(--bg);
+                            border:2px dashed var(--line); display:flex; align-items:center;
+                            justify-content:center; font-size:1.5rem; }
+  .onb-avatar-upload { color:var(--accent); font-size:.85rem; cursor:pointer; }
+  .onb-avatar-upload input { display:none; }
+  .onb-nav { display:flex; gap:10px; margin-top:24px; }
+  .onb-nav .btn { flex:1; }
+  #onb-back { flex:0 0 auto; }
 </style>
 </head>
 <body>
+<!-- first-run welcome wizard (shown only when config.onboarded !== "1") -->
+<div id="onboarding">
+  <div id="onb-card">
+    <div class="onb-top">
+      <div class="onb-dots" id="onb-dots"></div>
+      <button id="onb-skip"></button>
+    </div>
+    <div id="onb-body"></div>
+    <div class="onb-nav" id="onb-nav"></div>
+  </div>
+</div>
+
 <header>
   <div style="display:flex;align-items:center;gap:10px">
     <img id="hdr-avatar" alt="avatar">
@@ -1025,19 +1074,21 @@ document.getElementById('btn-sched-create').onclick = async () => {
 setInterval(checkNewRuns, 300_000);
 
 // ── Settings ────────────────────────────────────────────────────────────────
+function applyConfig(cfg) {
+  if (!cfg) return;
+  document.getElementById('cfg-agent-name').value  = cfg.agent_name  || 'Vokter';
+  document.getElementById('cfg-tone').value        = cfg.tone        || 'neutral';
+  document.getElementById('cfg-mode').value        = cfg.mode        || 'conversational';
+  document.getElementById('cfg-language').value    = cfg.language    || 'auto';
+  document.getElementById('cfg-chat-model').value  = cfg.chat_model  || '';
+  document.getElementById('cfg-embed-model').value = cfg.embed_model || '';
+  document.getElementById('cfg-max-history').value = cfg.max_history || 20;
+  document.getElementById('cfg-rag-chunks').value  = cfg.rag_chunks  || 4;
+  document.getElementById('hdr-agent-name').textContent = cfg.agent_name || 'Vokter';
+}
+
 async function loadConfig() {
-  try {
-    const cfg = await (await fetch('/api/config')).json();
-    document.getElementById('cfg-agent-name').value  = cfg.agent_name  || 'Vokter';
-    document.getElementById('cfg-tone').value        = cfg.tone        || 'neutral';
-    document.getElementById('cfg-mode').value        = cfg.mode        || 'conversational';
-    document.getElementById('cfg-language').value    = cfg.language    || 'auto';
-    document.getElementById('cfg-chat-model').value  = cfg.chat_model  || '';
-    document.getElementById('cfg-embed-model').value = cfg.embed_model || '';
-    document.getElementById('cfg-max-history').value = cfg.max_history || 20;
-    document.getElementById('cfg-rag-chunks').value  = cfg.rag_chunks  || 4;
-    document.getElementById('hdr-agent-name').textContent = cfg.agent_name || 'Vokter';
-  } catch {}
+  try { applyConfig(await (await fetch('/api/config')).json()); } catch {}
 }
 
 async function loadAvatar() {
@@ -1124,8 +1175,252 @@ document.getElementById('btn-cfg-save').onclick = async () => {
   btn.disabled = false;
 };
 
-loadConfig();
-loadAvatar();
+// ── First-run welcome wizard ──────────────────────────────────────────────────
+// i18n: to add a language, add its dictionary to I18N below AND an entry to
+// ONBOARDING_LANGS. Nothing else changes. Priority order for new languages
+// (project strategy — chosen by AFFINITY with the project's values, NOT by
+// market size): Norwegian, Swedish, Dutch, Finnish, Polish, Hungarian,
+// Catalan, Portuguese. Only ship a language once it is fully translated —
+// a few done well beats many half-done.
+const ONBOARDING_LANGS = [
+  {code: 'en', label: 'English'},
+  {code: 'es', label: 'Español'},
+];
+
+const I18N = {
+  en: {
+    welcome_title: "Welcome to Vokter",
+    welcome_sub: "Your private AI guardian. Everything runs on your machine — not a single byte leaves here.",
+    choose_lang: "Choose your language",
+    lang_note: "This sets the language Vokter speaks to you. You can change it later in Settings.",
+    name_title: "Name your guardian",
+    name_sub: "What should it be called? You can change this any time.",
+    avatar_label: "Picture (optional)",
+    avatar_hint: "Upload an image — jpg, png or webp.",
+    char_title: "How should it talk to you?",
+    tone_label: "Tone",
+    tone_formal: "Formal", tone_formal_d: "Professional and precise.",
+    tone_neutral: "Neutral", tone_neutral_d: "Plain and balanced.",
+    tone_friendly: "Friendly", tone_friendly_d: "Warm and encouraging.",
+    mode_label: "Style",
+    mode_productive: "To the point", mode_productive_d: "Short, direct answers.",
+    mode_conversational: "Conversational", mode_conversational_d: "Explains a little more.",
+    done_title: "You're all set, {name}",
+    done_sub: "Upload your first document and ask anything about it. What it learns stays on your disk.",
+    back: "Back", next: "Next", skip: "Skip", start: "Start using Vokter",
+  },
+  es: {
+    welcome_title: "Bienvenido a Vokter",
+    welcome_sub: "Tu guardián de IA privado. Todo se ejecuta en tu máquina — no sale ni un byte de aquí.",
+    choose_lang: "Elige tu idioma",
+    lang_note: "Esto fija el idioma en el que Vokter te habla. Puedes cambiarlo luego en Ajustes.",
+    name_title: "Ponle nombre a tu guardián",
+    name_sub: "¿Cómo quieres llamarlo? Puedes cambiarlo cuando quieras.",
+    avatar_label: "Imagen (opcional)",
+    avatar_hint: "Sube una imagen — jpg, png o webp.",
+    char_title: "¿Cómo quieres que te hable?",
+    tone_label: "Tono",
+    tone_formal: "Formal", tone_formal_d: "Profesional y preciso.",
+    tone_neutral: "Neutral", tone_neutral_d: "Claro y equilibrado.",
+    tone_friendly: "Cercano", tone_friendly_d: "Cálido y alentador.",
+    mode_label: "Estilo",
+    mode_productive: "Al grano", mode_productive_d: "Respuestas cortas y directas.",
+    mode_conversational: "Conversacional", mode_conversational_d: "Explica un poco más.",
+    done_title: "Todo listo, {name}",
+    done_sub: "Sube tu primer documento y pregúntale lo que quieras. Lo que aprende se queda en tu disco.",
+    back: "Atrás", next: "Siguiente", skip: "Saltar", start: "Empezar a usar Vokter",
+  },
+};
+
+const ONB_STEPS = 4;
+const onbState = { step: 0, language: 'en', agent_name: '', tone: 'neutral', mode: 'conversational' };
+
+function _onbT() { return I18N[onbState.language] || I18N.en; }
+
+function _onbEl(tag, cls, text) {
+  const el = document.createElement(tag);
+  if (cls) el.className = cls;
+  if (text != null) el.textContent = text;
+  return el;
+}
+
+function _onbOption(container, label, desc, selected, onPick) {
+  const b = _onbEl('button', 'onb-opt' + (selected ? ' sel' : ''));
+  b.appendChild(_onbEl('span', null, label));
+  if (desc) b.appendChild(_onbEl('span', 'onb-opt-d', desc));
+  b.onclick = onPick;
+  container.appendChild(b);
+  return b;
+}
+
+function renderOnb() {
+  const t = _onbT();
+  const body = document.getElementById('onb-body');
+  body.innerHTML = '';
+  document.getElementById('onb-skip').textContent = t.skip;
+
+  // step dots
+  const dots = document.getElementById('onb-dots');
+  dots.innerHTML = '';
+  for (let i = 0; i < ONB_STEPS; i++) {
+    dots.appendChild(_onbEl('div', 'onb-dot' + (i === onbState.step ? ' on' : '')));
+  }
+
+  if (onbState.step === 0) {
+    body.appendChild(_onbEl('div', 'onb-h', t.welcome_title));
+    body.appendChild(_onbEl('div', 'onb-sub', t.welcome_sub));
+    body.appendChild(_onbEl('div', 'onb-field-label', t.choose_lang));
+    ONBOARDING_LANGS.forEach(l => {
+      _onbOption(body, l.label, null, onbState.language === l.code, () => {
+        onbState.language = l.code;
+        renderOnb();
+      });
+    });
+    body.appendChild(_onbEl('div', 'onb-note', t.lang_note));
+
+  } else if (onbState.step === 1) {
+    body.appendChild(_onbEl('div', 'onb-h', t.name_title));
+    body.appendChild(_onbEl('div', 'onb-sub', t.name_sub));
+    const input = _onbEl('input');
+    input.id = 'onb-name';
+    input.type = 'text';
+    input.placeholder = 'Vokter';
+    input.value = onbState.agent_name;
+    input.oninput = () => { onbState.agent_name = input.value; };
+    body.appendChild(input);
+
+    body.appendChild(_onbEl('div', 'onb-field-label', t.avatar_label));
+    const row = _onbEl('div', 'onb-avatar-row');
+    const preview = _onbEl('img'); preview.id = 'onb-avatar-preview'; preview.alt = 'avatar';
+    const placeholder = _onbEl('div', null, '🛡️'); placeholder.id = 'onb-avatar-placeholder';
+    const upWrap = _onbEl('label', 'onb-avatar-upload', t.avatar_hint);
+    const upInput = _onbEl('input'); upInput.type = 'file';
+    upInput.accept = '.jpg,.jpeg,.png,.webp,.gif';
+    upInput.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const fd = new FormData(); fd.append('file', file);
+      try {
+        const r = await fetch('/api/config/avatar', {method: 'POST', body: fd});
+        if (r.ok) {
+          const url = '/api/config/avatar?t=' + Date.now();
+          preview.src = url; preview.style.display = '';
+          placeholder.style.display = 'none';
+        }
+      } catch {}
+      e.target.value = '';
+    };
+    upWrap.appendChild(upInput);
+    row.appendChild(preview); row.appendChild(placeholder); row.appendChild(upWrap);
+    body.appendChild(row);
+
+  } else if (onbState.step === 2) {
+    body.appendChild(_onbEl('div', 'onb-h', t.char_title));
+    body.appendChild(_onbEl('div', 'onb-field-label', t.tone_label));
+    [['formal', t.tone_formal, t.tone_formal_d],
+     ['neutral', t.tone_neutral, t.tone_neutral_d],
+     ['friendly', t.tone_friendly, t.tone_friendly_d]].forEach(([val, label, desc]) => {
+      _onbOption(body, label, desc, onbState.tone === val, () => {
+        onbState.tone = val; renderOnb();
+      });
+    });
+    body.appendChild(_onbEl('div', 'onb-field-label', t.mode_label));
+    [['productive', t.mode_productive, t.mode_productive_d],
+     ['conversational', t.mode_conversational, t.mode_conversational_d]].forEach(([val, label, desc]) => {
+      _onbOption(body, label, desc, onbState.mode === val, () => {
+        onbState.mode = val; renderOnb();
+      });
+    });
+
+  } else {
+    const name = onbState.agent_name.trim() || 'Vokter';
+    // function replacement: a name containing $-sequences must not be read as a
+    // String.replace special pattern ($&, $', …).
+    body.appendChild(_onbEl('div', 'onb-h', t.done_title.replace('{name}', () => name)));
+    body.appendChild(_onbEl('div', 'onb-sub', t.done_sub));
+  }
+
+  // nav buttons
+  const nav = document.getElementById('onb-nav');
+  nav.innerHTML = '';
+  if (onbState.step > 0) {
+    const back = _onbEl('button', 'btn-sm', t.back);
+    back.id = 'onb-back';
+    back.onclick = () => { onbState.step--; renderOnb(); };
+    nav.appendChild(back);
+  }
+  const primary = _onbEl('button', 'btn', onbState.step === ONB_STEPS - 1 ? t.start : t.next);
+  primary.onclick = () => {
+    if (onbState.step < ONB_STEPS - 1) { onbState.step++; renderOnb(); }
+    else finishOnboarding();
+  };
+  nav.appendChild(primary);
+}
+
+function startOnboarding(cfg) {
+  // Seed from the current config so an existing user who clicks THROUGH the
+  // wizard (rather than Skip) keeps their name/tone/mode instead of having them
+  // reset to blank defaults. Skip preserves everything regardless.
+  if (cfg) {
+    onbState.agent_name = cfg.agent_name || '';
+    if (cfg.tone) onbState.tone = cfg.tone;
+    if (cfg.mode) onbState.mode = cfg.mode;
+  }
+  // Step 0 is an explicit language choice: pre-select the current language if we
+  // ship it, else fall back to the browser's.
+  const cur  = cfg && cfg.language;
+  const nav2 = (navigator.language || 'en').slice(0, 2).toLowerCase();
+  if (cur && ONBOARDING_LANGS.some(l => l.code === cur))       onbState.language = cur;
+  else if (ONBOARDING_LANGS.some(l => l.code === nav2))        onbState.language = nav2;
+  onbState.step = 0;
+  document.getElementById('onboarding').classList.add('open');
+  renderOnb();
+}
+
+function closeOnboarding() {
+  document.getElementById('onboarding').classList.remove('open');
+}
+
+// Skip and Finish both close OPTIMISTICALLY — a failed config write must never
+// trap the user behind the overlay. Worst case the wizard reappears next load.
+function finishOnboarding() {
+  const patch = {
+    agent_name: onbState.agent_name.trim() || null,
+    tone: onbState.tone,
+    mode: onbState.mode,
+    language: onbState.language,
+    onboarded: true,
+  };
+  closeOnboarding();
+  fetch('/api/config', {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(patch),
+  }).catch(() => {}).finally(() => { loadConfig(); loadAvatar(); });
+}
+
+function skipOnboarding() {
+  closeOnboarding();
+  fetch('/api/config', {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({onboarded: true}),
+  }).catch(() => {}).finally(() => { loadConfig(); loadAvatar(); });
+}
+
+document.getElementById('onb-skip').onclick = skipOnboarding;
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+async function initApp() {
+  let cfg = null;
+  try { cfg = await (await fetch('/api/config')).json(); }
+  catch { loadAvatar(); return; }   // API unreachable → show the normal UI, never block
+  applyConfig(cfg);
+  loadAvatar();
+  if (cfg.onboarded !== '1') startOnboarding(cfg);
+}
+
+initApp();
 </script>
 </body>
 </html>
