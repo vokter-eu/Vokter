@@ -30,6 +30,17 @@ VOKTER_PORT=8081 \
 dist/vokter-backend/vokter-backend
 ```
 
+## System requirements (validated)
+
+Verified on a bare Ubuntu 24.04 container with NO network and none of the
+dev dependencies installed: full E2E passes (boot, ingestion, RAG, TTS,
+STT, encrypted DB, no-key refusal).
+
+The bundle inherits the **glibc floor of the build host** (2.39 here →
+binaries require glibc ≥ 2.38: Ubuntu 24.04+, Debian 13+, Fedora 39+).
+Debian 12 (glibc 2.36) cannot load it. For release builds, build inside a
+container of the oldest distro we want to support to widen compatibility.
+
 ## Notes
 
 - `vokter_backend.spec` uses `collect_all` (never `collect_data_files`) for
