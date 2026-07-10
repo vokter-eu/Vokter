@@ -1,0 +1,13 @@
+{
+  "name": "vokter-desktop",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Vokter desktop shell (Phase 3.1 — hollow Electron window over the existing orchestrator)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^34.0.0"
+  }
+}

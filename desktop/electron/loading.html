@@ -1,0 +1,31 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Vokter</title>
+<style>
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: #0f1115;
+    color: #e6e6e6;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.4rem;
+  }
+  .shield { font-size: 3.2rem; line-height: 1; }
+  .title  { font-size: 1.15rem; font-weight: 600; letter-spacing: .01em; }
+  .status { color: #8b909a; font-size: .9rem; }
+  .spinner {
+    width: 34px; height: 34px;
+    border: 3px solid #2a2e37;
+    border-top-color: #6ea8fe;
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+<div class="shield">🛡️</div>
+<div class="title">Starting Vokter…</div>
+<div class="spinner"></div>
+<div class="status">Bringing up your local agent. First run downloads models — this can take a few minutes.</div>
