@@ -113,7 +113,7 @@ async def avatar_upload(file: UploadFile = File(...)):
     return {"ok": True, "url": "/api/config/avatar"}
 
 
-@router.get("/api/config/avatar")
+@router.api_route("/api/config/avatar", methods=["GET", "HEAD"])
 def avatar_get():
     path = _avatar_path()
     if not path:
