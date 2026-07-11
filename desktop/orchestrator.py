@@ -98,19 +98,47 @@ def preflight(flavour: str) -> None:
 
 def ensure_db_key() -> str:
     """Load or mint a strong DB encryption key. Never the 'change-me' default,
-    never empty. Stored 0600 in the app data dir for Phase 1; Phase 3 moves it
-    to the OS keychain."""
+    never empty. Stored 0600 in the app data dir; the FILE is the permanent
+    source of truth. Phase 2 also MIRRORS it into the OS keychain (best-effort),
+    but the returned key always comes from the file."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     if DBKEY_FILE.exists():
-        return DBKEY_FILE.read_text().strip()
-    key = secrets.token_urlsafe(32)
-    # Create the file already 0600 (O_EXCL to lose no race) — never let the
-    # DB master key exist world-readable for the window before a later chmod.
-    fd = os.open(DBKEY_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, "w") as f:
-        f.write(key)
-    log(f"minted a fresh DB encryption key → {DBKEY_FILE} (0600)")
+        key = DBKEY_FILE.read_text().strip()
+    else:
+        key = secrets.token_urlsafe(32)
+        # Create the file already 0600 (O_EXCL to lose no race) — never let the
+        # DB master key exist world-readable for the window before a later chmod.
+        fd = os.open(DBKEY_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(key)
+        log(f"minted a fresh DB encryption key → {DBKEY_FILE} (0600)")
+    _mirror_key_to_keychain(key)
     return key
+
+
+def _mirror_key_to_keychain(key: str) -> None:
+    """Phase 2 (reversible mirror): copy the file key into the OS keychain if it
+    is available, so a later phase can start reading from it. We STILL use the
+    file key — nothing depends on the keychain yet. Best-effort: any failure is
+    logged quietly and never affects startup (golden rule). Dev/Docker never
+    reach this code (they do not run the orchestrator), so they stay file-only.
+    """
+    try:
+        import keychain
+    except Exception as exc:  # keychain deps missing → file-only, no fuss
+        log(f"keychain not available ({exc!r}); using the file key only")
+        return
+    status = keychain.mirror(key)
+    messages = {
+        keychain.MIRROR_DONE:    "mirrored the DB key into the OS keychain "
+                                 "(the file remains the source of truth)",
+        keychain.MIRROR_SYNCED:  "OS keychain already holds the current DB key (in sync)",
+        keychain.MIRROR_SKIPPED: "OS keychain unavailable; continuing with the "
+                                 "file key (this is fine)",
+        keychain.MIRROR_ERROR:   "could not mirror the DB key into the OS keychain; "
+                                 "continuing with the file key",
+    }
+    log(messages.get(status, f"keychain mirror status: {status}"))
 
 
 def wait_http(url: str, timeout: float = 60.0) -> bool:
