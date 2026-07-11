@@ -176,6 +176,29 @@ def is_available(timeout: float = DEFAULT_TIMEOUT) -> bool:
     return r.status == "ok" and r.value is True
 
 
+def is_reachable_readonly(timeout: float = DEFAULT_TIMEOUT) -> bool:
+    """Read-only availability signal: the default collection exists and is
+    UNLOCKED — checked WITHOUT writing the self-deleting probe that
+    is_available() uses, and WITHOUT ever unlocking.
+
+    This exists for the Phase-3 read-only DRY RUN, which must have ZERO side
+    effects (not even the throwaway probe item). It is a WEAKER signal than
+    is_available(): it proves we can reach and read the collection, not that a
+    write would succeed. A real boot still uses is_available() (the write
+    round-trip) for its mint decision; this is only for reporting.
+    """
+    def check() -> bool:
+        conn = secretstorage.dbus_init()
+        try:
+            coll = _default_collection(conn)
+            return not coll.is_locked()
+        finally:
+            conn.close()
+
+    r = _call(check, timeout)
+    return r.status == "ok" and r.value is True
+
+
 def get_key(
     service: str | None = None,
     name: str | None = None,
