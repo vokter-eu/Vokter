@@ -178,30 +178,51 @@ tree en `feat/desktop-app`:
 - `desktop/freeze/vokter_backend.py` — modo `--verify-key` (en el fuente).
 - `orchestrator.py` **SIN tocar** — el arranque real NO ha cambiado.
 
-**Tareas y decisiones para la Etapa 3 (hacer FRESCO en otra sesión; repasar este
-plan y OK explícito ANTES de tocar nada):**
+**Tareas previas ADELANTADAS (2026-07-11, aprobadas por Bilal; SIN invertir la
+precedencia ni tocar el arranque real):**
 
-1. **Reconstruir el binario congelado** con el nuevo `--verify-key` y verificar
-   que devuelve 0/1 **rápido** en máquina limpia. Además **endurecer
-   `key_opens_db`** para que un binario que NO entiende la bandera no pueda
-   **levantar un servidor fantasma** (hoy un `freeze/dist/` viejo arrancaría el
-   backend y bloquearía hasta el timeout ocupando el puerto). El validador solo
-   se invoca en 4a/4b, pero es justo donde debe ser correcto.
+1. ✅ **HECHO — Binario congelado reconstruido con `--verify-key` + validador
+   endurecido.** El nuevo `freeze/dist/` incluye el modo `--verify-key` (imprime
+   un MARCADOR de capacidad y sale 0/≠0 sin arrancar servidor). `key_opens_db`
+   endurecido: (a) confía en el veredicto SOLO si el subproceso imprimió el
+   marcador — un binario viejo que no entiende la bandera nunca lo imprime → se
+   trata como "no fiable" → False; (b) lo lanza en su propia sesión y lo mata por
+   grupo (`killpg`) si se cuelga → nunca deja un servidor fantasma; (c) sandbox
+   defensivo (`VOKTER_DB`→temp, `VOKTER_BIND`→dirección no vinculable RFC-5737)
+   para que un binario viejo falle rápido sin tocar datos ni ocupar puerto.
+   Verificado: nuevo binario abre/​rechaza correcto/incorrecto (incl. la DB REAL,
+   solo lectura), 0 servidores; tests Part 3 (binario sin marcador → no fiado;
+   binario colgado → muerto por timeout).
 
-2. **Caso 4c — cambio DECIDIDO por Bilal (opción más resistente):** si el fichero
-   está corrupto/ilegible **pero** el llavero tiene una llave que —**comprobada
-   con el validador**— ABRE la DB, usar esa llave (y recrear el fichero de
-   respaldo). **Condición innegociable:** usar la llave del llavero SOLO si se ha
-   verificado que abre la DB, **nunca a ciegas**. Si no abre (o el llavero no
-   tiene / no está disponible) → **fallo ruidoso**. Razón: el objetivo supremo es
-   "nunca dejar a nadie fuera de sus datos"; negarse teniendo la llave buena y
-   verificada iría en contra. (Implica actualizar `decide()` y su test S4c.)
+2. ✅ **HECHO — Política 4c resistente implementada** en `decide()` + tests: si el
+   fichero es ilegible **pero** el llavero tiene una llave que —**validada con el
+   validador**— ABRE la DB, se usa esa llave (+ recrear fichero + AVISO); **solo
+   si se comprueba que abre, nunca a ciegas**; si no abre / no hay llave / no hay
+   DB que validar → **fallo ruidoso**, nunca acuñar. (Cambia SOLO la lógica de
+   `decide()`, que NO está cableada al arranque; el arranque real no cambia.)
 
-3. **Invertir el defecto** a keychain-first + cablear en `ensure_db_key()`
-   (orchestrator.py:99), conservando el interruptor `VOKTER_KEY_SOURCE=file`.
+**Lo que QUEDA para la Etapa 3 (hacer FRESCO; repasar este plan y OK explícito
+ANTES de tocar nada):**
+
+3. **Invertir el defecto** a keychain-first + cablear `decide()` en
+   `ensure_db_key()` (orchestrator.py:99), conservando el interruptor
+   `VOKTER_KEY_SOURCE=file`. ← ESTE es el primer cambio real del arranque.
 
 4. **Pruebas reales:** logout/login y REINICIO (tabla de la §5), con el
    interruptor y el paracaídas listos.
+
+**Notas para el cableado (Etapa 3):**
+- **`recreate_file` es best-effort, NUNCA una condición de arranque.** En 4b/4c,
+  si la llave del llavero (validada) abre la DB, el arranque DEBE tener éxito con
+  esa llave **aunque re-escribir el fichero falle** (p.ej. fichero ilegible por
+  permisos → probablemente tampoco re-escribible). Recrear el respaldo se intenta
+  y se loguea; si falla, se sigue. Lo contrario reintroduciría justo el bloqueo
+  que el 4c evita.
+- **El binario capaz vive en `freeze/dist/` (git-ignored).** La capacidad
+  `--verify-key` está en el fuente commiteado, pero un checkout nuevo o una
+  máquina que no haya reconstruido tiene un binario INCAPAZ → la rama congelada
+  de `key_opens_db` degrada a False ahí hasta reconstruir. Correcto para release
+  (se compila por-OS), pero **reconstruir el congelado es un paso de release**.
 
 ---
 

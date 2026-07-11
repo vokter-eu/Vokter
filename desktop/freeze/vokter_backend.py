@@ -11,12 +11,21 @@ importing config/main (which enforce fail-closed encryption and create dirs).
 import sys
 
 
+# Capability marker — printed FIRST so the caller can tell a binary that
+# understands --verify-key from an old one that would boot the server instead.
+# Kept in lock-step with keysource._VERIFY_MARKER.
+_VERIFY_MARKER = "__VOKTER_VERIFY_KEY__"
+
+
 def _verify_key() -> int:
     """`--verify-key <db>`: exit 0 iff VOKTER_DB_KEY opens <db> (read-only),
-    non-zero otherwise. No config/main import, no side effects.
+    non-zero otherwise. Prints the capability marker to stdout first. No
+    config/main import, no side effects, never binds a socket.
 
     Kept in lock-step with keysource._VERIFY_SCRIPT (the dev/venv path)."""
     import os
+
+    print(_VERIFY_MARKER, flush=True)  # prove capability before anything can fail
     import sqlcipher3.dbapi2 as s
 
     args = sys.argv[sys.argv.index("--verify-key") + 1:]

@@ -25,7 +25,10 @@ proven file key — never to an apparent lock-out.
 from __future__ import annotations
 
 import os
+import shutil
+import signal
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -96,10 +99,19 @@ def decide(
 
     # --- 4c: the key file exists but we could not read it ------------------
     # This must NEVER be mistaken for "absent" — that mistake would let a later
-    # branch mint over a DB we simply failed to unlock. Fail loud instead.
+    # branch mint over a DB we simply failed to unlock.
+    #
+    # Bilal's resilient policy (2026-07-11): a corrupt/unreadable FILE must not
+    # lock the user out if the KEYCHAIN holds a key that PROVABLY opens the DB.
+    # Use that key ONLY if the validator confirms it opens the DB — never
+    # blindly — and re-create the file from it. If it doesn't open (or there is
+    # no keychain key, or no DB to validate against), fail loud. Still never mint.
     if file_state == FILE_UNREADABLE:
+        if kc_state == KC_HAS_KEY and db_present and opens_db(kc_key):
+            return Decision("4c", key=kc_key, source=SRC_KEYCHAIN, recreate_file=True, warn=True,
+                            reason="fichero ilegible pero la llave del LLAVERO ABRE la DB (validado); la uso y recreo el fichero")
         return Decision("4c", fail=True,
-                        reason="el fichero de llave existe pero no se pudo leer; fallo ruidoso, NO acuño")
+                        reason="fichero ilegible y el llavero no aporta una llave que (validada) abra la DB; fallo ruidoso, NO acuño")
 
     # --- Keychain holds a key ----------------------------------------------
     if kc_state == KC_HAS_KEY:
@@ -201,15 +213,50 @@ def gather_facts(
 # caller falls back to the proven file key and NEVER mints.
 VERIFY_KEY_ENV = "VOKTER_VERIFY_KEY"
 
-# Kept in lock-step with the --verify-key branch in freeze/vokter_backend.py.
+# Capability marker. The validator trusts a subprocess's verdict ONLY if the
+# subprocess printed this on stdout, PROVING it actually ran the verify path. A
+# binary that predates --verify-key never prints it (it would boot the server
+# instead), so its output is treated as "not verify-capable" → False. Kept in
+# lock-step with freeze/vokter_backend.py.
+_VERIFY_MARKER = "__VOKTER_VERIFY_KEY__"
+
 _VERIFY_SCRIPT = (
     "import os, sys, sqlcipher3.dbapi2 as s\n"
+    "print('" + _VERIFY_MARKER + "', flush=True)\n"
     "db = sys.argv[1]; key = os.environ['" + VERIFY_KEY_ENV + "']\n"
-    "con = s.connect(f'file:{db}?mode=ro&immutable=1', uri=True)\n"
-    "con.execute(\"PRAGMA key='%s'\" % key.replace(\"'\", \"''\"))\n"
-    "con.execute('SELECT count(*) FROM sqlite_master').fetchone()\n"
-    "con.close()\n"
+    "try:\n"
+    "    con = s.connect(f'file:{db}?mode=ro&immutable=1', uri=True)\n"
+    "    con.execute(\"PRAGMA key='%s'\" % key.replace(\"'\", \"''\"))\n"
+    "    con.execute('SELECT count(*) FROM sqlite_master').fetchone()\n"
+    "    con.close()\n"
+    "except Exception:\n"
+    "    sys.exit(1)\n"
 )
+
+
+def _run_capped(cmd: list[str], env: dict, timeout: float) -> tuple[int | None, bytes]:
+    """Run `cmd` in its OWN process session; return (returncode, stdout). On
+    timeout, SIGKILL the whole process group so nothing (e.g. a phantom server
+    an old binary tried to start) can linger, and return (None, b''). Never
+    raises."""
+    try:
+        proc = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, start_new_session=True)
+    except Exception:
+        return None, b""
+    try:
+        out, _ = proc.communicate(timeout=timeout)
+        return proc.returncode, out
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+        except Exception:
+            proc.kill()
+        try:
+            proc.communicate(timeout=5)
+        except Exception:
+            pass
+        return None, b""
 
 
 def key_opens_db(
@@ -222,19 +269,33 @@ def key_opens_db(
 ) -> bool:
     """True iff `key` opens `db_path` (SQLCipher), read-only + immutable.
 
-    Never raises: any problem (no validator, timeout, wrong key, unreadable DB)
-    is a plain False, so the caller degrades to the proven file key."""
+    Never raises: any problem (no validator, timeout, wrong key, unreadable DB,
+    or a binary that doesn't understand the flag) is a plain False, so the
+    caller degrades to the proven file key."""
     env = os.environ.copy()
     env[VERIFY_KEY_ENV] = key
-    if venv_py.exists():
-        cmd = [str(venv_py), "-c", _VERIFY_SCRIPT, str(db_path)]
-    elif frozen_bin.exists():
-        env["VOKTER_DB_KEY"] = key  # the frozen binary reads the key from here
-        cmd = [str(frozen_bin), "--verify-key", str(db_path)]
-    else:
-        return False
+    tmp_guard: str | None = None
     try:
-        p = subprocess.run(cmd, env=env, capture_output=True, timeout=timeout)
-        return p.returncode == 0
-    except Exception:
-        return False
+        if venv_py.exists():
+            cmd = [str(venv_py), "-c", _VERIFY_SCRIPT, str(db_path)]
+        elif frozen_bin.exists():
+            env["VOKTER_DB_KEY"] = key  # the frozen binary reads the key from here
+            # Defensive sandbox for the case this binary is OLD and ignores
+            # --verify-key: point its data dir at a throwaway temp and its bind
+            # at an unbindable RFC-5737 TEST-NET address, so it can neither touch
+            # real data nor stand up a phantom server — it fails fast and clean.
+            tmp_guard = tempfile.mkdtemp(prefix="vokter-verify-")
+            env["VOKTER_DB"] = os.path.join(tmp_guard, "probe.db")
+            env["VOKTER_BIND"] = "192.0.2.1"  # RFC 5737 TEST-NET-1: not local → bind fails
+            cmd = [str(frozen_bin), "--verify-key", str(db_path)]
+        else:
+            return False
+        rc, out = _run_capped(cmd, env, timeout)
+        # Trust the verdict ONLY from a binary that proved it understands the
+        # flag (printed the marker). No marker ⇒ not verify-capable ⇒ False.
+        if _VERIFY_MARKER.encode() not in out:
+            return False
+        return rc == 0
+    finally:
+        if tmp_guard:
+            shutil.rmtree(tmp_guard, ignore_errors=True)

@@ -22,6 +22,7 @@ import secrets
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 import keysource as ks
@@ -120,12 +121,34 @@ def part1_decision_table() -> None:
     check("S4b sin fichero, el llavero NO abre la DB: fallo ruidoso, NO acuña",
           r.situation == "4b" and r.fail and not r.mint)
 
-    # ---- SITUATION 4c: file present but unreadable → fail, never mint --------
-    for kc in (KC_HAS_KEY, KC_EMPTY, KC_UNAVAILABLE):
-        op = _Opener({"KCKEY": True})
-        r = d(op, kc_state=kc, kc_key="KCKEY", file_state=FILE_UNREADABLE, file_key=None)
-        check(f"S4c fichero ILEGIBLE (llavero={kc}): fallo ruidoso, NO acuña (≠ 'ausente')",
+    # ---- SITUATION 4c: file present but UNREADABLE --------------------------
+    # Resilient policy (Bilal 2026-07-11): rescue via the keychain ONLY if its
+    # key PROVABLY opens the DB; otherwise fail loud. Never mint, never blind.
+    op = _Opener({"KCKEY": True})   # keychain key OPENS the DB
+    r = d(op, kc_state=KC_HAS_KEY, kc_key="KCKEY", file_state=FILE_UNREADABLE,
+          file_key=None, db_present=True)
+    check("S4c ilegible + llave del llavero que ABRE la DB (validado): la usa + recrea fichero + AVISO, NO acuña",
+          r.situation == "4c" and r.source == SRC_KEYCHAIN and r.recreate_file
+          and r.warn and not r.fail and not r.mint)
+    check("S4c rescate SOLO tras comprobar que abre (opens_db llamado con la llave del llavero)",
+          op.calls == ["KCKEY"])
+
+    op = _Opener({"KCKEY": False})  # keychain key does NOT open the DB
+    r = d(op, kc_state=KC_HAS_KEY, kc_key="KCKEY", file_state=FILE_UNREADABLE,
+          file_key=None, db_present=True)
+    check("S4c ilegible + el llavero NO abre la DB: fallo ruidoso, NO acuña",
+          r.situation == "4c" and r.fail and not r.mint)
+
+    for kc in (KC_EMPTY, KC_UNAVAILABLE):
+        r = d(kc_state=kc, kc_key=None, file_state=FILE_UNREADABLE, file_key=None, db_present=True)
+        check(f"S4c ilegible + llavero={kc} (sin llave que ofrecer): fallo ruidoso, NO acuña",
               r.situation == "4c" and r.fail and not r.mint)
+
+    op = _Opener({"KCKEY": True})   # has a key, but there's NO DB to validate against
+    r = d(op, kc_state=KC_HAS_KEY, kc_key="KCKEY", file_state=FILE_UNREADABLE,
+          file_key=None, db_present=False)
+    check("S4c ilegible + llavero con llave pero SIN DB que validar: fallo ruidoso (nunca a ciegas)",
+          r.situation == "4c" and r.fail and not r.mint and op.calls == [])
 
     # ---- SITUATION 5: the ONE mint cell -------------------------------------
     op = _Opener()
@@ -219,9 +242,68 @@ def part2_real_validator() -> None:
             pass
 
 
+def _write_fake_bin(path: Path, body: str) -> Path:
+    path.write_text("#!/usr/bin/env python3\n" + body)
+    path.chmod(0o755)
+    return path
+
+
+def part3_validator_hardening() -> None:
+    """A binary that does NOT understand --verify-key must never be trusted and
+    must never leave a phantom process behind."""
+    print("\n== PART 3 — endurecimiento del validador (binarios NO capaces) ==\n")
+    tmp = Path(tempfile.mkdtemp(prefix="vokter-harden-"))
+    db = tmp / "vokter.db"
+    db.write_bytes(b"not-a-real-db")  # never actually opened by a fake
+    nope = Path("/nonexistent-venv")
+    try:
+        # (1) A binary that exits 0 but never prints the marker (an old binary
+        #     that "succeeded" at something else). Must NOT be trusted → False.
+        noise = _write_fake_bin(tmp / "fake_noise",
+                                "import sys\nprint('INFO: started uvicorn on :8080')\nsys.exit(0)\n")
+        check("binario que sale 0 SIN marcador → NO se fía (False)",
+              ks.key_opens_db("k", db, venv_py=nope, frozen_bin=noise) is False)
+
+        # (2) A binary that hangs (a phantom server). key_opens_db must time out,
+        #     kill the WHOLE group, return False, and leave nothing running.
+        pidfile = tmp / "child.pid"
+        hang = _write_fake_bin(tmp / "fake_hang",
+                               "import os, sys, time\n"
+                               f"open(r'{pidfile}','w').write(str(os.getpid()))\n"
+                               "print('INFO: serving...', flush=True)\n"
+                               "time.sleep(60)\n")
+        t0 = time.time()
+        r = ks.key_opens_db("k", db, venv_py=nope, frozen_bin=hang, timeout=2.0)
+        elapsed = time.time() - t0
+        check("binario que se CUELGA → False y corta por timeout (sin fantasma)",
+              r is False and elapsed < 8.0, f"{elapsed:.1f}s")
+        # The killpg must have reaped it: the pid must be gone.
+        alive = False
+        if pidfile.exists():
+            pid = int(pidfile.read_text().strip())
+            time.sleep(0.3)
+            try:
+                os.kill(pid, 0)   # signal 0 = existence check
+                alive = True
+            except OSError:
+                alive = False
+        check("el proceso colgado quedó MUERTO tras el timeout (killpg)", not alive)
+    finally:
+        for p in tmp.glob("*"):
+            try:
+                p.unlink()
+            except OSError:
+                pass
+        try:
+            tmp.rmdir()
+        except OSError:
+            pass
+
+
 def main() -> int:
     part1_decision_table()
     part2_real_validator()
+    part3_validator_hardening()
     print("\n" + ("=" * 60))
     print("RESUMEN — las 5 situaciones:")
     print("  S1 estable · S2 migración · S3 llavero caído · S4 (a/b/c) · S5 primer arranque")
