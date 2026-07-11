@@ -546,7 +546,7 @@ document.getElementById('ask').onsubmit = async (e) => {
       add('bot', j.detail || 'Error');
     }
   } catch (err){
-    thinking.textContent = 'Can\'t reach Ollama. Is the container running?';
+    thinking.textContent = 'Can\'t reach Vokter. Is it still running?';
   }
 };
 
@@ -562,7 +562,7 @@ async function loadEmailStatus() {
   const el = document.getElementById('email-status');
   const delBtn = document.getElementById('btn-del-emails');
   if (!j.configured) {
-    el.textContent = 'Email not configured (set VOKTER_EMAIL_* in docker-compose.yml)';
+    el.textContent = 'Email not configured yet.';
   } else {
     el.textContent = j.synced_emails > 0
       ? `${j.synced_emails} emails in memory`

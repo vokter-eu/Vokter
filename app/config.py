@@ -155,7 +155,7 @@ elif _FROZEN:
     )
 else:
     print("WARNING: VOKTER_DB_KEY not set — database stored in plaintext. "
-          "Set it in docker-compose.yml to enable encryption.")
+          "Set VOKTER_DB_KEY to enable encryption.")
 
 # The "exposed without an admin token" case is now enforced as a hard refusal to
 # start (see main.lifespan), not just a warning — fail closed before serving.
