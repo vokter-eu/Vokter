@@ -30,6 +30,8 @@ import time
 import urllib.request
 from pathlib import Path
 
+import keysource  # local, stdlib-only: the key-source DECISION (Phase 3.2)
+
 # --- Layout -----------------------------------------------------------------
 HERE      = Path(__file__).resolve().parent          # …/Vokter/desktop
 REPO      = HERE.parent                               # …/Vokter
@@ -97,14 +99,39 @@ def preflight(flavour: str) -> None:
 
 
 def ensure_db_key() -> str:
-    """Load or mint a strong DB encryption key. Never the 'change-me' default,
-    never empty. Stored 0600 in the app data dir; the FILE is the permanent
-    source of truth. Phase 2 also MIRRORS it into the OS keychain (best-effort),
-    but the returned key always comes from the file."""
+    """Load or mint a strong DB encryption key via the keysource DECISION.
+
+    STAGE 3a — decide() now drives the choice, but the default is HARD-WIRED to
+    file-first (override=SRC_FILE), so the happy path is identical to before: the
+    file key is used, and the keychain is neither read nor seeded. STAGE 3b flips
+    the default to keychain-first and wires the VOKTER_KEY_SOURCE switch.
+
+    Two deliberate differences from the old code, BOTH in the safe direction:
+      1. No best-effort keychain mirror — the OS keychain slot is left untouched
+         (the old _mirror_key_to_keychain is no longer called; 3b replaces
+         mirroring with keysource's seed_keychain effect).
+      2. A missing key file over an EXISTING DB now FAILS LOUD instead of minting
+         a fresh key that would lock the user out of their data (golden rule).
+    The file remains the permanent source of truth; a minted key is written 0600.
+    """
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    if DBKEY_FILE.exists():
-        key = DBKEY_FILE.read_text().strip()
-    else:
+    file_state, file_key = keysource.read_file_key(DBKEY_FILE)
+    db_present = (DATA_DIR / "vokter.db").exists()
+    decision = keysource.decide(
+        file_state=file_state, file_key=file_key, db_present=db_present,
+        kc_state=keysource.KC_UNAVAILABLE, kc_key=None,  # not consulted in file mode
+        opens_db=lambda _k: False,                       # not consulted in file mode
+        override=keysource.SRC_FILE,                     # 3a: hard-wired file-first
+    )
+    # Own log line: do NOT surface decide()'s file-only reason string here — it
+    # reads "(interruptor)", which would falsely imply the user set the emergency
+    # switch. In 3a file-first is simply the wired-in default; the switch arrives
+    # in 3b. decide()'s reason is still surfaced on the fail path, where it helps.
+    log(f"key source: file-first by default (Stage 3a) → situation "
+        f"{decision.situation}, source={decision.source} (keychain not consulted)")
+    if decision.fail:
+        die("refusing to boot without a usable DB key: " + decision.reason)
+    if decision.mint:
         key = secrets.token_urlsafe(32)
         # Create the file already 0600 (O_EXCL to lose no race) — never let the
         # DB master key exist world-readable for the window before a later chmod.
@@ -112,12 +139,17 @@ def ensure_db_key() -> str:
         with os.fdopen(fd, "w") as f:
             f.write(key)
         log(f"minted a fresh DB encryption key → {DBKEY_FILE} (0600)")
-    _mirror_key_to_keychain(key)
-    return key
+        return key
+    return decision.key
 
 
 def _mirror_key_to_keychain(key: str) -> None:
-    """Phase 2 (reversible mirror): copy the file key into the OS keychain if it
+    """NOTE (Stage 3a): no longer called — ensure_db_key() leaves the keychain
+    untouched by default. Stage 3b replaces this best-effort mirror with the
+    keysource seed_keychain effect (seed on the migration path only). Kept for
+    now as the reference implementation of the write.
+
+    Phase 2 (reversible mirror): copy the file key into the OS keychain if it
     is available, so a later phase can start reading from it. We STILL use the
     file key — nothing depends on the keychain yet. Best-effort: any failure is
     logged quietly and never affects startup (golden rule). Dev/Docker never
