@@ -99,78 +99,130 @@ def preflight(flavour: str) -> None:
 
 
 def ensure_db_key() -> str:
-    """Load or mint a strong DB encryption key via the keysource DECISION.
+    """Load or mint the DB encryption key — STAGE 3b: keychain-first.
 
-    STAGE 3a — decide() now drives the choice, but the default is HARD-WIRED to
-    file-first (override=SRC_FILE), so the happy path is identical to before: the
-    file key is used, and the keychain is neither read nor seeded. STAGE 3b flips
-    the default to keychain-first and wires the VOKTER_KEY_SOURCE switch.
+    Precedence is now KEYCHAIN-FIRST with the file as the proven fallback, driven
+    by keysource.decide() over the real world (file / keychain / DB facts). The
+    golden rule holds: if the keychain can't help we fall back to the file key,
+    and a new key is minted in exactly ONE situation (proven-empty keychain, no
+    file, no DB) — never over data we merely failed to unlock.
 
-    Two deliberate differences from the old code, BOTH in the safe direction:
-      1. No best-effort keychain mirror — the OS keychain slot is left untouched
-         (the old _mirror_key_to_keychain is no longer called; 3b replaces
-         mirroring with keysource's seed_keychain effect).
-      2. A missing key file over an EXISTING DB now FAILS LOUD instead of minting
-         a fresh key that would lock the user out of their data (golden rule).
-    The file remains the permanent source of truth; a minted key is written 0600.
+    Emergency switch: VOKTER_KEY_SOURCE=file forces file-only mode and skips the
+    keychain ENTIRELY — not even the availability write-probe runs, so "ignore
+    the keychain" is literally true (no probe item, slot untouched).
+
+    Effects are executed here (decide() only decides): seed the keychain on the
+    migration/mint paths, and re-create the file backup where needed — BOTH
+    best-effort, NEVER a boot condition (a keychain or backup-write hiccup must
+    not lock anyone out).
     """
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    file_state, file_key = keysource.read_file_key(DBKEY_FILE)
-    db_present = (DATA_DIR / "vokter.db").exists()
-    decision = keysource.decide(
-        file_state=file_state, file_key=file_key, db_present=db_present,
-        kc_state=keysource.KC_UNAVAILABLE, kc_key=None,  # not consulted in file mode
-        opens_db=lambda _k: False,                       # not consulted in file mode
-        override=keysource.SRC_FILE,                     # 3a: hard-wired file-first
-    )
-    # Own log line: do NOT surface decide()'s file-only reason string here — it
-    # reads "(interruptor)", which would falsely imply the user set the emergency
-    # switch. In 3a file-first is simply the wired-in default; the switch arrives
-    # in 3b. decide()'s reason is still surfaced on the fail path, where it helps.
-    log(f"key source: file-first by default (Stage 3a) → situation "
-        f"{decision.situation}, source={decision.source} (keychain not consulted)")
+    db_path = DATA_DIR / "vokter.db"
+    override = os.environ.get(keysource.OVERRIDE_ENV)  # None unless the switch is set
+
+    if override == keysource.SRC_FILE:
+        # Emergency switch: do NOT touch the keychain at all (skip the write-probe).
+        file_state, file_key = keysource.read_file_key(DBKEY_FILE)
+        facts = dict(file_state=file_state, file_key=file_key,
+                     db_present=db_path.exists(),
+                     kc_state=keysource.KC_UNAVAILABLE, kc_key=None)
+    else:
+        facts = _keychain_first_facts(db_path)
+
+    decision = keysource.decide(**facts, opens_db=_db_opener(db_path), override=override)
+    log(f"key source → situation {decision.situation}, source={decision.source} "
+        f"— {decision.reason}")
+    if decision.warn:
+        log("WARNING (key source): " + decision.reason)
     if decision.fail:
         die("refusing to boot without a usable DB key: " + decision.reason)
+
     if decision.mint:
-        key = secrets.token_urlsafe(32)
-        # Create the file already 0600 (O_EXCL to lose no race) — never let the
-        # DB master key exist world-readable for the window before a later chmod.
-        fd = os.open(DBKEY_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(fd, "w") as f:
-            f.write(key)
-        log(f"minted a fresh DB encryption key → {DBKEY_FILE} (0600)")
-        return key
-    return decision.key
+        key = _mint_key_file()
+    else:
+        key = decision.key
+        if decision.recreate_file:
+            _recreate_key_file(key)  # best-effort, never a boot condition
+    if decision.seed_keychain:
+        _seed_keychain(key)          # best-effort, never a boot condition
+    return key
 
 
-def _mirror_key_to_keychain(key: str) -> None:
-    """NOTE (Stage 3a): no longer called — ensure_db_key() leaves the keychain
-    untouched by default. Stage 3b replaces this best-effort mirror with the
-    keysource seed_keychain effect (seed on the migration path only). Kept for
-    now as the reference implementation of the write.
+def _keychain_first_facts(db_path: Path) -> dict:
+    """Read the real world for the keychain-first decision: file + DB + keychain.
 
-    Phase 2 (reversible mirror): copy the file key into the OS keychain if it
-    is available, so a later phase can start reading from it. We STILL use the
-    file key — nothing depends on the keychain yet. Best-effort: any failure is
-    logged quietly and never affects startup (golden rule). Dev/Docker never
-    reach this code (they do not run the orchestrator), so they stay file-only.
+    Availability is proven with the write-probing keychain.is_available (which
+    distinguishes PROVEN-EMPTY from UNAVAILABLE — the whole reason a naive port
+    would lock a user out). Any keychain problem (missing deps, locked, hung)
+    degrades to UNAVAILABLE, so decide() falls back to the proven file key and
+    never mints over data. NOTE: is_available writes a self-deleting probe item;
+    the read-only dry run uses is_reachable_readonly instead, so a real boot may
+    land in Situation 3 (file) where the dry run reported 2 — still safe, no
+    lock-out, just no seed that boot.
     """
     try:
         import keychain
-    except Exception as exc:  # keychain deps missing → file-only, no fuss
-        log(f"keychain not available ({exc!r}); using the file key only")
-        return
-    status = keychain.mirror(key)
-    messages = {
-        keychain.MIRROR_DONE:    "mirrored the DB key into the OS keychain "
-                                 "(the file remains the source of truth)",
-        keychain.MIRROR_SYNCED:  "OS keychain already holds the current DB key (in sync)",
-        keychain.MIRROR_SKIPPED: "OS keychain unavailable; continuing with the "
-                                 "file key (this is fine)",
-        keychain.MIRROR_ERROR:   "could not mirror the DB key into the OS keychain; "
-                                 "continuing with the file key",
-    }
-    log(messages.get(status, f"keychain mirror status: {status}"))
+        return keysource.gather_facts(
+            file_path=DBKEY_FILE, db_path=db_path,
+            kc_available=keychain.is_available, kc_get=keychain.get_key,
+        )
+    except Exception as exc:  # keychain deps missing → treat as unavailable
+        log(f"keychain not consultable ({exc!r}); treating it as unavailable")
+        file_state, file_key = keysource.read_file_key(DBKEY_FILE)
+        return dict(file_state=file_state, file_key=file_key,
+                    db_present=db_path.exists(),
+                    kc_state=keysource.KC_UNAVAILABLE, kc_key=None)
+
+
+def _db_opener(db_path: Path):
+    """Validator for decide(): does a candidate key open the real DB? Shells out
+    to whatever carries sqlcipher3 (venv in dev, frozen --verify-key on a user
+    machine). Never raises → any problem is a plain False, degrading to the file."""
+    def opens(key: str) -> bool:
+        return keysource.key_opens_db(key, db_path, venv_py=VENV_PY, frozen_bin=FROZEN_BIN)
+    return opens
+
+
+def _mint_key_file() -> str:
+    """Generate a fresh strong key and write the file already 0600 (O_EXCL to
+    lose no race) — never let the DB master key exist world-readable for even the
+    window before a later chmod."""
+    key = secrets.token_urlsafe(32)
+    fd = os.open(DBKEY_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(key)
+    log(f"minted a fresh DB encryption key → {DBKEY_FILE} (0600)")
+    return key
+
+
+def _recreate_key_file(key: str) -> None:
+    """Best-effort re-creation of the .db_key backup (situations 4b/4c). NEVER a
+    boot condition: if the keychain key opened the DB but rewriting the file
+    fails (e.g. it was unreadable by perms → probably not writable either), the
+    boot still succeeds with that key; we only log the miss. Written atomically
+    (temp + os.replace), already 0600."""
+    try:
+        tmp = DBKEY_FILE.with_name(DBKEY_FILE.name + ".tmp")
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(key)
+        os.replace(tmp, DBKEY_FILE)
+        log(f"recreated the .db_key backup (0600) → {DBKEY_FILE}")
+    except Exception as exc:
+        log(f"could not recreate the .db_key backup ({exc!r}); continuing — "
+            f"recreate is best-effort, never a boot condition")
+
+
+def _seed_keychain(key: str) -> None:
+    """Best-effort file→keychain seed (migration and first-mint paths). NEVER
+    breaks the boot: keychain.mirror swallows every keychain hiccup, and the file
+    remains the source of truth regardless."""
+    try:
+        import keychain
+        status = keychain.mirror(key)
+        log(f"keychain seed → {status}")
+    except Exception as exc:
+        log(f"keychain seed skipped ({exc!r}); the file remains the source of truth")
 
 
 def wait_http(url: str, timeout: float = 60.0) -> bool:
