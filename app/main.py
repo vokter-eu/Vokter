@@ -1,8 +1,9 @@
 """
 Vokter — Your local AI guardian.
 
-Not a single call leaves your machine. Check it: the only host
-this code talks to is the local Ollama container.
+Not a single call leaves your machine. Check it: the only host this code
+talks to is the local inference engine (Ollama by default), reached through
+the engine adapter in engine.py — the one place a specific engine is named.
 """
 import asyncio
 import os

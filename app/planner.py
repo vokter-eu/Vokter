@@ -11,14 +11,13 @@ can show each step as it happens.
 import json
 from typing import AsyncGenerator
 
-import httpx
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from agent_config import get_config
 from browser import BrowseRequest, browse as do_browse
-from config import CHAT_MODEL, OLLAMA_URL
+from engine import ENGINE, ChatRequest
 from rag import retrieve
 
 router = APIRouter()
@@ -52,24 +51,16 @@ def _sse(data: dict) -> str:
 
 
 async def _make_plan(goal: str) -> dict:
-    async with httpx.AsyncClient(timeout=60) as client:
-        r = await client.post(
-            f"{OLLAMA_URL}/api/chat",
-            json={
-                "model": CHAT_MODEL,
-                "stream": False,
-                "format": "json",
-                "messages": [
-                    {"role": "system", "content": _PLAN_SYSTEM},
-                    {"role": "user",   "content": f"Goal: {goal}"},
-                ],
-            },
-        )
-    if r.status_code != 200:
-        raise HTTPException(502, f"Ollama returned {r.status_code}")
+    content = await ENGINE.chat(ChatRequest(
+        messages=[
+            {"role": "system", "content": _PLAN_SYSTEM},
+            {"role": "user",   "content": f"Goal: {goal}"},
+        ],
+        json_mode=True, timeout=60,
+    ))
     try:
-        return json.loads(r.json()["message"]["content"])
-    except (json.JSONDecodeError, KeyError) as exc:
+        return json.loads(content)
+    except json.JSONDecodeError as exc:
         raise HTTPException(500, f"Planner produced invalid JSON: {exc}")
 
 
@@ -148,34 +139,23 @@ async def _execute(goal: str) -> AsyncGenerator[str, None]:
         return
 
     context = "\n\n---\n\n".join(f"[{doc}]\n{content}" for _, doc, content in scored)
-    async with httpx.AsyncClient(timeout=120) as client:
-        r = await client.post(
-            f"{OLLAMA_URL}/api/chat",
-            json={
-                "model": CHAT_MODEL,
-                "stream": False,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are Vokter, the user's personal AI guardian. "
-                            "Answer the goal using ONLY the provided context. "
-                            "Be direct and concise. Answer in the language of the goal."
-                        ),
-                    },
-                    {"role": "user", "content": f"Context:\n{context}\n\nGoal: {goal}"},
-                ],
-                "options": {"num_ctx": 8192},
-            },
-        )
-    if r.status_code != 200:
-        yield _sse({"type": "error", "text": f"Ollama error on synthesis: {r.status_code}"})
-        return
-
     try:
-        answer = r.json()["message"]["content"]
-    except (json.JSONDecodeError, KeyError) as exc:
-        yield _sse({"type": "error", "text": f"Synthesis parse error: {exc}"})
+        answer = await ENGINE.chat(ChatRequest(
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are Vokter, the user's personal AI guardian. "
+                        "Answer the goal using ONLY the provided context. "
+                        "Be direct and concise. Answer in the language of the goal."
+                    ),
+                },
+                {"role": "user", "content": f"Context:\n{context}\n\nGoal: {goal}"},
+            ],
+            context_size=8192, timeout=120,
+        ))
+    except HTTPException as exc:
+        yield _sse({"type": "error", "text": exc.detail})
         return
     yield _sse({"type": "done", "answer": answer})
 

@@ -1,15 +1,14 @@
-import json
 import time
 import uuid
 from contextlib import closing
 
-import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 from agent_config import build_system_prompt, get_config
-from config import OLLAMA_URL, CHAT_MODEL, MAX_HISTORY
+from config import CHAT_MODEL, MAX_HISTORY
 from db import get_db
+from engine import ENGINE, ChatRequest
 from rag import retrieve
 
 router = APIRouter()
@@ -71,19 +70,9 @@ async def ask(q: Question):
         + [{"role": "user", "content": f"Context:\n{context}\n\nQuestion: {q.question}"}]
     )
 
-    async with httpx.AsyncClient(timeout=300) as client:
-        r = await client.post(
-            f"{OLLAMA_URL}/api/chat",
-            json={"model": model, "stream": False, "messages": messages,
-                  "options": {"num_ctx": 8192}},
-        )
-    if r.status_code != 200:
-        raise HTTPException(502, f"Ollama (chat) returned {r.status_code}. "
-                                 f"Did you run 'ollama pull {model}'?")
-    try:
-        answer = r.json()["message"]["content"]
-    except (json.JSONDecodeError, KeyError):
-        raise HTTPException(502, "Unexpected response format from Ollama")
+    answer = await ENGINE.chat(ChatRequest(
+        messages=messages, model=model, context_size=8192, timeout=300,
+    ))
 
     _save_turn(conv_id, q.question, answer)
 
