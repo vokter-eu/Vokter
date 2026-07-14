@@ -6,13 +6,20 @@ import os
 from PyInstaller.utils.hooks import collect_all
 
 APP_DIR = os.path.abspath(os.path.join(SPECPATH, "..", "..", "app"))
+# desktop/ — home of the orchestrator + key-source + keychain modules that the
+# --orchestrate mode (3.3-A) runs from inside the bundle. No name collision with
+# app/ (verified), so both can share pathex safely.
+DESKTOP_DIR = os.path.abspath(os.path.join(SPECPATH, ".."))
 
 datas = [(os.path.join(APP_DIR, "static"), "static")]
 binaries = []
-hiddenimports = []
+# The orchestrate-mode modules are imported lazily (inside a branch), so name
+# them explicitly to guarantee they travel in the bundle.
+hiddenimports = ["orchestrator", "keysource", "keychain"]
 
 # collect_all (never collect_data_files) for every package with native pieces:
 # piper's espeakbridge.so + espeak-ng-data must travel together (spike lesson).
+# secretstorage/jeepney: the OS keychain, so --orchestrate reads it in-process.
 for pkg in (
     "piper",
     "sqlcipher3",
@@ -21,6 +28,8 @@ for pkg in (
     "onnxruntime",
     "av",
     "nostr_sdk",
+    "secretstorage",
+    "jeepney",
 ):
     d, b, h = collect_all(pkg)
     datas += d
@@ -29,7 +38,7 @@ for pkg in (
 
 a = Analysis(
     ["vokter_backend.py"],
-    pathex=[APP_DIR],
+    pathex=[APP_DIR, DESKTOP_DIR],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,

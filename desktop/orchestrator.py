@@ -33,7 +33,24 @@ from pathlib import Path
 import keysource  # local, stdlib-only: the key-source DECISION (Phase 3.2)
 
 # --- Layout -----------------------------------------------------------------
-HERE      = Path(__file__).resolve().parent          # …/Vokter/desktop
+def _here() -> Path:
+    """The desktop/ directory, resolved whether we run from source or frozen.
+
+    From source: the folder this file lives in. Frozen (the 3.3-A --orchestrate
+    binary): __file__ points inside the bundle, so derive desktop/ from the
+    executable — desktop/freeze/dist/vokter-backend/<exe> → parents[3]. This is a
+    DEV-LAYOUT assumption on purpose; Phase 3.3-B replaces it with a proper
+    split of read-only resources vs the user's writable data dir. VOKTER_DESKTOP_HOME
+    overrides either way (escape hatch / tests).
+    """
+    env = os.environ.get("VOKTER_DESKTOP_HOME")
+    if env:
+        return Path(env).resolve()
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parents[3]
+    return Path(__file__).resolve().parent
+
+HERE      = _here()                                  # …/Vokter/desktop
 REPO      = HERE.parent                               # …/Vokter
 APP_DIR   = REPO / "app"                              # the FastAPI backend
 RUNTIME   = HERE / "runtime"                          # app-local, git-ignored
@@ -331,6 +348,7 @@ def die(msg: str) -> None:
 def main() -> None:
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
+    log(f"desktop home → {HERE}  (frozen={getattr(sys, 'frozen', False)})")
     flavour = backend_flavour()
     preflight(flavour)
     db_key = ensure_db_key()

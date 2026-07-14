@@ -16,11 +16,28 @@ const { app, BrowserWindow } = require('electron');
 const { spawn } = require('child_process');
 const http = require('http');
 const path = require('path');
+const fs = require('fs');
 
 // …/Vokter/desktop/electron -> …/Vokter
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const ORCHESTRATOR = path.join(REPO_ROOT, 'desktop', 'orchestrator.py');
 const PYTHON = process.env.VOKTER_PYTHON || 'python3';
+// The frozen binary's --orchestrate mode (3.3-A): boots the whole stack from
+// inside the bundle, so a user machine needs no system python3.
+const FROZEN_BIN = path.join(REPO_ROOT, 'desktop', 'freeze', 'dist', 'vokter-backend', 'vokter-backend');
+const VENV_DIR = path.join(REPO_ROOT, 'desktop', 'runtime', 'venv');
+
+// Mirror orchestrator.backend_flavour(): a dev box (has the venv) runs the
+// Python source so freshly edited code is never shadowed by a stale freeze; a
+// user machine (no venv) runs the frozen binary. VOKTER_DESKTOP_ORCHESTRATOR
+// forces 'python' or 'frozen'.
+function orchestratorCommand() {
+  const forced = (process.env.VOKTER_DESKTOP_ORCHESTRATOR || '').trim().toLowerCase();
+  const useFrozen = forced === 'frozen' || (forced !== 'python' && !fs.existsSync(VENV_DIR));
+  return useFrozen
+    ? { cmd: FROZEN_BIN, args: ['--orchestrate'] }
+    : { cmd: PYTHON, args: [ORCHESTRATOR] };
+}
 
 // Must match orchestrator.py's BACKEND_PORT (same env var, same default).
 const PORT = parseInt(process.env.VOKTER_DESKTOP_BACKEND_PORT || '8081', 10);
@@ -49,7 +66,8 @@ function createWindow() {
 }
 
 function startOrchestrator() {
-  child = spawn(PYTHON, [ORCHESTRATOR], {
+  const { cmd, args } = orchestratorCommand();
+  child = spawn(cmd, args, {
     cwd: REPO_ROOT,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: process.env,

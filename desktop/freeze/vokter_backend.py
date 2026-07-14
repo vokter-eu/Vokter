@@ -1,12 +1,18 @@
 """Frozen entry point — serve the real Vokter backend with uvicorn.
 
 Almost all configuration is env-driven and lives in config.py, including the
-bind address (VOKTER_BIND/VOKTER_PORT). The ONE command-line mode is
-`--verify-key <db>`: on a user machine this frozen binary is the only piece
-that carries sqlcipher3, so the orchestrator (whose own interpreter has no
-sqlcipher3) shells out to it to answer "does this key open the DB?" before
-choosing a key source. That check must have NO side effects, so it runs BEFORE
-importing config/main (which enforce fail-closed encryption and create dirs).
+bind address (VOKTER_BIND/VOKTER_PORT). Two command-line modes:
+
+  `--verify-key <db>`: on a user machine this frozen binary is the only piece
+  that carries sqlcipher3, so the orchestrator (whose own interpreter has no
+  sqlcipher3) shells out to it to answer "does this key open the DB?" before
+  choosing a key source. That check must have NO side effects, so it runs BEFORE
+  importing config/main (which enforce fail-closed encryption and create dirs).
+
+  `--orchestrate`: run the desktop orchestrator (start native Ollama + the
+  backend, decide the key source via the OS keychain) from INSIDE this bundle,
+  so a user machine needs no system python3. The keychain (secretstorage) and
+  sqlcipher3 both travel in this binary, so it can do the whole boot itself.
 """
 import sys
 
@@ -48,6 +54,14 @@ def _verify_key() -> int:
 if __name__ == "__main__":
     if "--verify-key" in sys.argv:
         sys.exit(_verify_key())
+
+    if "--orchestrate" in sys.argv:
+        # Run the desktop orchestrator from within the bundle. orchestrator.main()
+        # installs its own SIGINT/SIGTERM handlers and supervises the children;
+        # it exits the process itself, so control never returns here.
+        import orchestrator
+        orchestrator.main()
+        sys.exit(0)
 
     import multiprocessing
 
