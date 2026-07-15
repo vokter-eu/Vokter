@@ -16,22 +16,24 @@ def _die(message: str) -> None:
 
 
 def _default_db_path() -> str:
-    # Docker/venv keep the historical /data; the desktop binary defaults to
-    # the platform's standard per-user application-data directory.
+    # Docker/venv keep the historical /data. The packaged (frozen) desktop app
+    # does NOT guess its data location here: the desktop orchestrator is the
+    # single source of truth for that path (desktop/datadir.py) and ALWAYS passes
+    # it as VOKTER_DB (alongside the key). So a frozen process that reaches this
+    # point was hand-launched without VOKTER_DB — it cannot store data safely
+    # (it would also fail-closed on the missing key below). Refuse now, rather
+    # than compute a path that could silently diverge from datadir.py's.
     if not _FROZEN:
         return "/data/vokter.db"
-    if sys.platform == "darwin":
-        base = os.path.expanduser("~/Library/Application Support/Vokter")
-    elif os.name == "nt":
-        base = os.path.join(
-            os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "Vokter"
-        )
-    else:
-        base = os.path.join(
-            os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")),
-            "vokter",
-        )
-    return os.path.join(base, "vokter.db")
+    _die(
+        "ERROR: Vokter cannot start safely.\n\n"
+        "This packaged Vokter was started without VOKTER_DB, so it does not\n"
+        "know where your data lives. Start Vokter through the desktop app,\n"
+        "which sets that for you.\n\n"
+        "If you are launching this binary by hand, set VOKTER_DB (and\n"
+        "VOKTER_DB_KEY) to the data you want to open."
+    )
+    raise SystemExit(1)  # unreachable: _die() already exited; keeps the -> str contract honest
 
 
 OLLAMA_URL  = os.getenv("VOKTER_OLLAMA_URL",  "http://ollama:11434")

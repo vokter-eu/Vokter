@@ -31,6 +31,7 @@ import urllib.request
 from pathlib import Path
 
 import keysource  # local, stdlib-only: the key-source DECISION (Phase 3.2)
+import datadir    # local, stdlib-only: data-dir resolution + guardrail (Phase 3.3-B)
 
 # --- Layout -----------------------------------------------------------------
 def _here() -> Path:
@@ -57,7 +58,15 @@ RUNTIME   = HERE / "runtime"                          # app-local, git-ignored
 VENV_PY   = RUNTIME / "venv" / "bin" / "python"       # backend interpreter
 FROZEN_BIN = HERE / "freeze" / "dist" / "vokter-backend" / "vokter-backend"
 OLLAMA_BIN = RUNTIME / "ollama" / "bin" / "ollama"    # native Ollama binary
-DATA_DIR  = RUNTIME / "data"                          # SQLite DB + voice models
+# Phase 3.3-B: the WRITABLE user-data dir is resolved from the ROBUST `frozen`
+# signal (never folder-existence). Dev stays byte-identical (HERE/runtime/data);
+# the packaged app lands in the per-user application-data dir. The RESOURCE paths
+# above (venv, ollama, frozen bin) stay app-local under HERE on purpose.
+DATA_DIR, _DATA_WHY = datadir.resolve_data_dir(
+    frozen=bool(getattr(sys, "frozen", False)),
+    home=HERE,
+    env_override=os.environ.get("VOKTER_DESKTOP_DATA"),  # a DIRECTORY, not VOKTER_DB
+)
 OLLAMA_MODELS_DIR = RUNTIME / "ollama-models"         # app-local model store
 DBKEY_FILE = DATA_DIR / ".db_key"                     # Phase 1 only → keychain later
 
@@ -133,7 +142,6 @@ def ensure_db_key() -> str:
     best-effort, NEVER a boot condition (a keychain or backup-write hiccup must
     not lock anyone out).
     """
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
     db_path = DATA_DIR / "vokter.db"
     override = os.environ.get(keysource.OVERRIDE_ENV)  # None unless the switch is set
 
@@ -146,6 +154,11 @@ def ensure_db_key() -> str:
     else:
         facts = _keychain_first_facts(db_path)
 
+    # Phase 3.3-B guardrail — gate BEFORE the key decision, and before we create
+    # the dir or mint a key: never silently boot a BLANK Vokter over existing data.
+    _guardrail_or_die(facts, override)
+
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
     decision = keysource.decide(**facts, opens_db=_db_opener(db_path), override=override)
     log(f"key source → situation {decision.situation}, source={decision.source} "
         f"— {decision.reason}")
@@ -163,6 +176,37 @@ def ensure_db_key() -> str:
     if decision.seed_keychain:
         _seed_keychain(key)          # best-effort, never a boot condition
     return key
+
+
+def _guardrail_or_die(facts: dict, override: str | None) -> None:
+    """Phase 3.3-B — refuse to boot a BLANK Vokter in silence.
+
+    Runs BEFORE the key decision and REUSES the keychain state keysource already
+    gathered (no second probe). If the resolved data dir holds no DB but a Vokter
+    clearly existed before — a DB at a known prior location, OR the keychain holds
+    (or MIGHT hold) a key — stop loudly and start NOTHING: no backend, no minted DB.
+
+    The [1]/[2] options in the message are conceptual until there is a desktop UI;
+    for now, refusing to boot IS the correct "never an empty Vokter" behaviour.
+    """
+    if override == keysource.SRC_FILE:
+        # Keychain DELIBERATELY skipped (emergency file mode): that is "we chose
+        # not to ask", NOT the cautious "we couldn't ask", so it carries no
+        # keychain signal here. Prior-DB files still protect via the candidates.
+        kc = datadir.KeychainState.NO_KEY
+    elif facts["kc_state"] == keysource.KC_UNAVAILABLE:
+        kc = datadir.KeychainState.UNREACHABLE
+    elif facts["kc_state"] == keysource.KC_HAS_KEY:
+        kc = datadir.KeychainState.HAS_KEY
+    else:  # KC_EMPTY — proven reachable and empty
+        kc = datadir.KeychainState.NO_KEY
+
+    guard = datadir.guardrail(resolved_dir=DATA_DIR, keychain=kc, home=HERE)
+    if guard.triggered:
+        for line in guard.message().splitlines():
+            log(line)
+        die("refusing to start an EMPTY Vokter (see the options above) — no "
+            "backend started, no database created")
 
 
 def _keychain_first_facts(db_path: Path) -> dict:
@@ -349,6 +393,7 @@ def main() -> None:
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
     log(f"desktop home → {HERE}  (frozen={getattr(sys, 'frozen', False)})")
+    log(f"data dir → {DATA_DIR}  ({_DATA_WHY})")
     flavour = backend_flavour()
     preflight(flavour)
     db_key = ensure_db_key()
