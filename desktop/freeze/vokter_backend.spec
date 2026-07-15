@@ -15,7 +15,7 @@ datas = [(os.path.join(APP_DIR, "static"), "static")]
 binaries = []
 # The orchestrate-mode modules are imported lazily (inside a branch), so name
 # them explicitly to guarantee they travel in the bundle.
-hiddenimports = ["orchestrator", "keysource", "keychain"]
+hiddenimports = ["orchestrator", "keysource", "keychain", "datadir"]
 
 # collect_all (never collect_data_files) for every package with native pieces:
 # piper's espeakbridge.so + espeak-ng-data must travel together (spike lesson).
