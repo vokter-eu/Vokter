@@ -18,14 +18,31 @@ const http = require('http');
 const path = require('path');
 const fs = require('fs');
 
-// …/Vokter/desktop/electron -> …/Vokter
+// …/Vokter/desktop/electron -> …/Vokter (dev layout only; not valid when packaged)
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
-const ORCHESTRATOR = path.join(REPO_ROOT, 'desktop', 'orchestrator.py');
+
+// Phase 3.3-C (C0): resolve the desktop "home" — where the frozen binary and its
+// runtime resources (Ollama, etc.) live — from WHERE WE ACTUALLY ARE:
+//   * dev (electron .)         -> the repo's desktop/ tree, exactly as before.
+//   * packaged (.deb/AppImage) -> the extraResources copy under resourcesPath,
+//       laid out to MIRROR desktop/ so the orchestrator finds everything by its
+//       usual relative paths. We hand that home to the child via
+//       VOKTER_DESKTOP_HOME (which orchestrator._here() already honours), because
+//       the orchestrator's own parents[3] guess assumes the dev layout, which a
+//       package does not reproduce.
+// In dev, DESKTOP_HOME === REPO_ROOT/desktop, so every path below is byte-for-byte
+// what it was before — dev behaviour is unchanged.
+const PACKAGED = app.isPackaged;
+const DESKTOP_HOME = PACKAGED
+  ? path.join(process.resourcesPath, 'desktop')
+  : path.join(REPO_ROOT, 'desktop');
+
+const ORCHESTRATOR = path.join(DESKTOP_HOME, 'orchestrator.py');
 const PYTHON = process.env.VOKTER_PYTHON || 'python3';
 // The frozen binary's --orchestrate mode (3.3-A): boots the whole stack from
 // inside the bundle, so a user machine needs no system python3.
-const FROZEN_BIN = path.join(REPO_ROOT, 'desktop', 'freeze', 'dist', 'vokter-backend', 'vokter-backend');
-const VENV_DIR = path.join(REPO_ROOT, 'desktop', 'runtime', 'venv');
+const FROZEN_BIN = path.join(DESKTOP_HOME, 'freeze', 'dist', 'vokter-backend', 'vokter-backend');
+const VENV_DIR = path.join(DESKTOP_HOME, 'runtime', 'venv');
 
 // Mirror orchestrator.backend_flavour(): a dev box (has the venv) runs the
 // Python source so freshly edited code is never shadowed by a stale freeze; a
@@ -33,7 +50,9 @@ const VENV_DIR = path.join(REPO_ROOT, 'desktop', 'runtime', 'venv');
 // forces 'python' or 'frozen'.
 function orchestratorCommand() {
   const forced = (process.env.VOKTER_DESKTOP_ORCHESTRATOR || '').trim().toLowerCase();
-  const useFrozen = forced === 'frozen' || (forced !== 'python' && !fs.existsSync(VENV_DIR));
+  // A packaged app has neither a venv nor a system python3 to rely on — always
+  // the frozen binary. In dev, keep the venv-vs-frozen choice unchanged.
+  const useFrozen = PACKAGED || forced === 'frozen' || (forced !== 'python' && !fs.existsSync(VENV_DIR));
   return useFrozen
     ? { cmd: FROZEN_BIN, args: ['--orchestrate'] }
     : { cmd: PYTHON, args: [ORCHESTRATOR] };
@@ -67,10 +86,15 @@ function createWindow() {
 
 function startOrchestrator() {
   const { cmd, args } = orchestratorCommand();
+  // When packaged, tell the orchestrator where its resources live (see
+  // DESKTOP_HOME above) and give it a real cwd — REPO_ROOT points inside the
+  // asar and is not a usable directory. In dev nothing changes.
+  const env = { ...process.env };
+  if (PACKAGED) env.VOKTER_DESKTOP_HOME = DESKTOP_HOME;
   child = spawn(cmd, args, {
-    cwd: REPO_ROOT,
+    cwd: PACKAGED ? DESKTOP_HOME : REPO_ROOT,
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: process.env,
+    env,
   });
 
   // Surface the orchestrator's own logs in our stdout so `[orchestrator] …`
@@ -80,6 +104,16 @@ function startOrchestrator() {
     process.stderr.write(d);
     stderrTail.push(d.toString());
     while (stderrTail.length > 40) stderrTail.shift();
+  });
+
+  // Spawn itself failing (ENOENT on a wrong FROZEN_BIN path or an unusable cwd —
+  // exactly the failure mode C0's packaged paths could hit) emits 'error', NOT
+  // 'exit'. Without this handler that error is unhandled and the user sits on the
+  // loading spinner forever. Route it to the same diagnostic error screen.
+  child.on('error', (err) => {
+    childExited = true;
+    stderrTail.push(`failed to launch the background service: ${err.message}\n`);
+    if (!ready) showError(null, err.code || 'spawn-error');
   });
 
   child.on('exit', (code, signal) => {
