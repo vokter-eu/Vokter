@@ -8,7 +8,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --linux deb"
+    "dist": "electron-builder --linux deb AppImage"
   },
   "build": {
     "appId": "eu.vokter.desktop",
@@ -22,13 +22,35 @@
       "output": "dist",
       "buildResources": "build"
     },
+    "extraResources": [
+      {
+        "from": "../freeze/dist/vokter-backend",
+        "to": "desktop/freeze/dist/vokter-backend"
+      },
+      {
+        "from": "../runtime/ollama",
+        "to": "desktop/runtime/ollama",
+        "filter": [
+          "**/*",
+          "!lib/ollama/cuda_v12",
+          "!lib/ollama/cuda_v12/**",
+          "!lib/ollama/cuda_v13",
+          "!lib/ollama/cuda_v13/**"
+        ]
+      },
+      {
+        "from": "../runtime/voice-seed",
+        "to": "desktop/runtime/voice-seed"
+      }
+    ],
     "linux": {
       "target": [
-        "deb"
+        "deb",
+        "AppImage"
       ],
       "category": "Utility",
       "maintainer": "Vokter <noreply@vokter.eu>",
-      "description": "Sovereign local AI agent (C1 packaging bring-up — Electron shell only; the backend, Ollama and models arrive in C2)."
+      "description": "Sovereign local AI agent (C2: bundles the frozen backend, native Ollama CPU-only, and offline voice — piper + whisper. LLM weights download on first run; GPU acceleration is an optional future add-on)."
     },
     "deb": {
       "afterInstall": "build/deb-after-install.sh",

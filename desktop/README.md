@@ -57,8 +57,9 @@ installer must reproduce it **inside the app** so the end user installs nothing:
 
 - **Native Ollama runs on port 11435**, not 11434 — the leftover Docker Ollama
   squats on 11434, and binding against it would make Phase 1 pass while proving
-  nothing. Models are stored app-local (`runtime/ollama-models`), not in
-  `~/.ollama` or the Docker volume.
+  nothing. Models are stored in the per-user writable data dir
+  (`<data>/ollama-models`, dev: `runtime/data/ollama-models`), and Ollama's home
+  (`<data>/ollama-home`) too — not in `~/.ollama` or the Docker volume.
 - **DB key** is generated (strong, never the `change-me` default) and stored
   `0600` in `runtime/data/.db_key`. This is a Phase-1 shortcut; Phase 3 moves it
   to the OS keychain.

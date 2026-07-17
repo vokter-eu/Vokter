@@ -23,6 +23,7 @@ Non-negotiables honoured here:
 """
 import os
 import secrets
+import shutil
 import signal
 import subprocess
 import sys
@@ -67,7 +68,19 @@ DATA_DIR, _DATA_WHY = datadir.resolve_data_dir(
     home=HERE,
     env_override=os.environ.get("VOKTER_DESKTOP_DATA"),  # a DIRECTORY, not VOKTER_DB
 )
-OLLAMA_MODELS_DIR = RUNTIME / "ollama-models"         # app-local model store
+# Phase 3.3-C (C2): the model store and Ollama's home MUST be writable, so they
+# hang off DATA_DIR (the per-user writable dir from 3.3-B), NOT RUNTIME — under a
+# packaged install RUNTIME is read-only /opt and `ollama serve`'s mkdir would die
+# here. OLLAMA_HOME keeps Ollama's keypair app-local too (no stray ~/.ollama),
+# matching Vokter's sovereignty stance. Dev: DATA_DIR = HERE/runtime/data.
+OLLAMA_MODELS_DIR = DATA_DIR / "ollama-models"        # writable model store
+OLLAMA_HOME       = DATA_DIR / "ollama-home"          # keypair etc., app-local
+# Phase 3.3-C (C2): the piper + whisper voice models ship inside the package as a
+# READ-ONLY resource under HERE, and get seeded into DATA_DIR/models on first run
+# (see seed_voice). This keeps "speaks + listens OFFLINE out of the box" true —
+# the property the 9/9 clean-machine test certified — with no hidden first-use
+# download. RESOURCE path (like venv/ollama), not writable data.
+VOICE_SEED_DIR = HERE / "runtime" / "voice-seed"      # bundled piper + whisper
 DBKEY_FILE = DATA_DIR / ".db_key"                     # Phase 1 only → keychain later
 
 # --- Config (overridable via env) -------------------------------------------
@@ -315,8 +328,10 @@ def start_ollama() -> None:
         log(f"an Ollama is already serving on {OLLAMA_URL} — reusing it, not "
             f"starting a second instance (stop it first if it isn't ours)")
         return
+    OLLAMA_HOME.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
     env["OLLAMA_HOST"] = OLLAMA_HOST          # bind + where the CLI looks
+    env["OLLAMA_HOME"] = str(OLLAMA_HOME)     # keypair app-local, no stray ~/.ollama
     env["OLLAMA_MODELS"] = str(OLLAMA_MODELS_DIR)  # app-local, sovereign store
     # Non-negotiable #2 ("zero hidden calls"): Ollama otherwise pings ollama.com
     # for cloud inference / web search / model recommendations. Off, hard.
@@ -333,12 +348,38 @@ def ensure_models() -> None:
     First run downloads ~2 GB — that is expected, not a hang."""
     env = os.environ.copy()
     env["OLLAMA_HOST"] = OLLAMA_HOST
+    env["OLLAMA_HOME"] = str(OLLAMA_HOME)
     env["OLLAMA_MODELS"] = str(OLLAMA_MODELS_DIR)
     for model in (CHAT_MODEL, EMBED_MODEL):
         log(f"ensuring model present: {model} (first run may download a lot)")
         rc = subprocess.call([str(OLLAMA_BIN), "pull", model], env=env)
         if rc != 0:
             die(f"failed to pull model {model}")
+
+
+def seed_voice() -> None:
+    """Copy the bundled piper + whisper models into the writable data dir on first
+    run, so the app speaks and listens OFFLINE from the very first launch — no
+    hidden first-use download (Vokter non-negotiable #2). Idempotent: only fills
+    in what's missing, never overwrites the user's models. A dev checkout without
+    the build-prep seed (VOICE_SEED_DIR absent) simply falls back to the code's
+    existing on-demand download path."""
+    models = DATA_DIR / "models"
+    # (seed subdir, destination subdir, sentinel that proves it's already there)
+    jobs = [
+        ("piper",   "piper",   "en_US-lessac-medium.onnx"),
+        ("whisper", "whisper", "base-int8/model.bin"),
+    ]
+    for name, dst_name, sentinel in jobs:
+        src = VOICE_SEED_DIR / name
+        dst = models / dst_name
+        if not src.is_dir():
+            continue                          # not bundled → on-demand fallback
+        if (dst / sentinel).exists():
+            continue                          # already present → leave user's dir
+        dst.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(src, dst, dirs_exist_ok=True)
+        log(f"seeded voice model '{name}' → {dst}")
 
 
 def start_backend(db_key: str, flavour: str) -> None:
@@ -399,6 +440,7 @@ def main() -> None:
     db_key = ensure_db_key()
     start_ollama()
     ensure_models()
+    seed_voice()
     start_backend(db_key, flavour)
     log("all pieces are up. Ctrl-C to stop. Now open the UI and verify a chat.")
     # Supervise: if either child dies, take the whole thing down.
