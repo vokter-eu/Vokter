@@ -60,5 +60,13 @@ def build_system_prompt(cfg: dict[str, str]) -> str:
         parts.append("Feel free to elaborate when it adds clarity.")
     if lang != "auto":
         parts.append(f"Always respond in {lang}.")
+    else:
+        # Default: mirror the user, like a bilingual person. Anchor on the
+        # QUESTION's language, not the documents' — a Spanish question about an
+        # English document must be answered in Spanish (citing the English source).
+        parts.append(
+            "Always respond in the same language as the user's question, "
+            "even when the documents are written in another language."
+        )
 
     return " ".join(parts)
