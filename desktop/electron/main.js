@@ -8,15 +8,18 @@
 //     on quit so we never orphan Ollama or the backend holding the port.
 //
 // What this phase does NOT do (on purpose): package anything, touch the DB key,
-// move the key to the OS keychain (that is 3.2), or add IPC/preload. The Node
-// side reimplements ZERO orchestration — orchestrator.py remains the single
-// source of truth for booting and supervising Ollama + the backend.
+// or move the key to the OS keychain (that is 3.2). The Node side reimplements
+// ZERO orchestration — orchestrator.py remains the single source of truth for
+// booting and supervising Ollama + the backend.
+// (Phase 3.3-D later adds ONE thing: a one-way, receive-only preload channel
+// that relays the orchestrator's model-download progress to the loading screen.)
 
 const { app, BrowserWindow } = require('electron');
 const { spawn } = require('child_process');
 const http = require('http');
 const path = require('path');
 const fs = require('fs');
+const { LineBuffer, parseProgressLine } = require('./progress_pipe');
 
 // …/Vokter/desktop/electron -> …/Vokter (dev layout only; not valid when packaged)
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -66,6 +69,7 @@ let win = null;
 let child = null;
 let childExited = false;   // orchestrator process has terminated
 let ready = false;         // backend answered → real UI is loaded
+let lastProgress = null;   // most recent download-progress event, for replay
 const stderrTail = [];     // last lines of orchestrator stderr, for the error screen
 
 function createWindow() {
@@ -75,13 +79,37 @@ function createWindow() {
     title: 'Vokter',
     backgroundColor: '#0f1115',
     webPreferences: {
-      // Free hygiene: we only ever load trusted localhost, but keep the
-      // renderer sandboxed anyway. No preload/IPC needed for a hollow window.
+      // We only ever load trusted localhost, and keep the renderer locked down:
+      // contextIsolation ON, no nodeIntegration, sandboxed. The preload is a
+      // single ONE-WAY receive channel (download progress) — see preload.js
+      // (Phase 3.3-D). No send/invoke is exposed to the page.
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
+      preload: path.join(__dirname, 'preload.js'),
     },
   });
   win.loadFile(path.join(__dirname, 'loading.html'));
+
+  // The loading page may finish loading AFTER the first progress events arrive
+  // (Ollama can start pulling within a second). Replay the latest event once the
+  // page is ready so the bar never starts blank. Guard on !ready so this never
+  // fires for the real UI (which loads only after ready flips true).
+  win.webContents.on('did-finish-load', () => {
+    if (!ready && lastProgress && win && !win.isDestroyed()) {
+      win.webContents.send('download-progress', lastProgress);
+    }
+  });
+}
+
+// A parsed [progress] event from the orchestrator → the loading screen. Only
+// while we're still on that screen (!ready); once the backend is up the real UI
+// has replaced it and there is nothing more to download.
+function onProgress(ev) {
+  lastProgress = ev;
+  if (win && !win.isDestroyed() && !ready) {
+    win.webContents.send('download-progress', ev);
+  }
 }
 
 function startOrchestrator() {
@@ -98,8 +126,19 @@ function startOrchestrator() {
   });
 
   // Surface the orchestrator's own logs in our stdout so `[orchestrator] …`
-  // and, critically, `[orchestrator] FATAL: …` lines are visible.
-  child.stdout.on('data', (d) => process.stdout.write(d));
+  // and, critically, `[orchestrator] FATAL: …` lines are visible — AND pick the
+  // machine-readable `[progress] …` lines out of the same stream to drive the
+  // download bar. stdout arrives as byte chunks, not lines, so we buffer and
+  // split on '\n' (see progress_pipe) before parsing — otherwise a JSON line
+  // split across two chunks would parse-fail intermittently.
+  const outBuf = new LineBuffer();
+  child.stdout.on('data', (d) => {
+    process.stdout.write(d);
+    for (const line of outBuf.push(d)) {
+      const ev = parseProgressLine(line);
+      if (ev) onProgress(ev);
+    }
+  });
   child.stderr.on('data', (d) => {
     process.stderr.write(d);
     stderrTail.push(d.toString());

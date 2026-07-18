@@ -21,6 +21,7 @@ Non-negotiables honoured here:
   * No third parties — the only outbound traffic is the one-time model download
     from Ollama's registry (same as before) and local loopback between pieces.
 """
+import json
 import os
 import secrets
 import shutil
@@ -28,11 +29,13 @@ import signal
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
-import keysource  # local, stdlib-only: the key-source DECISION (Phase 3.2)
-import datadir    # local, stdlib-only: data-dir resolution + guardrail (Phase 3.3-B)
+import keysource   # local, stdlib-only: the key-source DECISION (Phase 3.2)
+import datadir     # local, stdlib-only: data-dir resolution + guardrail (Phase 3.3-B)
+import model_pull  # local, stdlib-only: /api/pull stream → per-model bar (Phase 3.3-D)
 
 # --- Layout -----------------------------------------------------------------
 def _here() -> Path:
@@ -102,6 +105,18 @@ _procs: list[subprocess.Popen] = []
 
 def log(msg: str) -> None:
     print(f"[orchestrator] {msg}", flush=True)
+
+
+# Phase 3.3-D: model-download progress for the Electron loading screen. We print
+# one machine-readable line per meaningful step to stdout; main.js already reads
+# this child's stdout (it only forwarded it to the terminal before) and, in step
+# 2b, parses lines with this exact prefix and relays them to loading.html. The
+# prefix is deliberately distinct from the human "[orchestrator] " lines.
+PROGRESS_PREFIX = "[progress] "
+
+
+def emit_progress(event: dict) -> None:
+    print(PROGRESS_PREFIX + json.dumps(event, separators=(",", ":")), flush=True)
 
 
 def backend_flavour() -> str:
@@ -344,17 +359,78 @@ def start_ollama() -> None:
 
 
 def ensure_models() -> None:
-    """Pull the chat + embedding models into the app-local store if absent.
-    First run downloads ~2 GB — that is expected, not a hang."""
-    env = os.environ.copy()
-    env["OLLAMA_HOST"] = OLLAMA_HOST
-    env["OLLAMA_HOME"] = str(OLLAMA_HOME)
-    env["OLLAMA_MODELS"] = str(OLLAMA_MODELS_DIR)
-    for model in (CHAT_MODEL, EMBED_MODEL):
+    """Pull the chat + embedding models into the app-local store if absent,
+    reporting real progress to the UI. First run downloads ~2 GB — that is
+    expected, not a hang.
+
+    Same operation as before, moved from the `ollama pull` CLI to the running
+    server's HTTP /api/pull so we can stream progress into the Electron window
+    (Phase 3.3-D). Behaviour kept IDENTICAL on the three things that matter:
+      * idempotency — /api/pull is the same op as the CLI: if the model is
+        already present it streams a few status lines and finishes without
+        re-downloading a byte (its presence check is the manifest).
+      * failure    — any transport error, an {"error": …} line, or a stream that
+        ends without "success" → die() (loud, non-zero exit), as before.
+      * store      — the download location is owned by the RUNNING server
+        (OLLAMA_MODELS, set in start_ollama), NOT by the pull call. Talking to it
+        over HTTP cannot move the store; this function no longer sets any env.
+    An interrupted download can never masquerade as complete: Ollama names blobs
+    by content sha256 (final name appears only after verify) and writes the
+    manifest last, so a half-pull leaves no manifest → not present → resumes next
+    run.
+    """
+    models = (CHAT_MODEL, EMBED_MODEL)
+    for i, model in enumerate(models, start=1):
         log(f"ensuring model present: {model} (first run may download a lot)")
-        rc = subprocess.call([str(OLLAMA_BIN), "pull", model], env=env)
-        if rc != 0:
-            die(f"failed to pull model {model}")
+        _pull_streaming(model, index=i, count=len(models))
+
+
+def _pull_streaming(model: str, index: int, count: int) -> None:
+    """Stream one model pull from the local Ollama server, feeding model_pull and
+    emitting a per-model progress line per meaningful step. die()s on failure.
+
+    We emit STRUCTURED index/count (not a localized "modelo 1 de 2" string): the
+    UI owns the wording, so the on-screen language lives in exactly one place
+    (electron/loading.js) — cleaner for real i18n later, and it keeps Ollama
+    jargon (the model id) off the orchestrator→UI wire entirely."""
+    parser = model_pull.PullParser()
+    last_key = None          # (phase, percent@0.1, indeterminate) — throttles output
+    saw_success = False
+    req = urllib.request.Request(
+        f"{OLLAMA_URL}/api/pull",
+        data=json.dumps({"model": model, "stream": True}).encode(),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        # timeout is per-socket-read: a download that keeps sending progress never
+        # hits it; a genuinely stalled connection eventually does → die, not hang.
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            for raw in resp:
+                line = raw.decode("utf-8", "replace").strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue  # tolerate a stray non-JSON line, keep streaming
+                snap = parser.update(obj)
+                if snap.phase == model_pull.PHASE_ERROR:
+                    die(f"failed to pull model {model}: {snap.error}")
+                if snap.phase == model_pull.PHASE_DONE:
+                    saw_success = True
+                key = (snap.phase, round(snap.percent, 1), snap.indeterminate)
+                if key != last_key:
+                    last_key = key
+                    event = {"model": model, "index": index, "count": count,
+                             **snap.as_event()}
+                    emit_progress(event)
+    except (urllib.error.URLError, OSError) as e:
+        # connection refused / dropped mid-download / read timeout
+        die(f"failed to pull model {model}: {e}")
+    if not saw_success:
+        # stream ended without a "success" line → incomplete pull
+        die(f"failed to pull model {model}: download ended before completion")
 
 
 def seed_voice() -> None:

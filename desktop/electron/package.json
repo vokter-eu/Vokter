@@ -16,6 +16,9 @@
     "files": [
       "main.js",
       "loading.html",
+      "loading.js",
+      "preload.js",
+      "progress_pipe.js",
       "package.json"
     ],
     "directories": {
