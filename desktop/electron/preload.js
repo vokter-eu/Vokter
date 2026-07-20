@@ -18,4 +18,10 @@ contextBridge.exposeInMainWorld('vokter', {
     ipcRenderer.on('download-progress', listener);
     return () => ipcRenderer.removeListener('download-progress', listener);
   },
+
+  // startFresh(): the ONE thing the window may send TO the system. A single
+  // fixed verb, NO arguments, NO channel choice — the page cannot ask for
+  // anything else. Only honoured by main when halted at the guardrail, and only
+  // once (main gates against a double click). See main.js.
+  startFresh: () => ipcRenderer.send('vokter:start-fresh'),
 });

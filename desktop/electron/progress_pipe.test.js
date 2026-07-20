@@ -3,7 +3,9 @@
 'use strict';
 
 const assert = require('assert');
-const { LineBuffer, parseProgressLine, PROGRESS_PREFIX } = require('./progress_pipe');
+const {
+  LineBuffer, parseProgressLine, parseGuardrailLine, PROGRESS_PREFIX, GUARDRAIL_PREFIX,
+} = require('./progress_pipe');
 
 const P = (obj) => PROGRESS_PREFIX + JSON.stringify(obj) + '\n';
 
@@ -73,4 +75,18 @@ function feed(chunks) {
   assert.deepStrictEqual(events, [{ phase: 'downloading', percent: 99.9 }]);
 }
 
-console.log('ALL GREEN — 7 line-pipeline cases');
+// 8. The two tags are parsed independently and don't cross-match: a [guardrail]
+//    line is guardrail-only, a [progress] line is progress-only, logs are neither.
+{
+  const g = GUARDRAIL_PREFIX + JSON.stringify({ triggered: true, keychain: 'unreachable', has_candidates: false });
+  assert.deepStrictEqual(parseGuardrailLine(g), { triggered: true, keychain: 'unreachable', has_candidates: false });
+  assert.strictEqual(parseProgressLine(g), null, 'a [guardrail] line must not parse as progress');
+
+  const p = PROGRESS_PREFIX + JSON.stringify({ percent: 50 });
+  assert.strictEqual(parseGuardrailLine(p), null, 'a [progress] line must not parse as guardrail');
+
+  assert.strictEqual(parseGuardrailLine('[orchestrator] just a log'), null);
+  assert.strictEqual(parseGuardrailLine('[guardrail] {bad json'), null); // never throws
+}
+
+console.log('ALL GREEN — 8 line-pipeline cases');

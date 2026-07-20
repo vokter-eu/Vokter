@@ -14,12 +14,13 @@
 // (Phase 3.3-D later adds ONE thing: a one-way, receive-only preload channel
 // that relays the orchestrator's model-download progress to the loading screen.)
 
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const http = require('http');
 const path = require('path');
 const fs = require('fs');
-const { LineBuffer, parseProgressLine } = require('./progress_pipe');
+const { LineBuffer, parseProgressLine, parseGuardrailLine } = require('./progress_pipe');
+const { pickFreePort } = require('./netutil');
 
 // …/Vokter/desktop/electron -> …/Vokter (dev layout only; not valid when packaged)
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -62,14 +63,20 @@ function orchestratorCommand() {
 }
 
 // Must match orchestrator.py's BACKEND_PORT (same env var, same default).
-const PORT = parseInt(process.env.VOKTER_DESKTOP_BACKEND_PORT || '8081', 10);
-const HEALTH_URL = `http://127.0.0.1:${PORT}/`;
+// Per-instance backend port (#2): chosen once at startup — a free port unless the
+// env pins one (dev/tests). main.js polls/loads ONLY this port, so an orphaned
+// backend squatting on a different port can never be adopted (the zombie bug).
+let backendPort = null;
+const healthUrl = () => `http://127.0.0.1:${backendPort}/`;
 
 let win = null;
 let child = null;
 let childExited = false;   // orchestrator process has terminated
 let ready = false;         // backend answered → real UI is loaded
 let lastProgress = null;   // most recent download-progress event, for replay
+let guardrailEvent = null; // parsed [guardrail] facts if the boot halted at the guardrail
+let halted = false;        // stopped at the guardrail screen, awaiting the user's choice
+let restarting = false;    // a start-fresh respawn is in flight (anti double-click)
 const stderrTail = [];     // last lines of orchestrator stderr, for the error screen
 
 function createWindow() {
@@ -112,13 +119,31 @@ function onProgress(ev) {
   }
 }
 
-function startOrchestrator() {
+function startOrchestrator(opts = {}) {
   const { cmd, args } = orchestratorCommand();
   // When packaged, tell the orchestrator where its resources live (see
   // DESKTOP_HOME above) and give it a real cwd — REPO_ROOT points inside the
   // asar and is not a usable directory. In dev nothing changes.
   const env = { ...process.env };
   if (PACKAGED) env.VOKTER_DESKTOP_HOME = DESKTOP_HOME;
+  // Bind the backend to OUR per-instance port (chosen at startup, reused across a
+  // start-fresh respawn) so we only ever adopt our own child's backend.
+  env.VOKTER_DESKTOP_BACKEND_PORT = String(backendPort);
+  // Start-fresh respawn (the user clicked [2]): the orchestrator, seeing this
+  // flag, proceeds past the keychain guardrail create-only (see orchestrator.py).
+  // Transient to THIS launch only.
+  if (opts.startFresh) env.VOKTER_START_FRESH = '1';
+
+  // Reset per-launch state; on a respawn put the loading spinner back up. `ready`
+  // is reset with the rest so a respawn re-polls (pollUntilReady early-returns if
+  // `ready` is still true from a prior/foreign backend).
+  childExited = false;
+  guardrailEvent = null;
+  ready = false;
+  if (opts.startFresh && win && !win.isDestroyed()) {
+    win.loadFile(path.join(__dirname, 'loading.html'));
+  }
+
   child = spawn(cmd, args, {
     cwd: PACKAGED ? DESKTOP_HOME : REPO_ROOT,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -135,8 +160,12 @@ function startOrchestrator() {
   child.stdout.on('data', (d) => {
     process.stdout.write(d);
     for (const line of outBuf.push(d)) {
-      const ev = parseProgressLine(line);
-      if (ev) onProgress(ev);
+      const prog = parseProgressLine(line);
+      if (prog) { onProgress(prog); continue; }
+      // The guardrail emits its structured facts just before die(); remember them
+      // and render the choice screen when the child exits (below).
+      const guard = parseGuardrailLine(line);
+      if (guard) guardrailEvent = guard;
     }
   });
   child.stderr.on('data', (d) => {
@@ -155,26 +184,47 @@ function startOrchestrator() {
     if (!ready) showError(null, err.code || 'spawn-error');
   });
 
-  child.on('exit', (code, signal) => {
+  // 'exit' fires as soon as the process dies — use it only to stop polling and to
+  // finish a pending quit. The SCREEN decision waits for 'close' (below).
+  child.on('exit', () => {
     childExited = true;
-    if (!ready) {
-      // Orchestrator died before the backend ever came up (die() exits non-zero,
-      // or Ollama/models failed). Stop the user staring at a spinner forever.
-      showError(code, signal);
-    }
-    // If we were mid-quit and only waiting on the child, finish quitting now.
     if (app.isQuitting) app.quit();
   });
+
+  // 'close' fires AFTER the stdio streams have drained, so every [guardrail] line
+  // is already parsed — this closes the exit-beats-stdout race (#4). We also flush
+  // any final unterminated line as a belt. With the per-instance port, `ready` is
+  // true only if OUR backend answered, so a halted boot can't be masked (#3).
+  child.on('close', (code, signal) => {
+    for (const line of outBuf.flush()) {
+      const g = parseGuardrailLine(line);
+      if (g) guardrailEvent = g;
+    }
+    if (!app.isQuitting) {
+      // A halted boot is AUTHORITATIVE: the guardrail screen wins regardless of a
+      // foreign `ready` — guardrailEvent and a genuine own-backend `ready` are
+      // mutually exclusive (the guardrail halts before any backend binds our port).
+      if (guardrailEvent) {
+        console.log('Vokter: the keychain guardrail halted the boot — showing the recovery screen.');
+        showGuardrail(guardrailEvent);
+      } else if (!ready) {
+        console.log('Vokter: the background service exited before it was ready — showing the error screen.');
+        showError(code, signal);
+      }
+    }
+  });
+
+  pollUntilReady();
 }
 
 function pollUntilReady() {
   const attempt = () => {
     if (childExited || ready) return;
-    const req = http.get(HEALTH_URL, (res) => {
+    const req = http.get(healthUrl(), (res) => {
       res.resume();
       if (res.statusCode && res.statusCode < 500) {
         ready = true;
-        if (win && !win.isDestroyed()) win.loadURL(HEALTH_URL);
+        if (win && !win.isDestroyed()) win.loadURL(healthUrl());
       } else {
         setTimeout(attempt, 500);
       }
@@ -207,6 +257,66 @@ function showError(code, signal) {
   win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
 }
 
+// The guardrail halted a blank boot. Show a reassuring, plain-language screen
+// with a clickable [2] "Start fresh". Copy is composed from the structured facts
+// — no "guardrail"/"keychain" jargon reaches the user.
+function showGuardrail(ev) {
+  if (!win || win.isDestroyed()) return;
+  halted = true;
+  win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(guardrailHtml(ev)));
+}
+
+function guardrailHtml(ev) {
+  let reason = '';
+  if (ev && ev.keychain === 'unreachable')
+    reason = ' — and it couldn’t check your keychain (it may be locked or unavailable)';
+  else if (ev && ev.keychain === 'has_key')
+    reason = ' — though it found a sign of a previous Vokter';
+  const candidateNote = ev && ev.has_candidates
+    ? '<p class="warn">It did find what looks like earlier data elsewhere on this computer. '
+      + 'If that’s yours, don’t start fresh yet — keep it safe and recover it first.</p>'
+    : '';
+  return `<!doctype html><meta charset="utf-8">
+<style>
+  html,body{height:100%;margin:0}
+  body{background:#0f1115;color:#e6e6e6;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+       display:flex;flex-direction:column;align-items:center;justify-content:center;
+       gap:1.05rem;padding:2.5rem;text-align:center;line-height:1.5}
+  .shield{font-size:3rem;line-height:1}
+  h1{font-size:1.2rem;font-weight:600;margin:0}
+  p{color:#b8bcc4;max-width:34rem;margin:0}
+  .warn{color:#e0b34d}
+  .safe{color:#8b909a;font-size:.85rem}
+  button{margin-top:.5rem;background:#6ea8fe;color:#0f1115;border:0;border-radius:8px;
+         font-size:.95rem;font-weight:600;padding:.7rem 1.4rem;cursor:pointer}
+  button:disabled{opacity:.55;cursor:default}
+</style>
+<div class="shield">🛡️</div>
+<h1>Vokter didn’t start</h1>
+<p>Vokter looked for your data but couldn’t find it where it expected${reason}. To be safe it stopped rather than starting empty — it never assumes your data is gone.</p>
+<p class="safe">Nothing has been deleted. If you’ve used Vokter before, your data and your key are safe and untouched.</p>
+${candidateNote}
+<button id="fresh">Start fresh</button>
+<p class="safe">Creates a new, empty Vokter. Any earlier data is kept, not deleted. Only choose this if you’re a new user.</p>
+<script>
+  const b = document.getElementById('fresh');
+  b.addEventListener('click', () => {
+    b.disabled = true; b.textContent = 'Starting…';
+    if (window.vokter) window.vokter.startFresh();
+  });
+</script>`;
+}
+
+// The window's ONE outbound action: the user clicked [2] "Start fresh". Honour it
+// ONLY while halted at the guardrail, and ONLY once — a nervous double click must
+// not spawn two orchestrators contending for the ports and Ollama.
+ipcMain.on('vokter:start-fresh', () => {
+  if (!halted || restarting) return;
+  restarting = true;
+  halted = false;
+  startOrchestrator({ startFresh: true });
+});
+
 // --- Lifecycle: the clean-shutdown contract ---------------------------------
 // On quit we SIGTERM the orchestrator and WAIT for it to exit before the app
 // actually dies. orchestrator.py's own handler then terminate()s Ollama + the
@@ -229,8 +339,34 @@ app.on('window-all-closed', () => {
   app.quit();
 });
 
-app.whenReady().then(() => {
-  createWindow();
-  startOrchestrator();
-  pollUntilReady();
-});
+// Single-instance lock (#1): only one Vokter may run. A second launch fails to
+// get the lock and quits silently; the FIRST instance is notified and brings its
+// window to the front. This prevents concurrent Vokters — the usual way an
+// orphaned backend is born. (The start-fresh respawn is a CHILD process, not a
+// new Electron instance, so the lock never interferes with it.)
+if (!app.requestSingleInstanceLock()) {
+  console.log('Vokter is already running — focusing the existing window and exiting.');
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (win && !win.isDestroyed()) {
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
+    }
+  });
+
+  app.whenReady().then(async () => {
+    // Honour a pinned port (dev/tests); otherwise grab a free one for this run.
+    const pinned = parseInt(process.env.VOKTER_DESKTOP_BACKEND_PORT || '', 10);
+    try {
+      backendPort = Number.isInteger(pinned) && pinned > 0 ? pinned : await pickFreePort();
+    } catch (e) {
+      // Falling back to the fixed port reopens the shared-port risk — worth a shout.
+      console.error('Vokter: could not obtain a free port, falling back to 8081:', e && e.message);
+      backendPort = 8081;
+    }
+    createWindow();
+    startOrchestrator();  // spawns + polls; re-invoked with {startFresh} on [2]
+  });
+}

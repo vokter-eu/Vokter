@@ -119,6 +119,23 @@ def emit_progress(event: dict) -> None:
     print(PROGRESS_PREFIX + json.dumps(event, separators=(",", ":")), flush=True)
 
 
+# Phase 3.3 (start-fresh button): when the keychain guardrail halts a blank boot,
+# the Electron window shows a clickable "[2] start fresh". Clicking it re-spawns
+# this orchestrator with VOKTER_START_FRESH=1 (the "answer" is a boot parameter,
+# not a live channel). We emit a STRUCTURED [guardrail] line (facts only — the UI
+# composes its own English copy; the Spanish guardrail message stays in the logs).
+START_FRESH_ENV = "VOKTER_START_FRESH"
+GUARDRAIL_PREFIX = "[guardrail] "
+
+
+def _start_fresh_requested() -> bool:
+    return os.environ.get(START_FRESH_ENV, "").strip() == "1"
+
+
+def emit_guardrail(event: dict) -> None:
+    print(GUARDRAIL_PREFIX + json.dumps(event, separators=(",", ":")), flush=True)
+
+
 def backend_flavour() -> str:
     """Which backend to launch: 'venv' or 'frozen'.
 
@@ -184,7 +201,11 @@ def ensure_db_key() -> str:
 
     # Phase 3.3-B guardrail — gate BEFORE the key decision, and before we create
     # the dir or mint a key: never silently boot a BLANK Vokter over existing data.
-    _guardrail_or_die(facts, override)
+    guard = _guardrail_check(facts, override)
+    if guard.triggered:
+        # Halt (default) OR, if the user clicked [2] "start fresh", proceed
+        # create-only. Either way we do NOT fall through to the normal key path.
+        return _handle_guardrail(guard, facts)
 
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     decision = keysource.decide(**facts, opens_db=_db_opener(db_path), override=override)
@@ -206,16 +227,13 @@ def ensure_db_key() -> str:
     return key
 
 
-def _guardrail_or_die(facts: dict, override: str | None) -> None:
-    """Phase 3.3-B — refuse to boot a BLANK Vokter in silence.
+def _guardrail_check(facts: dict, override: str | None) -> "datadir.Guardrail":
+    """Phase 3.3-B — decide whether booting now would be a BLANK Vokter over data.
 
     Runs BEFORE the key decision and REUSES the keychain state keysource already
-    gathered (no second probe). If the resolved data dir holds no DB but a Vokter
-    clearly existed before — a DB at a known prior location, OR the keychain holds
-    (or MIGHT hold) a key — stop loudly and start NOTHING: no backend, no minted DB.
-
-    The [1]/[2] options in the message are conceptual until there is a desktop UI;
-    for now, refusing to boot IS the correct "never an empty Vokter" behaviour.
+    gathered (no second probe). Returns the Guardrail; the caller halts (default)
+    or, on an explicit [2], proceeds create-only. PURE apart from the guardrail's
+    own filesystem read — no side effects here.
     """
     if override == keysource.SRC_FILE:
         # Keychain DELIBERATELY skipped (emergency file mode): that is "we chose
@@ -229,12 +247,40 @@ def _guardrail_or_die(facts: dict, override: str | None) -> None:
     else:  # KC_EMPTY — proven reachable and empty
         kc = datadir.KeychainState.NO_KEY
 
-    guard = datadir.guardrail(resolved_dir=DATA_DIR, keychain=kc, home=HERE)
-    if guard.triggered:
-        for line in guard.message().splitlines():
-            log(line)
-        die("refusing to start an EMPTY Vokter (see the options above) — no "
-            "backend started, no database created")
+    return datadir.guardrail(resolved_dir=DATA_DIR, keychain=kc, home=HERE)
+
+
+def _handle_guardrail(guard: "datadir.Guardrail", facts: dict) -> str:
+    """The guardrail fired. Two paths:
+
+    * DEFAULT (no [2]): halt loudly and start NOTHING — emit a structured
+      [guardrail] line so the window can offer the choice, log the human message,
+      and die(). This is byte-for-byte the old "never an empty Vokter" behaviour
+      plus the one new stdout line the UI needs.
+    * START FRESH ([2], VOKTER_START_FRESH=1): the user has CONFIRMED a fresh
+      start → resolve a key create-only (never touches existing data or the
+      keychain) and proceed. die() only if it cannot proceed without clobbering.
+    """
+    if _start_fresh_requested():
+        log("start-fresh CONFIRMED by the user — proceeding create-only; no "
+            "existing database, key file, keychain slot, or prior location is touched")
+        key = _start_fresh_key(facts)  # owns its own mkdir (create-only)
+        if key is None:
+            die("cannot start fresh without overwriting an existing key file — "
+                "refusing (it may be your real key)")
+        return key
+
+    # Default: halt. Structured signal for the UI (facts only), then the human
+    # message to the logs, then die — exactly as before.
+    emit_guardrail({
+        "triggered": True,
+        "has_candidates": bool(guard.candidates),
+        "keychain": guard.keychain.name.lower(),  # has_key | unreachable | no_key
+    })
+    for line in guard.message().splitlines():
+        log(line)
+    die("refusing to start an EMPTY Vokter (see the options above) — no "
+        "backend started, no database created")
 
 
 def _keychain_first_facts(db_path: Path) -> dict:
@@ -272,15 +318,53 @@ def _db_opener(db_path: Path):
     return opens
 
 
-def _mint_key_file() -> str:
-    """Generate a fresh strong key and write the file already 0600 (O_EXCL to
-    lose no race) — never let the DB master key exist world-readable for even the
-    window before a later chmod."""
-    key = secrets.token_urlsafe(32)
+def _write_key_file_excl(key: str) -> None:
+    """Write the key file with O_EXCL: it FAILS (FileExistsError) rather than
+    overwrite an existing key — the OS enforces "never clobber a key". Also loses
+    no race and never leaves the master key world-readable (0600 from creation)."""
     fd = os.open(DBKEY_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, "w") as f:
         f.write(key)
+
+
+def _mint_key_file() -> str:
+    key = secrets.token_urlsafe(32)
+    _write_key_file_excl(key)
     log(f"minted a fresh DB encryption key → {DBKEY_FILE} (0600)")
+    return key
+
+
+def _start_fresh_key(facts: dict) -> str | None:
+    """Create-only key resolution for a user-CONFIRMED fresh start ([2]). Returns
+    the key to use, or None if it cannot proceed without overwriting an existing
+    key file (then we refuse — that file may be the user's real key).
+
+    The safety invariant is OWNED here, not inherited from helpers: this writes
+    ONLY the resolved data dir's key file, and only through an O_EXCL create —
+    it NEVER truncates, NEVER seeds/writes the keychain (an UNREACHABLE slot may
+    hold the real user's key), and NEVER touches candidate DBs or any other
+    location. Idempotent: a second [2] after a prior mint reuses the file key.
+    """
+    if facts["file_state"] == keysource.FILE_PRESENT and facts["file_key"]:
+        log("start-fresh: reusing the existing key file (idempotent; no new key)")
+        return facts["file_key"]
+    # No readable file key → we must create one. Value: adopt the keychain's key
+    # if we can READ it (HAS_KEY, a read not a write), otherwise mint a new one.
+    if facts["kc_state"] == keysource.KC_HAS_KEY and facts["kc_key"]:
+        key, why = facts["kc_key"], "adopting the keychain key"
+    else:
+        key, why = secrets.token_urlsafe(32), "minting a new key"
+    # First boot on a clean machine: the resolved data dir usually does NOT exist
+    # yet (this is the first data-touching step). Create it before the O_EXCL write
+    # so it fails only on a real pre-existing key file, not on a missing parent.
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        _write_key_file_excl(key)
+    except FileExistsError:
+        log("start-fresh: a key file exists but is UNREADABLE — refusing to "
+            "overwrite it (it may be your real key); cannot start fresh safely")
+        return None
+    log(f"start-fresh: {why} → wrote {DBKEY_FILE} (0600). Keychain untouched.")
     return key
 
 

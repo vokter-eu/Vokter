@@ -12,8 +12,9 @@
 
 'use strict';
 
-// Must match orchestrator.py's PROGRESS_PREFIX exactly.
+// Must match orchestrator.py's PROGRESS_PREFIX / GUARDRAIL_PREFIX exactly.
 const PROGRESS_PREFIX = '[progress] ';
+const GUARDRAIL_PREFIX = '[guardrail] ';
 
 // Accumulates byte chunks; hands back only the complete lines seen so far.
 class LineBuffer {
@@ -28,18 +29,32 @@ class LineBuffer {
     this._rem = parts.pop(); // last piece has no trailing '\n' yet → keep it
     return parts;
   }
+
+  // flush() -> the final unterminated line (if any), clearing the buffer. Belt on
+  // stream 'close': a last line without a trailing '\n' still gets parsed.
+  flush() {
+    const rem = this._rem;
+    this._rem = '';
+    return rem ? [rem] : [];
+  }
 }
 
-// A complete line -> the parsed progress object, or null if it isn't one of ours
-// (a human `[orchestrator] …` log) or the JSON is malformed. Never throws.
-function parseProgressLine(line) {
+// A complete line -> the parsed JSON after `prefix`, or null if the line isn't
+// tagged with it (a human `[orchestrator] …` log) or the JSON is malformed.
+// Never throws.
+function parseTagged(line, prefix) {
   line = line.replace(/\r$/, ''); // tolerate CRLF, just in case
-  if (!line.startsWith(PROGRESS_PREFIX)) return null;
+  if (!line.startsWith(prefix)) return null;
   try {
-    return JSON.parse(line.slice(PROGRESS_PREFIX.length));
+    return JSON.parse(line.slice(prefix.length));
   } catch {
     return null;
   }
 }
 
-module.exports = { LineBuffer, parseProgressLine, PROGRESS_PREFIX };
+const parseProgressLine = (line) => parseTagged(line, PROGRESS_PREFIX);
+const parseGuardrailLine = (line) => parseTagged(line, GUARDRAIL_PREFIX);
+
+module.exports = {
+  LineBuffer, parseProgressLine, parseGuardrailLine, PROGRESS_PREFIX, GUARDRAIL_PREFIX,
+};

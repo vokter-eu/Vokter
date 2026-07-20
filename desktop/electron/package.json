@@ -19,6 +19,7 @@
       "loading.js",
       "preload.js",
       "progress_pipe.js",
+      "netutil.js",
       "package.json"
     ],
     "directories": {
