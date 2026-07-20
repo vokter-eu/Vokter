@@ -21,6 +21,7 @@ const path = require('path');
 const fs = require('fs');
 const { LineBuffer, parseProgressLine, parseGuardrailLine } = require('./progress_pipe');
 const { pickFreePort } = require('./netutil');
+const { guardrailHtml } = require('./guardrail_screen');
 
 // …/Vokter/desktop/electron -> …/Vokter (dev layout only; not valid when packaged)
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -264,47 +265,6 @@ function showGuardrail(ev) {
   if (!win || win.isDestroyed()) return;
   halted = true;
   win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(guardrailHtml(ev)));
-}
-
-function guardrailHtml(ev) {
-  let reason = '';
-  if (ev && ev.keychain === 'unreachable')
-    reason = ' — and it couldn’t check your keychain (it may be locked or unavailable)';
-  else if (ev && ev.keychain === 'has_key')
-    reason = ' — though it found a sign of a previous Vokter';
-  const candidateNote = ev && ev.has_candidates
-    ? '<p class="warn">It did find what looks like earlier data elsewhere on this computer. '
-      + 'If that’s yours, don’t start fresh yet — keep it safe and recover it first.</p>'
-    : '';
-  return `<!doctype html><meta charset="utf-8">
-<style>
-  html,body{height:100%;margin:0}
-  body{background:#0f1115;color:#e6e6e6;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
-       display:flex;flex-direction:column;align-items:center;justify-content:center;
-       gap:1.05rem;padding:2.5rem;text-align:center;line-height:1.5}
-  .shield{font-size:3rem;line-height:1}
-  h1{font-size:1.2rem;font-weight:600;margin:0}
-  p{color:#b8bcc4;max-width:34rem;margin:0}
-  .warn{color:#e0b34d}
-  .safe{color:#8b909a;font-size:.85rem}
-  button{margin-top:.5rem;background:#6ea8fe;color:#0f1115;border:0;border-radius:8px;
-         font-size:.95rem;font-weight:600;padding:.7rem 1.4rem;cursor:pointer}
-  button:disabled{opacity:.55;cursor:default}
-</style>
-<div class="shield">🛡️</div>
-<h1>Vokter didn’t start</h1>
-<p>Vokter looked for your data but couldn’t find it where it expected${reason}. To be safe it stopped rather than starting empty — it never assumes your data is gone.</p>
-<p class="safe">Nothing has been deleted. If you’ve used Vokter before, your data and your key are safe and untouched.</p>
-${candidateNote}
-<button id="fresh">Start fresh</button>
-<p class="safe">Creates a new, empty Vokter. Any earlier data is kept, not deleted. Only choose this if you’re a new user.</p>
-<script>
-  const b = document.getElementById('fresh');
-  b.addEventListener('click', () => {
-    b.disabled = true; b.textContent = 'Starting…';
-    if (window.vokter) window.vokter.startFresh();
-  });
-</script>`;
 }
 
 // The window's ONE outbound action: the user clicked [2] "Start fresh". Honour it
