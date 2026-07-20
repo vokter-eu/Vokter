@@ -49,25 +49,31 @@ async def ask(q: Question):
     model       = cfg.get("chat_model")  or CHAT_MODEL
     max_history = int(cfg.get("max_history") or MAX_HISTORY)
 
+    # RAG is now AUGMENTING, not gating: retrieve, but keep only chunks above the
+    # relevance floor. A greeting or an off-topic message matches nothing well, so
+    # `relevant` is empty and Vokter simply CONVERSES — no "upload a document" wall,
+    # the model is always called. When real matches exist we ground + cite as before.
     scored = await retrieve(q.question, top_k=int(cfg.get("rag_chunks") or 4))
-    if not scored:
-        return {
-            "answer": "You haven't taught me any documents yet. Upload one and ask me about it.",
-            "sources": [],
-            "conversation_id": q.conversation_id,
-        }
+    min_score = float(cfg.get("rag_min_score") or 0.57)
+    relevant = [(s, doc, content) for (s, doc, content) in scored if s >= min_score]
 
-    context = "\n\n---\n\n".join(f"[{doc}]\n{content}" for _, doc, content in scored)
     system  = build_system_prompt(cfg)
-
     conv_id = q.conversation_id or str(uuid.uuid4())
     history = _load_history(conv_id, max_history)
 
-    # History stores raw Q/A pairs — RAG context is only injected for the current turn
+    if relevant:
+        context = "\n\n---\n\n".join(f"[{doc}]\n{content}" for _, doc, content in relevant)
+        user_content = f"Context from your documents:\n{context}\n\nUser: {q.question}"
+        sources = sorted({doc for _, doc, _ in relevant})
+    else:
+        user_content = q.question       # plain conversation — no context to ground in
+        sources = []
+
+    # History stores raw turns — document context is only injected for the current one.
     messages = (
         [{"role": "system", "content": system}]
         + history
-        + [{"role": "user", "content": f"Context:\n{context}\n\nQuestion: {q.question}"}]
+        + [{"role": "user", "content": user_content}]
     )
 
     answer = await ENGINE.chat(ChatRequest(
@@ -76,8 +82,4 @@ async def ask(q: Question):
 
     _save_turn(conv_id, q.question, answer)
 
-    return {
-        "answer":          answer,
-        "sources":         sorted({doc for _, doc, _ in scored}),
-        "conversation_id": conv_id,
-    }
+    return {"answer": answer, "sources": sources, "conversation_id": conv_id}
