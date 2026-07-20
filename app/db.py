@@ -139,4 +139,20 @@ def get_db():
                unit       TEXT NOT NULL DEFAULT 'sat'
            )"""
     )
+    # Phase 1: personal memory — facts the user explicitly asks Vokter to remember
+    # ("remember that ..."). Lives in THIS encrypted DB (same keychain-backed key),
+    # never leaves the device, fully user-visible/editable/deletable (see
+    # memory_routes + the "What Vokter knows about you" view). `embedding` is
+    # reserved for a later phase's top-k retrieval; Phase 1 includes all facts, so
+    # it stays NULL for now.
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS memory (
+               id         INTEGER PRIMARY KEY AUTOINCREMENT,
+               content    TEXT NOT NULL,                -- the fact, in the user's words
+               source     TEXT NOT NULL DEFAULT 'told',  -- told | learned (Phase 2)
+               created_at REAL NOT NULL,
+               embedding  TEXT,                          -- reserved (Phase 3 retrieval)
+               confidence REAL NOT NULL DEFAULT 1.0
+           )"""
+    )
     return conn

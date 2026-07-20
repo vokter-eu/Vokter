@@ -10,6 +10,7 @@ from config import CHAT_MODEL, MAX_HISTORY
 from db import get_db
 from engine import ENGINE, ChatRequest
 from rag import retrieve
+import memory
 
 router = APIRouter()
 
@@ -45,6 +46,19 @@ def _save_turn(conv_id: str, question: str, answer: str) -> None:
 
 @router.post("/api/ask")
 async def ask(q: Question):
+    # Explicit memory save ("recuérdame que…" / "remember that…"): store the fact
+    # VERBATIM, confirm predictably in the same language, and return — it never runs
+    # through the model or RAG. Phase 1 stores only; the chat does not yet USE memory
+    # (that is 1b). The user can already see/edit/delete it in the review window.
+    fact = memory.parse_remember(q.question)
+    if fact:
+        memory.add(fact, source="told")
+        conv_id = q.conversation_id or str(uuid.uuid4())
+        answer = (f"Anotado: {fact}" if memory.trigger_lang(q.question) == "es"
+                  else f"Got it — I'll remember: {fact}")
+        _save_turn(conv_id, q.question, answer)
+        return {"answer": answer, "sources": [], "conversation_id": conv_id}
+
     cfg = get_config()
     model       = cfg.get("chat_model")  or CHAT_MODEL
     max_history = int(cfg.get("max_history") or MAX_HISTORY)

@@ -28,6 +28,7 @@ from planner import router as planner_router
 from wallet_routes import router as wallet_router
 from schedule_routes import router as schedule_router
 from config_routes import router as config_router
+from memory_routes import router as memory_router
 from agent_routes import router as agent_router
 from negotiation_routes import router as negotiation_router
 from a2a_server import router as a2a_router
@@ -95,6 +96,7 @@ app.include_router(planner_router)
 app.include_router(wallet_router)
 app.include_router(schedule_router)
 app.include_router(config_router)
+app.include_router(memory_router)
 app.include_router(agent_router)
 app.include_router(negotiation_router)
 app.include_router(a2a_router)
