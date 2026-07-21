@@ -83,6 +83,35 @@ def delete(mem_id: int) -> bool:
         return cur.rowcount > 0
 
 
+def system_block() -> str:
+    """Phase 1b — the memory as a SYSTEM-prompt section, ALWAYS the whole of it
+    (Phase 1 has no similarity retrieval; every fact is included). Returns "" when
+    there are no facts, so a memory-less Vokter builds a system prompt BYTE-IDENTICAL
+    to Phase 0 — memory can only ever add, never alter the baseline.
+
+    Injected only into the HUMAN's chat (chat.py is the sole caller of
+    build_system_prompt), never into agent-to-agent / A2A prompts — the user's
+    personal facts must not leak to peers.
+
+    Wording is deliberately gentle: 'refer to these when relevant, don't recite them
+    unprompted'. A forceful 'always use these facts' makes a small local model blurt
+    the list into a plain greeting and breaks natural conversation.
+    """
+    facts = list_all()
+    if not facts:
+        return ""
+    lines = "\n".join(f"- {f['content']}" for f in facts)
+    return (
+        "\n\nThings the user has asked you to remember about them "
+        "(personal, private to this chat). Refer to them when they are relevant "
+        "to the user's message; do not recite or list them unprompted. These are "
+        "things the USER TOLD YOU, not documents — never attribute them to a named "
+        "document, file, or source; only cite a document when its text is actually "
+        "given to you in the message:\n"
+        f"{lines}"
+    )
+
+
 def forget_all() -> int:
     """'Forget everything about me' — a REAL delete, then VACUUM to reclaim and
     overwrite the freed pages (not a hidden flag). Returns how many were removed."""

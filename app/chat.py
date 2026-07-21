@@ -71,7 +71,10 @@ async def ask(q: Question):
     min_score = float(cfg.get("rag_min_score") or 0.57)
     relevant = [(s, doc, content) for (s, doc, content) in scored if s >= min_score]
 
-    system  = build_system_prompt(cfg)
+    # Phase 1b: personal memory joins the SYSTEM prompt — ALL of it, ALWAYS, kept
+    # separate from the RAG document context below. `system_block()` returns "" when
+    # there are no facts, so a memory-less chat is byte-identical to Phase 0.
+    system  = build_system_prompt(cfg) + memory.system_block()
     conv_id = q.conversation_id or str(uuid.uuid4())
     history = _load_history(conv_id, max_history)
 
