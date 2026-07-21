@@ -46,6 +46,7 @@ class ChatRequest:
     model: str | None = None          # None → the adapter's default chat model
     context_size: int | None = None   # context window in tokens; None → engine default
     json_mode: bool = False           # force a strict-JSON reply
+    temperature: float | None = None  # None → engine default (unset); 0 for deterministic
     timeout: float = 300.0
 
 
@@ -82,8 +83,15 @@ class OllamaEngine:
         # context size is given (the planner's plan step sent neither).
         if req.json_mode:
             payload["format"] = "json"
+        # `options` stays absent unless a knob is set, so existing callers send
+        # byte-identical payloads (temperature=None omits it entirely).
+        options: dict = {}
         if req.context_size is not None:
-            payload["options"] = {"num_ctx": req.context_size}
+            options["num_ctx"] = req.context_size
+        if req.temperature is not None:
+            options["temperature"] = req.temperature
+        if options:
+            payload["options"] = options
 
         async with httpx.AsyncClient(timeout=req.timeout) as client:
             r = await client.post(f"{self._base}/api/chat", json=payload)

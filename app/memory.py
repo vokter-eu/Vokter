@@ -7,10 +7,12 @@ Phase 1 scope: EXPLICIT saves only ("remember that ...") and the review window.
 No chat injection yet (that is 1b), no learning-from-conversation (that is Phase 2),
 no similarity retrieval (Phase 1 includes ALL facts, so no embeddings are computed).
 """
+import json
 import time
 from contextlib import closing
 
 from db import get_db
+from engine import ENGINE, ChatRequest
 
 # Explicit, predictable triggers — NOT fuzzy NLP. The user always knows when a
 # save happens (Vokter confirms), and can see/delete it in the review window.
@@ -110,6 +112,66 @@ def system_block() -> str:
         "given to you in the message:\n"
         f"{lines}"
     )
+
+
+# --- Phase 2 (learn from conversation) — DETECTION ONLY -----------------------
+# extract_candidate() PROPOSES facts it notices in chat; it NEVER stores. Nothing
+# enters the memory table until the user clicks Guardar (that path is add()). So
+# "never remember without the user's OK" holds BY CONSTRUCTION: a candidate lives
+# only in the response/frontend, never on disk, and so can never reach
+# system_block() (1b). Deterministic (temperature=0) and JSON-only; on any doubt
+# it returns [] — proposing nothing beats proposing noise.
+
+_EXTRACT_SYSTEM = (
+    "You watch a chat and note DURABLE personal facts the user reveals about "
+    "THEMSELVES — things worth remembering for months. Read the conversation but "
+    "focus on the user's LAST message; earlier lines are only context to resolve "
+    "references (a name, 'she', 'there').\n"
+    "Return STRICT JSON: {\"facts\": [\"...\", ...]} — short third-person facts, "
+    "or {\"facts\": []} when the last message reveals none.\n"
+    "DO note: where they live, their job or studies, health conditions and "
+    "allergies, family and relationships, lasting likes/dislikes, important "
+    "recurring dates.\n"
+    "Do NOT note: greetings, questions, how they feel right now (tired, hungry, "
+    "bored), one-off plans or errands, opinions about the world/weather/sports, or "
+    "anything that is not a lasting fact about this person.\n"
+    "Write each fact in the SAME LANGUAGE as the user's last message. Keep "
+    "relationships explicit ('His daughter Lucía is 6', not 'Lucía is 6'). Split "
+    "distinct facts into separate items.\n"
+    "Examples:\n"
+    "  U: me mudé a Madrid y monté una panadería -> {\"facts\":[\"Vive en Madrid\","
+    "\"Tiene una panadería\"]}\n"
+    "  U: I'm allergic to shellfish -> {\"facts\":[\"Allergic to shellfish\"]}\n"
+    "  U: estoy cansado hoy -> {\"facts\":[]}\n"
+    "  U: ¿qué me recomiendas para cenar? -> {\"facts\":[]}\n"
+    "  U: creo que mañana lloverá -> {\"facts\":[]}\n"
+    "  [context: tengo una hija] U: se llama Lucía y tiene 6 -> "
+    "{\"facts\":[\"Su hija Lucía tiene 6 años\"]}"
+)
+
+
+async def extract_candidate(message: str, context: list[str] | None = None,
+                            model: str | None = None) -> list[str]:
+    """Notice durable personal facts in the user's latest `message` (optionally
+    given recent `context` turns to resolve references). Returns a list of proposed
+    fact strings — possibly empty. PROPOSES only; storing is a separate, explicit
+    user action. Never raises for a bad model reply: returns [] instead."""
+    msgs: list[dict] = [{"role": "system", "content": _EXTRACT_SYSTEM}]
+    for turn in (context or []):
+        msgs.append({"role": "user", "content": turn})
+    msgs.append({"role": "user", "content": message})
+    try:
+        raw = await ENGINE.chat(ChatRequest(
+            messages=msgs, model=model, json_mode=True,
+            temperature=0, context_size=8192, timeout=60,
+        ))
+        facts = json.loads(raw).get("facts", [])
+    except Exception:
+        return []   # a garbled reply proposes nothing — never noise, never a crash
+    if not isinstance(facts, list):
+        return []
+    # Keep only non-empty strings, trimmed; drop anything else the model emitted.
+    return [f.strip() for f in facts if isinstance(f, str) and f.strip()]
 
 
 def forget_all() -> int:
