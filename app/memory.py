@@ -121,6 +121,17 @@ def system_block() -> str:
 # only in the response/frontend, never on disk, and so can never reach
 # system_block() (1b). Deterministic (temperature=0) and JSON-only; on any doubt
 # it returns [] — proposing nothing beats proposing noise.
+#
+# Fabricated facts are as trust-eroding as 1b's false citations. llama3.2:3b, on a
+# message that closely matches an example, echoes the OTHER examples' content as if
+# the user had said it (measured: 6/6 runs invented "Vive en Madrid" from a Madrid
+# example — it is NOT deterministic at temp 0 on CPU). Two structural defences,
+# both measured over N runs (fiction examples + post-filter → 0 bleed, 0 trap
+# noise, recall unchanged):
+#   1) example CONTENT is made-up (Zolbria, Klemtar…) so an echo can never be a
+#      real user fact — and cannot collide with a legitimate answer;
+#   2) _drop_example_echoes() deletes any output carrying an example-only token,
+#      turning "0/6 this run" into a HARD zero that does not rely on model luck.
 
 _EXTRACT_SYSTEM = (
     "You watch a chat and note DURABLE personal facts the user reveals about "
@@ -136,18 +147,30 @@ _EXTRACT_SYSTEM = (
     "bored), one-off plans or errands, opinions about the world/weather/sports, or "
     "anything that is not a lasting fact about this person.\n"
     "Write each fact in the SAME LANGUAGE as the user's last message. Keep "
-    "relationships explicit ('His daughter Lucía is 6', not 'Lucía is 6'). Split "
+    "relationships explicit ('His daughter Nomi is 6', not 'Nomi is 6'). Split "
     "distinct facts into separate items.\n"
+    "The examples below use MADE-UP names to show FORMAT only — never copy their "
+    "content into a real answer.\n"
     "Examples:\n"
-    "  U: me mudé a Madrid y monté una panadería -> {\"facts\":[\"Vive en Madrid\","
-    "\"Tiene una panadería\"]}\n"
-    "  U: I'm allergic to shellfish -> {\"facts\":[\"Allergic to shellfish\"]}\n"
+    "  U: me mudé a Zolbria y trabajo en Klemtar -> {\"facts\":[\"Vive en Zolbria\","
+    "\"Trabaja en Klemtar\"]}\n"
+    "  U: I'm allergic to quixel -> {\"facts\":[\"Allergic to quixel\"]}\n"
     "  U: estoy cansado hoy -> {\"facts\":[]}\n"
     "  U: ¿qué me recomiendas para cenar? -> {\"facts\":[]}\n"
     "  U: creo que mañana lloverá -> {\"facts\":[]}\n"
-    "  [context: tengo una hija] U: se llama Lucía y tiene 6 -> "
-    "{\"facts\":[\"Su hija Lucía tiene 6 años\"]}"
+    "  [context: tengo un hijo] U: se llama Vexnol y tiene 6 -> "
+    "{\"facts\":[\"Su hijo Vexnol tiene 6 años\"]}"
 )
+
+# Made-up tokens that appear ONLY in the examples above. A real user fact never
+# contains them, so dropping any fact that does can never remove a genuine fact —
+# it only catches the model regurgitating an example.
+_EXAMPLE_ECHO_TOKENS = ("zolbria", "klemtar", "quixel", "vexnol")
+
+
+def _drop_example_echoes(facts: list[str]) -> list[str]:
+    return [f for f in facts
+            if not any(tok in f.lower() for tok in _EXAMPLE_ECHO_TOKENS)]
 
 
 async def extract_candidate(message: str, context: list[str] | None = None,
@@ -170,8 +193,9 @@ async def extract_candidate(message: str, context: list[str] | None = None,
         return []   # a garbled reply proposes nothing — never noise, never a crash
     if not isinstance(facts, list):
         return []
-    # Keep only non-empty strings, trimmed; drop anything else the model emitted.
-    return [f.strip() for f in facts if isinstance(f, str) and f.strip()]
+    # Keep only non-empty strings, trimmed; then drop any example echo (see above).
+    facts = [f.strip() for f in facts if isinstance(f, str) and f.strip()]
+    return _drop_example_echoes(facts)
 
 
 def forget_all() -> int:
