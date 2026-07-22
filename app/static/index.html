@@ -121,6 +121,17 @@
   .user { background:#1f6feb33; margin-left:auto; }
   .bot  { background:var(--panel); border:1px solid var(--line); }
   .src  { color:var(--muted); font-size:.75rem; margin-top:6px; }
+  /* Phase 2c — "want me to remember this?" confirm chip. Vokter PROPOSES; nothing
+     is stored until the user clicks Remember. */
+  .mem-chip { max-width:85%; margin:0 0 10px 0; padding:9px 12px; border-radius:12px;
+              background:#4cc38a14; border:1px solid #4cc38a55; }
+  .mem-chip-q    { font-size:.82rem; color:var(--muted); }
+  .mem-chip-fact { font-size:.9rem; margin:3px 0 8px; font-style:italic; }
+  .mem-chip-actions { display:flex; gap:6px; }
+  .mem-chip.done { color:var(--accent); font-size:.85rem; }
+  .mem-badge { font-size:.68rem; text-transform:uppercase; letter-spacing:.04em;
+               color:var(--accent); border:1px solid #4cc38a66; border-radius:5px;
+               padding:1px 5px; align-self:center; }
   form { display:flex; gap:8px; padding-top:12px; border-top:1px solid var(--line); flex-wrap:wrap; }
   .btn-new { padding:12px 16px; border-radius:10px; border:1px solid var(--line);
              background:transparent; color:var(--muted); font-size:.9rem; cursor:pointer; }
@@ -445,6 +456,72 @@ function add(role, text, sources){
   return d;
 }
 
+// Phase 2c — after a reply, ask the backend if the user's message revealed a
+// durable fact, and OFFER to remember it. Nothing is stored until the user
+// clicks Remember. Dismissed facts are kept in-session only (dedupe b) so we
+// don't re-offer the same thing this session — deliberately NOT persisted.
+const _dismissedFacts = new Set();
+
+async function maybeSuggestMemory(question, convId) {
+  let suggestions;
+  try {
+    const r = await fetch('/api/memory/suggest', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: question, conversation_id: convId})
+    });
+    if (!r.ok) return;
+    suggestions = (await r.json()).suggestions || [];
+  } catch { return; }
+  // At most ONE chip per turn: a single short message often splits into two facts
+  // ("nurse" + "at Ibiza hospital") — showing both reads as nagging. Offer the
+  // first; the rest stay unmade. (If genuinely-distinct facts get lost too often,
+  // raise this cap — it's a UI throttle, the extractor is untouched.)
+  for (const fact of suggestions) {
+    if (_dismissedFacts.has(fact.toLowerCase())) continue;
+    renderMemoryChip(fact);
+    break;
+  }
+}
+
+async function saveLearned(content) {
+  try {
+    await fetch('/api/memory', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({content, source: 'learned', confidence: 0.7})
+    });
+    if (typeof loadMemory === 'function') loadMemory();   // refresh the review window
+  } catch {}
+}
+
+function renderMemoryChip(fact) {
+  const chip = document.createElement('div');
+  chip.className = 'mem-chip';
+  const q = document.createElement('div');
+  q.className = 'mem-chip-q';
+  q.textContent = '💡 Want me to remember this?';
+  const f = document.createElement('div');
+  f.className = 'mem-chip-fact';
+  f.textContent = '«' + fact + '»';
+  const actions = document.createElement('div');
+  actions.className = 'mem-chip-actions';
+  const save = document.createElement('button'); save.className = 'btn-sm'; save.textContent = 'Remember';
+  const edit = document.createElement('button'); edit.className = 'btn-sm'; edit.textContent = 'Edit';
+  const no   = document.createElement('button'); no.className = 'btn-sm'; no.textContent = 'No';
+  actions.append(save, edit, no);
+  chip.append(q, f, actions);
+
+  const done = () => { chip.textContent = '✓ Remembered'; chip.classList.add('done'); };
+  save.onclick = async () => { await saveLearned(fact); done(); };
+  edit.onclick = async () => {
+    const v = prompt('Edit what Vokter remembers:', fact);
+    if (v && v.trim()) { await saveLearned(v.trim()); done(); }
+  };
+  no.onclick = () => { _dismissedFacts.add(fact.toLowerCase()); chip.remove(); };
+
+  chat.appendChild(chip);
+  chat.scrollTop = chat.scrollHeight;
+}
+
 async function speakText(text, btn) {
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
   try {
@@ -560,6 +637,7 @@ document.getElementById('ask').onsubmit = async (e) => {
     if (r.ok) {
       conversationId = j.conversation_id;
       add('bot', j.answer, j.sources);
+      maybeSuggestMemory(q, j.conversation_id);   // Phase 2c — propose, never store
     } else {
       add('bot', j.detail || 'Error');
     }
@@ -1470,7 +1548,15 @@ async function loadMemory() {
     const del = document.createElement('button');
     del.textContent = 'Delete'; del.className = 'btn-sm danger';
     del.onclick = async () => { await fetch('/api/memory/' + m.id, {method:'DELETE'}); loadMemory(); };
-    row.append(span, edit, del);
+    if (m.source === 'learned') {          // Phase 2c — mark facts Vokter proposed
+      const badge = document.createElement('span');
+      badge.className = 'mem-badge';
+      badge.textContent = 'learned';
+      badge.title = 'Vokter noticed this in a chat and you confirmed it';
+      row.append(badge, span, edit, del);
+    } else {
+      row.append(span, edit, del);
+    }
     list.appendChild(row);
   }
 }

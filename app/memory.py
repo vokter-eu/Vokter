@@ -44,28 +44,33 @@ def trigger_lang(text: str) -> str:
     return "es" if any(low.startswith(p) for p in _ES_PREFIXES) else "en"
 
 
-def add(content: str, source: str = "told") -> dict:
+def add(content: str, source: str = "told", confidence: float = 1.0) -> dict:
     """Store a fact. Returns the created row. `content` is stored VERBATIM so the
-    user sees exactly what was saved."""
+    user sees exactly what was saved. `confidence` < 1 marks a Phase-2 'learned'
+    fact for scrutiny in the review window — it is a display marker, NEVER a gate
+    on injection (a stored fact was confirmed by the user, so it counts fully)."""
     content = content.strip()
     now = time.time()
     with closing(get_db()) as db:
         cur = db.execute(
             "INSERT INTO memory(content, source, created_at, confidence) VALUES(?,?,?,?)",
-            (content, source, now, 1.0),
+            (content, source, now, confidence),
         )
         db.commit()
         new_id = cur.lastrowid
-    return {"id": new_id, "content": content, "source": source, "created_at": now}
+    return {"id": new_id, "content": content, "source": source,
+            "created_at": now, "confidence": confidence}
 
 
 def list_all() -> list[dict]:
     """Every fact Vokter holds, newest first — the whole of what it knows about you."""
     with closing(get_db()) as db:
         rows = db.execute(
-            "SELECT id, content, source, created_at FROM memory ORDER BY created_at DESC, id DESC"
+            "SELECT id, content, source, created_at, confidence FROM memory"
+            " ORDER BY created_at DESC, id DESC"
         ).fetchall()
-    return [{"id": r[0], "content": r[1], "source": r[2], "created_at": r[3]} for r in rows]
+    return [{"id": r[0], "content": r[1], "source": r[2], "created_at": r[3],
+             "confidence": r[4]} for r in rows]
 
 
 def edit(mem_id: int, content: str) -> bool:

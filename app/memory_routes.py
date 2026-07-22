@@ -26,6 +26,8 @@ _CONTEXT_TURNS = 4   # recent user turns given to the extractor to resolve refer
 
 class MemoryIn(BaseModel):
     content: str
+    source: str = "told"          # 'told' (typed by the user) | 'learned' (2c chip)
+    confidence: float = 1.0       # <1 marks a learned fact for review-window scrutiny
 
 
 class SuggestIn(BaseModel):
@@ -67,7 +69,11 @@ def memory_add(item: MemoryIn):
     content = item.content.strip()
     if not content:
         raise HTTPException(400, "empty memory")
-    return memory.add(content, source="told")
+    # Whitelist source so a caller can only ever set a known provenance; anything
+    # else falls back to 'told'. Storing here is ALWAYS an explicit user action —
+    # the 2c chip's [Remember]/[Edit], or the review window's typed add.
+    source = item.source if item.source in ("told", "learned") else "told"
+    return memory.add(content, source=source, confidence=item.confidence)
 
 
 @router.patch("/api/memory/{mem_id}")
