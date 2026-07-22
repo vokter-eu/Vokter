@@ -164,6 +164,44 @@ app/
 
 ---
 
+## Local engine strategy
+
+Inference runs locally. Vokter speaks to its own internal contract — `chat` and
+`embed` in `engine.py` (the `InferenceEngine` protocol) — never to a specific
+engine's API. The default `OllamaEngine` is one implementation of that contract;
+swapping the **runner** means writing one more translator file, and nothing else
+in Vokter changes.
+
+**The key distinction — model vs runner:**
+
+- **Changing the MODEL** (`llama3.2` → Qwen3 → whatever ships next) is *free*: a
+  config string (`VOKTER_CHAT_MODEL`). This is ~90% of the quality gains to come,
+  and costs nothing architecturally.
+- **Changing the RUNNER** (Ollama → llama.cpp / MLX / other) is a *new adapter* —
+  one file implementing `InferenceEngine`. It will happen far less often than a
+  model swap.
+
+**⚠️ Embeddings caveat — the one place that is NOT free.** Changing the
+*embedding* model (`nomic-embed-text`) requires RE-INDEXING everything embedded
+with the old one: RAG document chunks *and* personal memory. Different models
+produce vectors in different spaces; a mismatch silently degrades retrieval
+(`rag.cosine` even returns 0 on a dimension mismatch). Today, with few documents,
+re-indexing is trivial; at thousands of documents it is a *migration*, not a
+swap. The chat side is 100% engine-neutral; the embedding side is not.
+
+**Future runner candidates:** llama.cpp (the natural second adapter — what Jan
+uses), MLX (if a Mac target ever lands). Ollama remains the best choice today:
+packageable, manages model download/storage, and proven end-to-end (the Linux
+`.deb` ships it).
+
+**The adapter is not "write once and forget."** If a future runner brings
+something the contract doesn't cover (a different streaming shape, dynamic
+quantization), the contract is *extended* to express it. What stays invariant is
+that the rest of Vokter never learns which engine runs, where it runs, or what it
+costs — those remain the adapter's private business.
+
+---
+
 ## Database schema
 
 All tables are created idempotently in `db.py` via `CREATE TABLE IF NOT EXISTS`. The database is encrypted with SQLCipher (AES-256) using `VOKTER_DB_KEY`.
