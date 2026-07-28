@@ -96,9 +96,13 @@ def system_block() -> str:
     there are no facts, so a memory-less Vokter builds a system prompt BYTE-IDENTICAL
     to Phase 0 — memory can only ever add, never alter the baseline.
 
-    Injected only into the HUMAN's chat (chat.py is the sole caller of
-    build_system_prompt), never into agent-to-agent / A2A prompts — the user's
-    personal facts must not leak to peers.
+    This block reaches ONLY the local human session — never an agent-to-agent / A2A /
+    Nostr / MCP caller. That invariant is not promised here, it is ENFORCED at the one
+    point that can keep it: chat.build_chat_system appends this block only when
+    chat.is_local_human_session(request) is true (deny-by-default; internal callers
+    don't hold the per-launch human-session token). See
+    docs/threat-model-prompt-injection.md §7-8. (A previous comment here *asserted*
+    "never in A2A" without enforcing it — a promise with no test is worse than none.)
 
     Wording is deliberately gentle: 'refer to these when relevant, don't recite them
     unprompted'. A forceful 'always use these facts' makes a small local model blurt

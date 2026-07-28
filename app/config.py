@@ -115,6 +115,18 @@ A2A_TOKEN = os.getenv("VOKTER_A2A_TOKEN", "")
 # before exposing Vokter to any network.
 ADMIN_TOKEN = os.getenv("VOKTER_ADMIN_TOKEN", "")
 
+# Human-session token — a THIRD, separate trust domain (P2: "this request is the
+# local human session and may receive personal memory"). Minted per-launch by the
+# Electron shell and injected here on every backend spawn (survives a Start-fresh
+# respawn byte-identical); the backend only COMPARES it, never generates it. Only
+# the local UI presents it, as the X-Vokter-Human-Session header on /api/ask.
+# Internal callers (A2A/Nostr dispatch, MCP) do NOT hold it → they never receive
+# memory, deny-by-default. When empty (raw uvicorn/docker dev, no Electron) the gate
+# is STRICT: no memory is injected at all — fail-closed over P2, "seguridad sobre
+# comodidad". In the packaged product Electron always mints it, so the gate is always
+# live. See app/chat.py:is_local_human_session and docs/threat-model-prompt-injection.md §7.
+HUMAN_SESSION_TOKEN = os.getenv("VOKTER_HUMAN_SESSION_TOKEN", "")
+
 # Max request body accepted on the public /a2a endpoint (bytes). Bounds memory
 # against an oversized-body DoS on the one networked-by-design surface.
 try:

@@ -586,7 +586,10 @@ async function loadDocs(){
   for (const d of docs){
     const row = document.createElement('div');
     row.className = 'doc';
-    row.innerHTML = `<span>📄 ${d.doc} <span class="tag">(${d.chunks} chunks)</span></span>`;
+    // ${d.doc} is attacker-influenceable (a peer's browse URL `web::{url}`, an upload
+    // filename) → escape it: without this it is an innerHTML XSS that fires in the
+    // human session when the docs panel opens (threat-model §8.1). ${d.chunks} is a count.
+    row.innerHTML = `<span>📄 ${_esc(d.doc)} <span class="tag">(${d.chunks} chunks)</span></span>`;
     const del = document.createElement('button');
     del.textContent = '✕';
     del.title = 'Real deletion: document and embeddings';
@@ -614,6 +617,33 @@ document.getElementById('file').onchange = async (e) => {
   e.target.value = '';
 };
 
+// Route /api/ask through the Electron shell (window.vokter.ask) so the human-session
+// token stays in the main process, never in this page's JS. Fall back to a plain fetch
+// when opened directly in a browser (dev) — that path carries no token, so the backend
+// withholds memory (strict deny-by-default) and flags memory_withheld. Returns {status, body}.
+async function askBackend(payload) {
+  if (window.vokter && window.vokter.ask) {
+    return await window.vokter.ask(payload);
+  }
+  const r = await fetch('/api/ask', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+  let body = null;
+  try { body = await r.json(); } catch {}
+  return { status: r.status, body };
+}
+
+// Fail-closed VISIBLE: when the backend withheld personal memory from this session,
+// say so plainly rather than letting Vokter act as if it doesn't know you.
+function noteMemoryWithheld(botEl) {
+  const n = document.createElement('div');
+  n.className = 'src';
+  n.textContent = '⚠ Memory not available in this session.';
+  botEl.appendChild(n);
+}
+
 document.getElementById('ask').onsubmit = async (e) => {
   e.preventDefault();
   const input = document.getElementById('q');
@@ -623,23 +653,20 @@ document.getElementById('ask').onsubmit = async (e) => {
   input.value = '';
   const thinking = add('bot', 'Thinking locally…');
   try {
-    const r = await fetch('/api/ask', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({question: q, conversation_id: conversationId})
-    });
-    let j;
-    try { j = await r.json(); } catch {
-      thinking.textContent = `Server error ${r.status} — unexpected response format.`;
+    const res = await askBackend({question: q, conversation_id: conversationId});
+    if (!res.body) {
+      thinking.textContent = `Server error ${res.status || ''} — unexpected response format.`;
       return;
     }
     thinking.remove();
-    if (r.ok) {
+    if (res.status >= 200 && res.status < 300) {
+      const j = res.body;
       conversationId = j.conversation_id;
-      add('bot', j.answer, j.sources);
+      const botEl = add('bot', j.answer, j.sources);
+      if (j.memory_withheld) noteMemoryWithheld(botEl);
       maybeSuggestMemory(q, j.conversation_id);   // Phase 2c — propose, never store
     } else {
-      add('bot', j.detail || 'Error');
+      add('bot', (res.body && res.body.detail) || 'Error');
     }
   } catch (err){
     thinking.textContent = 'Can\'t reach Vokter. Is it still running?';
@@ -850,7 +877,7 @@ async function loadWalletBalance() {
     if (!r.ok) return;
     const d = await r.json();
     document.getElementById('wallet-balance').innerHTML =
-      `Balance: <strong>${d.balance.toLocaleString()} ${d.unit}</strong>`;
+      `Balance: <strong>${d.balance.toLocaleString()} ${_esc(d.unit)}</strong>`;
     document.getElementById('wallet-badge').textContent = d.adapter;
   } catch {}
 }
@@ -967,8 +994,10 @@ document.getElementById('btn-wallet-history-toggle').onclick = async () => {
       d.className = 'wtx';
       const sign = t.direction === 'in' ? '+' : '−';
       const cls  = t.direction === 'in' ? 'wtx-in' : 'wtx-out';
-      d.innerHTML = `<span class="${cls}">${sign}${t.amount.toLocaleString()} ${t.unit}</span>` +
-                    `<span style="color:var(--muted);font-size:.75rem">${t.memo || ''}</span>` +
+      // ${t.memo} rides inside the Cashu token minted by the counterparty (cashu.py:45)
+      // → untrusted, escape it (threat-model §8.4). amount is a number; unit escaped too.
+      d.innerHTML = `<span class="${cls}">${sign}${t.amount.toLocaleString()} ${_esc(t.unit)}</span>` +
+                    `<span style="color:var(--muted);font-size:.75rem">${_esc(t.memo || '')}</span>` +
                     `<span style="color:var(--muted);font-size:.72rem">${new Date(t.ts*1000).toLocaleDateString()}</span>`;
       el.appendChild(d);
     });
@@ -987,9 +1016,9 @@ document.getElementById('btn-wallet-adapters-toggle').onclick = async () => {
       const div = document.createElement('div');
       div.className = 'wadapter' + (a.name === d.active ? ' active' : '');
       div.innerHTML =
-        `<div><span class="wadapter-name">${a.label}</span>` +
-        `<span class="wadapter-tier">[${a.tier}]</span></div>` +
-        `<div class="wadapter-status">${a.status}</div>`;
+        `<div><span class="wadapter-name">${_esc(a.label)}</span>` +
+        `<span class="wadapter-tier">[${_esc(a.tier)}]</span></div>` +
+        `<div class="wadapter-status">${_esc(a.status)}</div>`;
       el.appendChild(div);
     });
   } catch {}

@@ -17,6 +17,7 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const http = require('http');
+const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const { LineBuffer, parseProgressLine, parseGuardrailLine } = require('./progress_pipe');
@@ -69,6 +70,15 @@ function orchestratorCommand() {
 // backend squatting on a different port can never be adopted (the zombie bug).
 let backendPort = null;
 const healthUrl = () => `http://127.0.0.1:${backendPort}/`;
+
+// Human-session token (P2): minted ONCE per Electron launch and handed to the backend
+// on EVERY spawn (see startOrchestrator) so it survives a Start-fresh respawn without
+// desyncing — the backend re-reads the same value, the reloaded renderer re-reads it
+// via the IPC proxy. It authorises personal memory to reach ONLY this local human
+// session; internal callers (A2A/Nostr/MCP) never hold it. It lives ONLY in the main
+// process — never in page JS — so a renderer XSS cannot steal it. See
+// docs/threat-model-prompt-injection.md §7-8.
+const HUMAN_SESSION_TOKEN = crypto.randomBytes(32).toString('hex');
 
 let win = null;
 let child = null;
@@ -130,6 +140,10 @@ function startOrchestrator(opts = {}) {
   // Bind the backend to OUR per-instance port (chosen at startup, reused across a
   // start-fresh respawn) so we only ever adopt our own child's backend.
   env.VOKTER_DESKTOP_BACKEND_PORT = String(backendPort);
+  // Hand the backend THIS launch's human-session token on every spawn (initial and
+  // Start-fresh respawn), exactly like the port above — so the token the backend
+  // compares against and the token the renderer presents can never drift apart.
+  env.VOKTER_HUMAN_SESSION_TOKEN = HUMAN_SESSION_TOKEN;
   // Start-fresh respawn (the user clicked [2]): the orchestrator, seeing this
   // flag, proceeds past the keychain guardrail create-only (see orchestrator.py).
   // Transient to THIS launch only.
@@ -266,6 +280,40 @@ function showGuardrail(ev) {
   halted = true;
   win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(guardrailHtml(ev)));
 }
+
+// The renderer's ONE privileged request: proxy /api/ask through MAIN so the
+// human-session token never touches page JS. The page sends only {question,
+// conversation_id}; main attaches X-Vokter-Human-Session. Returns {status, body} so
+// the renderer keeps its ok/error handling. A renderer XSS could invoke this (and it
+// already sees the answer), but cannot read the token to reuse it from another process.
+ipcMain.handle('vokter:ask', (_event, body) => new Promise((resolve) => {
+  if (!ready || backendPort == null) { resolve({ status: 0, body: null }); return; }
+  const payload = JSON.stringify(body && typeof body === 'object' ? body : {});
+  const req = http.request({
+    host: '127.0.0.1', port: backendPort, path: '/api/ask', method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(payload),
+      'X-Vokter-Human-Session': HUMAN_SESSION_TOKEN,
+    },
+  }, (res) => {
+    let data = '';
+    res.setEncoding('utf8');
+    res.on('data', (c) => { data += c; });
+    res.on('end', () => {
+      let parsed = null;
+      try { parsed = JSON.parse(data); } catch { /* leave null → renderer shows error */ }
+      resolve({ status: res.statusCode || 0, body: parsed });
+    });
+  });
+  req.on('error', () => resolve({ status: 0, body: null }));
+  // Local CPU inference can take minutes (backend's own chat timeout is 300s); allow past it.
+  // Resolve explicitly on timeout: req.destroy() with no error argument does NOT emit
+  // 'error', so without this the renderer's `await ask()` would hang forever.
+  req.setTimeout(310000, () => { req.destroy(); resolve({ status: 0, body: null }); });
+  req.write(payload);
+  req.end();
+}));
 
 // The window's ONE outbound action: the user clicked [2] "Start fresh". Honour it
 // ONLY while halted at the guardrail, and ONLY once — a nervous double click must

@@ -24,4 +24,9 @@ contextBridge.exposeInMainWorld('vokter', {
   // anything else. Only honoured by main when halted at the guardrail, and only
   // once (main gates against a double click). See main.js.
   startFresh: () => ipcRenderer.send('vokter:start-fresh'),
+
+  // ask(body): proxy /api/ask through main so the human-session token never lives in
+  // page JS (main attaches it — see main.js 'vokter:ask'). Resolves to {status, body}.
+  // The page passes only {question, conversation_id}; it never sees or holds the token.
+  ask: (body) => ipcRenderer.invoke('vokter:ask', body),
 });
