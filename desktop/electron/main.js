@@ -14,7 +14,7 @@
 // (Phase 3.3-D later adds ONE thing: a one-way, receive-only preload channel
 // that relays the orchestrator's model-download progress to the loading screen.)
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, session } = require('electron');
 const { spawn } = require('child_process');
 const http = require('http');
 const crypto = require('crypto');
@@ -23,6 +23,7 @@ const fs = require('fs');
 const { LineBuffer, parseProgressLine, parseGuardrailLine } = require('./progress_pipe');
 const { pickFreePort } = require('./netutil');
 const { guardrailHtml } = require('./guardrail_screen');
+const { installCsp } = require('./csp');
 
 // …/Vokter/desktop/electron -> …/Vokter (dev layout only; not valid when packaged)
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -365,6 +366,12 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(async () => {
+    // CSP lote (§8.6): impose the renderer Content-Security-Policy from the shell, on
+    // every http(s) response, BEFORE any window loads content. See csp.js for the policy
+    // and why the inline <script> blocks were extracted. Covers the http main UI (the
+    // attack surface); file://loading and data: screens are our own, uncovered by design.
+    installCsp(session.defaultSession);
+
     // Honour a pinned port (dev/tests); otherwise grab a free one for this run.
     const pinned = parseInt(process.env.VOKTER_DESKTOP_BACKEND_PORT || '', 10);
     try {

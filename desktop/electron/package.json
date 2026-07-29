@@ -21,6 +21,7 @@
       "progress_pipe.js",
       "netutil.js",
       "guardrail_screen.js",
+      "csp.js",
       "package.json"
     ],
     "directories": {
