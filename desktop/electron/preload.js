@@ -29,4 +29,10 @@ contextBridge.exposeInMainWorld('vokter', {
   // page JS (main attaches it — see main.js 'vokter:ask'). Resolves to {status, body}.
   // The page passes only {question, conversation_id}; it never sees or holds the token.
   ask: (body) => ipcRenderer.invoke('vokter:ask', body),
+
+  // walletSend(body): proxy /api/wallet/send through main so the human-session token never
+  // lives in page JS (main attaches it — see main.js 'vokter:wallet-send'). The backend
+  // gates payment on that token, so a plain browser (no shell) is refused. Resolves to
+  // {status, body}. The page passes only {amount, memo, confirmed}; it never holds the token.
+  walletSend: (body) => ipcRenderer.invoke('vokter:wallet-send', body),
 });

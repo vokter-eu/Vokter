@@ -98,12 +98,22 @@ async def wallet_balance() -> str:
 
 @mcp.tool()
 async def wallet_send(amount: int, memo: str = "") -> str:
-    """Send tokens from the wallet.
+    """Request a wallet payment.
 
-    IMPORTANT: this executes a real, irreversible payment.
-    You MUST describe the transaction to the user and ask for explicit
-    confirmation before calling this tool. Never call it speculatively."""
-    d = await _post("/api/wallet/send", {"amount": amount, "memo": memo, "confirmed": True})
+    NOTE: this tool cannot authorise a payment on its own. Vokter gates payments on the
+    local human-session token, which only the Vokter app holds — an external host (this
+    MCP client) does not. The backend will refuse (403) and this returns a message asking
+    the user to confirm the payment inside the Vokter app itself."""
+    try:
+        d = await _post("/api/wallet/send", {"amount": amount, "memo": memo, "confirmed": True})
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 403:
+            return (
+                f"Payment of {amount:,} was NOT sent. Vokter requires the human to confirm "
+                "payments in the Vokter app — an external assistant cannot authorise a "
+                "payment. Please open Vokter and confirm the transaction there."
+            )
+        raise
     out = d.get("output", "")
     return f"Sent {d['amount']:,} {d['unit']}.{' Token: ' + out if out else ''}"
 

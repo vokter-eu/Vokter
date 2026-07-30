@@ -204,6 +204,25 @@ async function askBackend(payload) {
   return { status: r.status, body };
 }
 
+// Route /api/wallet/send through the Electron shell (window.vokter.walletSend) so the
+// human-session token stays in the main process, never in this page's JS — same discipline
+// as askBackend. The backend gates wallet_send on that token (deny-by-default): a plain
+// browser (dev) carries no token, so the payment is refused (403) rather than sent
+// unauthorised. Returns {status, body}.
+async function sendPayment(payload) {
+  if (window.vokter && window.vokter.walletSend) {
+    return await window.vokter.walletSend(payload);
+  }
+  const r = await fetch('/api/wallet/send', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+  let body = null;
+  try { body = await r.json(); } catch {}
+  return { status: r.status, body };
+}
+
 // Fail-closed VISIBLE: when the backend withheld personal memory from this session,
 // say so plainly rather than letting Vokter act as if it doesn't know you.
 function noteMemoryWithheld(botEl) {
@@ -498,13 +517,10 @@ document.getElementById('btn-wallet-confirm').onclick = async () => {
   const btn = document.getElementById('btn-wallet-send');
   btn.disabled = true;
   try {
-    const r = await fetch('/api/wallet/send', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({amount, memo, confirmed: true}),
-    });
-    const d = await r.json();
-    if (!r.ok) { alert(d.detail || 'Send failed'); btn.disabled = false; return; }
+    const {status, body: d} = await sendPayment({amount, memo, confirmed: true});
+    if (status < 200 || status >= 300) {
+      alert((d && d.detail) || 'Send failed'); btn.disabled = false; return;
+    }
     document.getElementById('wallet-send-amount').value = '';
     document.getElementById('wallet-send-memo').value   = '';
     if (d.output) {

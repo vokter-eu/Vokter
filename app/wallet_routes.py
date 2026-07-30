@@ -1,18 +1,29 @@
 """
 Wallet API routes.
 
-Every payment goes through an explicit confirmation gate: POST /api/wallet/send
-refuses any request where confirmed=false. This is enforced here so no adapter
-can accidentally bypass it — the invariant is structural, not advisory.
+Payment authorisation (C3). POST /api/wallet/send moves real, irreversible funds, so
+it is the single choke point where the human-vs-agent boundary is ENFORCED: the request
+must carry THIS launch's human-session token (X-Vokter-Human-Session), the same token
+that gates personal memory. Deny-by-default — no token, no payment. Only the Electron
+shell holds the token and attaches it (via its main-process proxy) after the human acted;
+MCP hosts, peer agents, and a plain browser do NOT hold it, so they cannot spend. This is
+the sole path to adapter.send() (see tests/wallet_gate_test.py, incl. the tripwire that
+this stays true). The old `confirmed` flag is a caller self-attestation — kept only as a
+UX/idempotency hint; it was never the security boundary.
+
+No pre-authorised/recurring path exists: there is deliberately no way to spend without the
+live human token today. When unattended payments (subscriptions, post-negotiation auto-pay)
+are built, they must NOT weaken this route — see vokter-C3-plan.md §4 (mandate design).
 """
 import asyncio
 import os
 import time
 from contextlib import closing
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
+from chat import is_local_human_session
 from config import CASHU_MINT_URL, WALLET_ADAPTER, WALLET_SPEND_LIMIT
 from db import get_db
 from wallet.adapters import get_active_adapter
@@ -52,7 +63,22 @@ async def wallet_receive(req: ReceiveRequest):
 
 
 @router.post("/api/wallet/send")
-async def wallet_send(req: SendRequest):
+async def wallet_send(
+    req: SendRequest,
+    x_vokter_human_session: str | None = Header(default=None),
+):
+    # C3 gate — the real boundary: only the local human session may move funds.
+    # Deny-by-default (no valid token → refused), mirroring chat.is_local_human_session
+    # for personal memory. A peer/MCP/plain-browser never holds the token, so this 403s
+    # them BEFORE any adapter is touched. Placed first so nothing below can run unauthorised.
+    if not is_local_human_session(x_vokter_human_session):
+        raise HTTPException(
+            403,
+            "Payment refused: wallet_send requires the local human session. Confirm the "
+            "payment in the Vokter app — an external assistant or peer cannot authorise it.",
+        )
+    # `confirmed` is now only a UX/idempotency hint (the caller attests the human saw the
+    # details); it is NOT the security boundary — the token above is.
     if not req.confirmed:
         raise HTTPException(
             400,
