@@ -10,8 +10,8 @@
     "start": "electron .",
     "test:csp": "node csp.test.js",
     "probe:csp": "electron --no-sandbox --disable-gpu csp.probe.js",
-    "warn:a2a-c1": "node -e \"console.warn('\\n\\u26a0  A2A C1 trust-boundary test PENDING (not implemented). Release is NOT gated on it yet (per decision 2026-07-30: warn, do not block). Boundary lives in app/a2a_server.py:_is_trusted; tests/ has only memory_gate_test.py.\\n')\"",
-    "predist": "npm run test:csp && npm run probe:csp && npm run warn:a2a-c1",
+    "test:a2a": "../runtime/venv/bin/python ../../tests/a2a_trust_boundary_test.py",
+    "predist": "npm run test:csp && npm run probe:csp && npm run test:a2a",
     "dist": "electron-builder --linux deb AppImage"
   },
   "build": {

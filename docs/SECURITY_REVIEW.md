@@ -25,7 +25,7 @@ Estado REAL hoy. Leyenda:
 | Dato \ Canal        | A2A (HTTP)     | Nostr (NIP-17) | MCP (stdio/SSE) | Browse (out)   | Scheduler      | Email          | Loopback 127.0.0.1 |
 |---------------------|----------------|----------------|-----------------|----------------|----------------|----------------|--------------------|
 | **Memoria personal**| ✅ retenida     | ✅ retenida     | ✅ retenida      | —              | ✅ retenida     | —              | ✅ retenida         |
-| **Documentos**      | ☑️ solo trusted | ☑️ solo trusted | por diseño (host)| —              | local (no sale)| — (es entrada) | 🟡 §8.7             |
+| **Documentos**      | ✅ solo trusted | ☑️ solo trusted | por diseño (host)| —              | local (no sale)| — (es entrada) | 🟡 §8.7             |
 | **Conversaciones**  | ☑️ por peer     | ☑️ por peer     | 🔶 sin ownership | —              | local          | —              | 🟡 §8.7 + 🔶        |
 | **Llaves** (DB/priv)| 🔒             | 🔒             | 🔒              | 🔒 (§)         | 🔒             | 🔒             | 🔒                 |
 | **Tokens** (admin/A2A/humano)| 🔒    | 🔒             | 🔒              | 🔒             | 🔒             | 🔒             | 🔒                 |
@@ -48,7 +48,12 @@ Estado REAL hoy. Leyenda:
   verbos públicos (`introduce/hello/whoami`) devuelven solo la tarjeta pública; TODO lo demás
   (`ask`/`browse`/`plan`/`wallet_*`) exige `trusted=True`, y el **default es `False`
   (fail-closed)**. Trust: A2A = bearer `A2A_TOKEN` (compare_digest; sin token → False); Nostr =
-  remitente firmado en allowlist o rating `trusted`. **Test: NINGUNO** → ver §3, invariante #2.
+  remitente firmado en allowlist o rating `trusted`. **Test: ✅ `tests/a2a_trust_boundary_test.py`
+  (C1)** fija la frontera del dispatcher (no-trusted → solo tarjeta pública, cero HTTP privado;
+  trusted → ask/browse/wallet_balance/plan/negotiate pero NO wallet_send; dispatcher sin token
+  humano) + doble tripwire (conductual + de fuente). NOTA: cubre el gate COMPARTIDO de
+  `dispatch_message` (A2A y Nostr) y el `_is_trusted` de A2A; la *computación* de trust
+  específica de Nostr (`_inbound_trusted`: allowlist/rating) aún no tiene test propio.
 - **Documentos — MCP → por diseño al host.** MCP es un adaptador separado (`mcp_server.py`,
   stdio/SSE) que se autentica con el token admin; quien lo lanza (config de Claude Desktop, etc.)
   lo autoriza implícitamente. Expone `ask` (docs+fuentes), `plan`, y **`wallet_send`** (ver §4).
@@ -102,7 +107,7 @@ Inventario de invariantes afirmadas hoy:
 | # | Invariante | ¿Impuesta por? | ¿Test? |
 |---|------------|----------------|--------|
 | 1 | Memoria personal solo a la sesión humana local | `build_chat_system`+token humano; `system_block` solo en chat.py | ✅ `memory_gate_test.py` (nivel función; ruta HTTP pendiente) |
-| 2 | **Frontera de confianza: caller no-trusted → solo tarjeta pública; verbos privados exigen `trusted=True` (fail-closed)** | `agent_dispatch.dispatch_message` | ❌ **NINGUNO** ← 2ª instancia de la MISMA clase de bug de hoy: el docstring afirma que hace "dataSharing: none-without-permission" verdad *en el endpoint*, sin test que lo fije. **Máxima prioridad de test.** |
+| 2 | **Frontera de confianza: caller no-trusted → solo tarjeta pública; verbos privados exigen `trusted=True` (fail-closed)** | `agent_dispatch.dispatch_message` | ✅ **`tests/a2a_trust_boundary_test.py` (C1)** — doble tripwire (spy sobre `_http` + posición del gate en fuente); disparador de release BLOQUEANTE. Cerrada la 2ª instancia de la clase de bug de hoy. |
 | 3 | `system_block` tiene un único punto de inyección (chat.py) | arquitectura (grep confirma 1 llamante) | ❌ sin test-guardia contra un llamante nuevo |
 | 4 | Llaves privadas y tokens nunca egresan | serialización (nunca se devuelven) | ❌ sin test (negativo; factible como test-grep de responses) |
 | 5 | Browse no alcanza hosts privados (SSRF) | `_is_private_host`/`_is_allowed` | ❌ no se encontró test |
@@ -165,10 +170,13 @@ Inventario de invariantes afirmadas hoy:
     nulo mientras solo exista 1 par de confianza. NO construir; decidir junto con el modelo de
     identidad A2A.
 
-- **C1 · Frontera de confianza (invariante #2) sin test — DISPARADOR ANTES DEL PRÓXIMO RELEASE.**
-  Es el hueco que la matriz cazó (2ª instancia viva de la clase de bug de hoy). Decisión de Bilal:
-  SÍ se escribe el test, anotado como **disparador de release** (§2), no ahora. Dejarlo sin test
-  sería repetir el error a sabiendas.
+- **C1 · Frontera de confianza (invariante #2) — CERRADO 2026-07-31.** El hueco que la matriz
+  cazó (2ª instancia de la clase de bug de hoy) ya tiene test: `tests/a2a_trust_boundary_test.py`,
+  con doble tripwire (conductual: spy sobre `_http` falla si un no-trusted provoca una llamada de
+  backend; de fuente: el gate `if not trusted: return` debe preceder a todo handler `if tool ==`).
+  **Enganchado al disparador pre-release en BLOQUEANTE** (no aviso): `predist` = `test:csp &&
+  probe:csp && test:a2a`, los TRES tests causales bloquean release si fallan. Un aviso sobre una
+  invariante de seguridad-frontera era teatro; bloqueante es lo coherente con "afirmar⇒testear".
 
 ---
 
