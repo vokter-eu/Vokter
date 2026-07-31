@@ -34,12 +34,9 @@ const _dismissedFacts = new Set();
 async function maybeSuggestMemory(question, convId) {
   let suggestions;
   try {
-    const r = await fetch('/api/memory/suggest', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({message: question, conversation_id: convId})
-    });
-    if (!r.ok) return;
-    suggestions = (await r.json()).suggestions || [];
+    const {status, body} = await suggestMemoryBackend({message: question, conversation_id: convId});
+    if (status < 200 || status >= 300 || !body) return;
+    suggestions = body.suggestions || [];
   } catch { return; }
   // At most ONE chip per turn: a single short message often splits into two facts
   // ("nurse" + "at Ibiza hospital") — showing both reads as nagging. Offer the
@@ -214,6 +211,24 @@ async function sendPayment(payload) {
     return await window.vokter.walletSend(payload);
   }
   const r = await fetch('/api/wallet/send', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+  let body = null;
+  try { body = await r.json(); } catch {}
+  return { status: r.status, body };
+}
+
+// Route /api/memory/suggest through the Electron shell (window.vokter.memorySuggest) so the
+// human-session token stays in main — same discipline as askBackend. The backend gates this
+// human-only read on that token (C2a): a plain browser (dev) carries no token, so it returns
+// no suggestions rather than reading the thread. Returns {status, body}.
+async function suggestMemoryBackend(payload) {
+  if (window.vokter && window.vokter.memorySuggest) {
+    return await window.vokter.memorySuggest(payload);
+  }
+  const r = await fetch('/api/memory/suggest', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify(payload)

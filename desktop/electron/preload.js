@@ -35,4 +35,10 @@ contextBridge.exposeInMainWorld('vokter', {
   // gates payment on that token, so a plain browser (no shell) is refused. Resolves to
   // {status, body}. The page passes only {amount, memo, confirmed}; it never holds the token.
   walletSend: (body) => ipcRenderer.invoke('vokter:wallet-send', body),
+
+  // memorySuggest(body): proxy /api/memory/suggest through main so the human-session token
+  // never lives in page JS (main attaches it — see main.js 'vokter:memory-suggest'). The
+  // backend gates this human-only read on that token. Resolves to {status, body}. The page
+  // passes only {message, conversation_id}; it never holds the token.
+  memorySuggest: (body) => ipcRenderer.invoke('vokter:memory-suggest', body),
 });

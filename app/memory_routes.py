@@ -13,10 +13,11 @@ it — nothing is hidden.
 import unicodedata
 from contextlib import closing
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
 import memory
+from chat import is_local_human_session
 from db import get_db
 
 router = APIRouter()
@@ -49,7 +50,8 @@ def _recent_user_context(conv_id: str, message: str) -> list[str]:
     little more context, which is harmless: it only ever PROPOSES.)"""
     with closing(get_db()) as db:
         rows = db.execute(
-            "SELECT content FROM conversations WHERE conv_id=? AND role='user'"
+            "SELECT content FROM conversations"
+            " WHERE conv_id=? AND role='user' AND human_owned=1"   # C2a: only the human's own turns
             " ORDER BY seq DESC LIMIT ?",
             (conv_id, _CONTEXT_TURNS + 1),
         ).fetchall()
@@ -100,7 +102,8 @@ def memory_forget_all():
 
 
 @router.post("/api/memory/suggest")
-async def memory_suggest(item: SuggestIn):
+async def memory_suggest(item: SuggestIn,
+                         x_vokter_human_session: str | None = Header(default=None)):
     """Phase 2b — PROPOSE durable facts noticed in the user's latest message. This
     NEVER stores: it returns candidates for the frontend to show as a confirm chip;
     only an explicit Guardar (POST /api/memory) writes anything. So "never remember
@@ -115,6 +118,11 @@ async def memory_suggest(item: SuggestIn):
     invariant). Known limit: dismissals do not survive a restart, so a rejected fact
     can be re-proposed in a later session. Acceptable for now; if it nags in 2c, the
     fix is a SEPARATE dismissed-suggestions table (never touches `memory`)."""
+    # C2a: this reads the human's own conversation turns to propose personal facts, so it is a
+    # human-only surface — deny-by-default for any non-human caller (peer/MCP), like /api/ask's
+    # memory injection. Without the human mark, propose nothing and never touch the thread.
+    if not is_local_human_session(x_vokter_human_session):
+        return {"suggestions": []}
     message = item.message.strip()
     if not message:
         return {"suggestions": []}

@@ -98,16 +98,28 @@ def get_db():
     )
     conn.execute(
         """CREATE TABLE IF NOT EXISTS conversations (
-               seq     INTEGER PRIMARY KEY AUTOINCREMENT,
-               conv_id TEXT NOT NULL,
-               role    TEXT NOT NULL,
-               content TEXT NOT NULL,
-               ts      REAL NOT NULL
+               seq         INTEGER PRIMARY KEY AUTOINCREMENT,
+               conv_id     TEXT NOT NULL,
+               role        TEXT NOT NULL,
+               content     TEXT NOT NULL,
+               ts          REAL NOT NULL,
+               human_owned INTEGER NOT NULL DEFAULT 0  -- C2a: 1 = the local human's thread
            )"""
     )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS conversations_conv_id_idx ON conversations(conv_id)"
     )
+    # Migrate conversations tables created before human_owned existed (C2a bit-guard).
+    # Runs ONCE, only when the column is missing. Backfill B: existing rows predate persisted
+    # peer threads in practice (peer continuity lives in the process-local _conversations map,
+    # lost on restart), so treat all prior rows as the human's — otherwise old human chats
+    # would stay human_owned=0 and remain readable by a non-human caller that knew the id.
+    # The UPDATE is DML, so it needs an explicit commit (unlike the autocommitting ALTER).
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(conversations)").fetchall()]
+    if "human_owned" not in cols:
+        conn.execute("ALTER TABLE conversations ADD COLUMN human_owned INTEGER NOT NULL DEFAULT 0")
+        conn.execute("UPDATE conversations SET human_owned=1")
+        conn.commit()
     conn.execute(
         """CREATE TABLE IF NOT EXISTS known_agents (
                id           TEXT PRIMARY KEY,   -- nostr hex pubkey, or a2a endpoint url

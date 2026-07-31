@@ -352,6 +352,39 @@ ipcMain.handle('vokter:wallet-send', (_event, body) => new Promise((resolve) => 
   req.end();
 }));
 
+// The renderer's THIRD privileged request: proxy /api/memory/suggest through MAIN so the
+// human-session token never touches page JS — same discipline as 'vokter:ask'. This endpoint
+// reads the human's own conversation turns to propose personal facts (C2a), so the backend
+// gates it on the token: without it the shell-less path (a plain browser / peer / MCP) gets
+// no suggestions. The page sends only {message, conversation_id}. Returns {status, body}.
+ipcMain.handle('vokter:memory-suggest', (_event, body) => new Promise((resolve) => {
+  if (!ready || backendPort == null) { resolve({ status: 0, body: null }); return; }
+  const payload = JSON.stringify(body && typeof body === 'object' ? body : {});
+  const req = http.request({
+    host: '127.0.0.1', port: backendPort, path: '/api/memory/suggest', method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(payload),
+      'X-Vokter-Human-Session': HUMAN_SESSION_TOKEN,
+    },
+  }, (res) => {
+    let data = '';
+    res.setEncoding('utf8');
+    res.on('data', (c) => { data += c; });
+    res.on('end', () => {
+      let parsed = null;
+      try { parsed = JSON.parse(data); } catch { /* leave null → renderer skips suggestions */ }
+      resolve({ status: res.statusCode || 0, body: parsed });
+    });
+  });
+  req.on('error', () => resolve({ status: 0, body: null }));
+  // Fact extraction runs a local model; allow time but resolve on timeout so the renderer's
+  // `await memorySuggest()` never hangs (suggestions are best-effort, non-blocking to chat).
+  req.setTimeout(120000, () => { req.destroy(); resolve({ status: 0, body: null }); });
+  req.write(payload);
+  req.end();
+}));
+
 // The window's ONE outbound action: the user clicked [2] "Start fresh". Honour it
 // ONLY while halted at the guardrail, and ONLY once — a nervous double click must
 // not spawn two orchestrators contending for the ports and Ollama.

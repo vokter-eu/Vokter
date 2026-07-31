@@ -54,26 +54,32 @@ def build_chat_system(cfg: dict, human: bool) -> str:
     return base
 
 
-def _load_history(conv_id: str, limit: int) -> list[dict]:
+def _load_history(conv_id: str, limit: int, human: bool) -> list[dict]:
+    # C2a bit-guard: a caller only ever loads rows of its OWN ownership class. A non-human
+    # caller passing the human's conv_id gets ZERO rows — indistinguishable from a
+    # non-existent id (no "exists but forbidden" oracle) — and a peer write to the human's
+    # conv_id (human_owned=0) never enters the human's loaded history (human reads
+    # human_owned=1). Deny-closed and injection-safe. See docs/SECURITY_REVIEW.md C2a.
     with closing(get_db()) as db:
         rows = db.execute(
             "SELECT role, content FROM conversations"
-            " WHERE conv_id=? ORDER BY seq DESC LIMIT ?",
-            (conv_id, limit),
+            " WHERE conv_id=? AND human_owned=? ORDER BY seq DESC LIMIT ?",
+            (conv_id, 1 if human else 0, limit),
         ).fetchall()
     return [{"role": r[0], "content": r[1]} for r in reversed(rows)]
 
 
-def _save_turn(conv_id: str, question: str, answer: str) -> None:
+def _save_turn(conv_id: str, question: str, answer: str, human: bool) -> None:
     now = time.time()
+    owned = 1 if human else 0          # C2a: stamp the ownership class at creation
     with closing(get_db()) as db:
         db.execute(
-            "INSERT INTO conversations(conv_id, role, content, ts) VALUES(?,?,?,?)",
-            (conv_id, "user", question, now),
+            "INSERT INTO conversations(conv_id, role, content, ts, human_owned) VALUES(?,?,?,?,?)",
+            (conv_id, "user", question, now, owned),
         )
         db.execute(
-            "INSERT INTO conversations(conv_id, role, content, ts) VALUES(?,?,?,?)",
-            (conv_id, "assistant", answer, now),
+            "INSERT INTO conversations(conv_id, role, content, ts, human_owned) VALUES(?,?,?,?,?)",
+            (conv_id, "assistant", answer, now, owned),
         )
         db.commit()
 
@@ -97,7 +103,7 @@ async def ask(q: Question, x_vokter_human_session: str | None = Header(default=N
             conv_id = q.conversation_id or str(uuid.uuid4())
             answer = (f"Anotado: {fact}" if memory.trigger_lang(q.question) == "es"
                       else f"Got it — I'll remember: {fact}")
-            _save_turn(conv_id, q.question, answer)
+            _save_turn(conv_id, q.question, answer, human=True)  # this branch is inside `if human:`
             return {"answer": answer, "sources": [], "conversation_id": conv_id}
 
     cfg = get_config()
@@ -117,7 +123,7 @@ async def ask(q: Question, x_vokter_human_session: str | None = Header(default=N
     # With the human mark this is byte-identical to before.
     system  = build_chat_system(cfg, human)
     conv_id = q.conversation_id or str(uuid.uuid4())
-    history = _load_history(conv_id, max_history)
+    history = _load_history(conv_id, max_history, human)
 
     # Fail-closed VISIBLE: if a caller was denied memory while facts DO exist, leave a
     # trace (log here, `memory_withheld` in the response so the UI can say so) — a Vokter
@@ -155,7 +161,7 @@ async def ask(q: Question, x_vokter_human_session: str | None = Header(default=N
         messages=messages, model=model, context_size=8192, timeout=300,
     ))
 
-    _save_turn(conv_id, q.question, answer)
+    _save_turn(conv_id, q.question, answer, human)
 
     return {"answer": answer, "sources": sources, "conversation_id": conv_id,
             "memory_withheld": memory_withheld}

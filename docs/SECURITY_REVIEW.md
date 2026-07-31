@@ -136,14 +136,34 @@ Inventario de invariantes afirmadas hoy:
   mecanismo del gate de memoria sirve para gatear wallet, es coherente y reutiliza lo que ya
   funciona. NO arreglar ahora; registrado con la pista.
 
-- **C2 · `conversation_id` sin comprobación de propiedad — PENDIENTE-DE-ANÁLISIS.** El siloing de
-  conversaciones depende solo de que el UUID sea inadivinable; "inadivinable" es defensa débil para
-  datos sensibles (los UUIDs se filtran). Antes de gastar en el arreglo, hay que ver el **vector
-  real**. Preguntas a responder:
-  - (a) ¿un peer trusted puede **ENUMERAR** conv_ids, o solo leer uno que ya conozca?
-  - (b) **¿dónde se filtran** los conv_ids — logs, respuestas de la API, tarjeta pública?
-  - (c) ¿el ownership check es **caro** o es un simple `WHERE user_owns(conv_id)`?
-  No resuelto: primero el análisis del vector, luego la decisión (ownership check vs aceptar).
+- **C2 · `conversation_id` sin comprobación de propiedad — ANALIZADO 2026-07-31 (ver
+  `/home/harry/vokter-C2-analysis.md`), partido en DOS.** Respuestas a las tres preguntas, desde el
+  código:
+  - (a) **ENUMERAR: NO.** No existe endpoint que liste conversaciones; los dos únicos `SELECT`
+    sobre `conversations` filtran por `conv_id` concreto. Solo se lee un id ya conocido.
+  - (b) **FILTRACIÓN del conv_id del humano: NINGUNA hoy.** `/api/ask` lo devuelve, pero dispatch
+    A2A/Nostr devuelve solo `answer` y MCP `ask` solo el texto (el conv_id es *entrada* del host,
+    nunca *salida*); no se loguea, no está en la card; UUIDv4; el humano ni pasa por dispatch.
+  - (c) **COSTE: barato** para el hilo del humano (no el modelo caro que se temía).
+
+  - **C2a · confidencialidad del hilo del HUMANO → DECIDIDO: bit-guard (Bilal 2026-07-31), pendiente
+    de build.** El vector es TEÓRICO hoy, pero la seguridad es *por-no-filtración* (a un commit
+    despistado de volverse viva EN SILENCIO — misma clase que el bug A2A que abrió este frente). Fix
+    barato y por-construcción: columna `human_owned` estampada al crear la fila con el `human` que ya
+    calcula `/api/ask`; los lectores (`_load_history` y `/api/memory/suggest`→`_recent_user_context`)
+    solo sirven filas de su propia clase de propiedad → un caller sin marca humana no ve filas
+    human_owned (deny-closed, sin oráculo existe/no-existe). + test-invariante estilo tripwire C3. NO
+    construido aún.
+  - **C2b · aliasing de `contextId` entre pares A2A → ÍTEM DE AUDITORÍA PROPIO (no es C2, no tocar
+    datos del humano).** `a2a_server.py:121`: el `contextId` lo elige el PAR y se usa tal cual como
+    clave (`_conversations.get(context_key)`), así que par B con el mismo `contextId` que A hereda el
+    hilo de A — **sin conocer ningún conv_id**. Acotado: exige ser trusted, y hoy `_is_trusted` es **un
+    único `A2A_TOKEN` compartido** (sin identidades de par distintas); NUNCA toca el hilo del humano;
+    Nostr no es vulnerable (usa la pubkey autenticada como clave). **Ligado a la decisión de fondo:
+    ¿un token A2A único o identidades por par?** El fix real (ligar la continuidad a la identidad
+    autenticada del par, no al `contextId` que el par elige) depende de esa decisión. Impacto real ≈
+    nulo mientras solo exista 1 par de confianza. NO construir; decidir junto con el modelo de
+    identidad A2A.
 
 - **C1 · Frontera de confianza (invariante #2) sin test — DISPARADOR ANTES DEL PRÓXIMO RELEASE.**
   Es el hueco que la matriz cazó (2ª instancia viva de la clase de bug de hoy). Decisión de Bilal:
