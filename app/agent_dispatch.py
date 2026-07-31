@@ -153,7 +153,7 @@ async def dispatch_message(text: str, context_key: str, *, trusted: bool = False
 
         return (
             f"Unknown tool: {tool!r}. "
-            "Available: introduce, ask, browse, wallet_balance, plan"
+            "Available: introduce, ask, browse, wallet_balance, plan, negotiate"
         )
 
     except httpx.HTTPStatusError as exc:
