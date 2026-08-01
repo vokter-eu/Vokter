@@ -26,9 +26,15 @@ Estado REAL hoy. Leyenda:
 |---------------------|----------------|----------------|-----------------|----------------|----------------|----------------|--------------------|
 | **Memoria personal**| ✅ retenida     | ✅ retenida     | ✅ retenida      | —              | ✅ retenida     | —              | ✅ retenida         |
 | **Documentos**      | ✅ solo trusted | ☑️ solo trusted | por diseño (host)| —              | local (no sale)| — (es entrada) | 🟡 §8.7             |
-| **Conversaciones**  | ☑️ por peer     | ☑️ por peer     | 🔶 sin ownership | —              | local          | —              | 🟡 §8.7 + 🔶        |
+| **Conversaciones**  | ☑️ por peer †   | ☑️ por peer     | 🔶 sin ownership | —              | local          | —              | 🟡 §8.7 + 🔶        |
 | **Llaves** (DB/priv)| 🔒             | 🔒             | 🔒              | 🔒 (§)         | 🔒             | 🔒             | 🔒                 |
 | **Tokens** (admin/A2A/humano)| 🔒    | 🔒             | 🔒              | 🔒             | 🔒             | 🔒             | 🔒                 |
+
+> **† Conversaciones/A2A — otro eje, hallazgo ABIERTO.** El ☑️ mide EGRESO del dato del humano, y ahí
+> está cerrado (C2a: `human_owned`). Pero hay un eje distinto que la matriz NO mide —
+> **integridad/autorización par↔par**: el aliasing de `contextId` y el secuestro de la sesión de
+> negociación (la invariante "solo quien abrió avanza" está rota para A2A). **Ver §4 · C2b y §3 ·
+> invariante #6.** La celda en verde NO significa "aquí no hay nada".
 
 ### Detalle por celda (mecanismo · test)
 
@@ -89,6 +95,11 @@ El calendario se salta; los eventos no. Audita cuando:
 3. **Antes de un release con usuarios reales** → auditoría COMPLETA (toda la matriz). **Bloqueante
    de release:** escribir el test de la frontera de confianza (§4 · C1) — no se lanza con esa
    invariante sin test.
+4. **Pasar de 1 a 2+ pares A2A de confianza** (emitir/compartir credencial A2A con una SEGUNDA
+   entidad distinta). Ese evento EXACTO es cuando C2b (§4) despierta: el aliasing de `contextId` y el
+   secuestro de la sesión de negociación dejan de ser teóricos. Antes de añadir el 2º par: o tokens
+   por par (fix real, §4·C2b·4), o la invariante 🔴 de config (§4·C2b·1) verificada explícitamente.
+   **No se añade un 2º par sin una de las dos.**
 
 Un cambio que toque `agent_dispatch`, `chat.build_chat_system`, `memory.system_block`, o
 cualquier adaptador (`a2a_server`/`nostr_*`/`mcp_server`/`email_connector`/`scheduler`) cuenta
@@ -111,6 +122,7 @@ Inventario de invariantes afirmadas hoy:
 | 3 | `system_block` tiene un único punto de inyección (chat.py) | arquitectura (grep confirma 1 llamante) | ❌ sin test-guardia contra un llamante nuevo |
 | 4 | Llaves privadas y tokens nunca egresan | serialización (nunca se devuelven) | ❌ sin test (negativo; factible como test-grep de responses) |
 | 5 | Browse no alcanza hosts privados (SSRF) | `_is_private_host`/`_is_allowed` | ❌ no se encontró test |
+| 6 | **Negociación: "solo quien abrió una sesión puede avanzarla" (`s.peer != peer`)** | `negotiation.handle_inbound` — VERDAD para Nostr (`peer`=pubkey descifrada del DM), **FALSA para A2A** (`peer`=`contextId` que el llamante elige sin autenticar) | ❌ sin test; y para A2A la afirmación **no se cumple** hasta que haya identidad-por-par (§4 · C2b · punto 2). Misma clase que el bug de hoy: invariante afirmada que un canal no impone. |
 
 ---
 
@@ -159,16 +171,46 @@ Inventario de invariantes afirmadas hoy:
     solo sirven filas de su propia clase de propiedad → un caller sin marca humana no ve filas
     human_owned (deny-closed, sin oráculo existe/no-existe). + test-invariante estilo tripwire C3. NO
     construido aún.
-  - **C2b · aliasing de `contextId` entre pares A2A → ÍTEM DE AUDITORÍA PROPIO (no es C2, no tocar
-    datos del humano).** `a2a_server.py:121`: el `contextId` lo elige el PAR y se usa tal cual como
-    clave (`_conversations.get(context_key)`), así que par B con el mismo `contextId` que A hereda el
-    hilo de A — **sin conocer ningún conv_id**. Acotado: exige ser trusted, y hoy `_is_trusted` es **un
-    único `A2A_TOKEN` compartido** (sin identidades de par distintas); NUNCA toca el hilo del humano;
-    Nostr no es vulnerable (usa la pubkey autenticada como clave). **Ligado a la decisión de fondo:
-    ¿un token A2A único o identidades por par?** El fix real (ligar la continuidad a la identidad
-    autenticada del par, no al `contextId` que el par elige) depende de esa decisión. Impacto real ≈
-    nulo mientras solo exista 1 par de confianza. NO construir; decidir junto con el modelo de
-    identidad A2A.
+  - **C2b · aliasing de `contextId` entre pares A2A → ÍTEM DE AUDITORÍA PROPIO. ANALIZADO 2026-08-01
+    (Opus 4.8, trazado desde código): DOCUMENTAR Y APLAZAR — el vector está DORMIDO, no muerto.** No
+    toca datos del humano (C2a lo blindó: A2A entra `human=False` → `human_owned=0`). Cuatro puntos,
+    ninguno menor:
+
+    1. **🔴 INVARIANTE DE CONFIG (REQUISITO ACTIVO, no nota pasiva) — es lo ÚNICO que mantiene C2b
+       dormido HOY:** *un token A2A compartido = UNA sola identidad de confianza; NUNCA entregar el
+       mismo `A2A_TOKEN` a dos entidades distintas.* Compartir un bearer entre dos agentes es, por
+       definición, declararlos la misma identidad; el aliasing es la CONSECUENCIA de romper esta regla,
+       no una vía independiente. **Si algún día se documenta "cómo añadir un par A2A", esta línea va
+       ahí, en rojo.**
+
+    2. **HALLAZGO DE FONDO (no puede perderse) — la invariante de negociación YA ESTÁ ROTA para A2A.**
+       `negotiation.py` afirma "solo quien abrió una sesión puede avanzarla" (`s.peer != peer`,
+       `negotiation.py:139`) y cree atar la sesión a un *par autenticado* (`peer` en su docstring:
+       "Nostr sender pubkey / A2A context"). Pero por A2A ese `peer` es la `contextId` que el llamante
+       ELIGE sin autenticar (`agent_dispatch.py:107` `handle_inbound(context_key, …)`, y `context_key`
+       = `contextId` de `a2a_server.py:122`). Para Nostr la afirmación es VERDAD (`sender_hex` = pubkey
+       descifrada del DM NIP-17, `nostr_listener.py:175`); para A2A es FALSA. Es la MISMA clase que el
+       bug A2A original y que la celda Documentos/A2A: una invariante AFIRMADA que un canal no cumple.
+       **Ligado a §3 "afirmar⇒testear": hoy esa afirmación de negociación NO tiene test que la imponga
+       para A2A → registrada como invariante #6.**
+
+    3. **EL VECTOR con su gravedad real (documentos + DINERO, no metadatos de agente).** Con 2+ pares
+       distintos compartiendo token, par B repite la `contextId` de A y hereda su estado en DOS
+       consumidores de la misma clave:
+       - **Lectura** del hilo `human_owned=0` de A — que puede contener **fragmentos de MIS documentos**
+         (el RAG `retrieve` en `chat.py` NO está gateado por `human`; un par trusted recibe respuestas
+         fundamentadas en mis docs). B ve QUÉ preguntó A y qué se le respondió.
+       - **Escritura/inyección** en el hilo compartido → envenena lo que A ve en turnos futuros.
+       - **Secuestro de la sesión de NEGOCIACIÓN — toca DINERO:** B avanza/acepta/espía los términos del
+         trato de A (`handle_inbound`). Acotado (suelo secreto, tope por par), pero es el daño más activo.
+
+    4. **FIX REAL cuando proceda (NO ahora):** token A2A DISTINTO por par → `context_key` cuelga de la
+       identidad del token → aliasing estructuralmente imposible Y el `peer` de negociación pasa a ser
+       honesto. **Namespacing** (prefijar `context_key` con la identidad del token presentado) = gancho
+       INERTE opcional: hoy es no-op con un token único, deja el código correcto-por-construcción para
+       la migración — pero **hereda** la infalsificabilidad del token futuro, NO la crea (no es garantía
+       criptográfica). **Disparador del fix: "cuando exista un caso real de 2+ pares A2A"** (ver §2,
+       disparador 4). NO construir; decidir junto con el modelo de identidad A2A.
 
 - **C1 · Frontera de confianza (invariante #2) — CERRADO 2026-07-31.** El hueco que la matriz
   cazó (2ª instancia de la clase de bug de hoy) ya tiene test: `tests/a2a_trust_boundary_test.py`,
