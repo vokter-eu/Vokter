@@ -88,6 +88,10 @@ function renderMemoryChip(fact) {
   chat.scrollTop = chat.scrollHeight;
 }
 
+function _resetSpeakBtn(btn) {
+  if (btn) { btn.disabled = false; btn.textContent = '▶'; btn.title = ''; }
+}
+
 async function speakText(text, btn) {
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
   try {
@@ -96,14 +100,30 @@ async function speakText(text, btn) {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({text})
     });
-    if (!r.ok) { if (btn) { btn.disabled = false; btn.textContent = '▶'; } return; }
+    if (!r.ok) {
+      // C′ robustness: the voice for the chosen language isn't downloaded yet. Degrade
+      // cleanly — chat keeps working — and turn ▶ into a visible "retry" (clicking it
+      // calls speakText again; the actual fetch lands in stage 3).
+      if (r.status === 503) {
+        let notReady = false;
+        try { notReady = (await r.json()).error === 'voice_not_ready'; } catch {}
+        if (notReady && btn) {
+          btn.disabled = false;
+          btn.textContent = '⚠';
+          btn.title = 'Voice not available yet — click to retry';
+          return;
+        }
+      }
+      _resetSpeakBtn(btn);
+      return;
+    }
     const blob = await r.blob();
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
-    audio.onended = () => { URL.revokeObjectURL(url); if (btn) { btn.disabled = false; btn.textContent = '▶'; } };
+    audio.onended = () => { URL.revokeObjectURL(url); _resetSpeakBtn(btn); };
     audio.play();
   } catch {
-    if (btn) { btn.disabled = false; btn.textContent = '▶'; }
+    _resetSpeakBtn(btn);
   }
 }
 
@@ -901,16 +921,41 @@ document.getElementById('btn-cfg-save').onclick = async () => {
 };
 
 // ── First-run welcome wizard ──────────────────────────────────────────────────
-// i18n: to add a language, add its dictionary to I18N below AND an entry to
-// ONBOARDING_LANGS. Nothing else changes. Priority order for new languages
-// (project strategy — chosen by AFFINITY with the project's values, NOT by
-// market size): Norwegian, Swedish, Dutch, Finnish, Polish, Hungarian,
-// Catalan, Portuguese. Only ship a language once it is fully translated —
-// a few done well beats many half-done.
+// TWO INDEPENDENT LANGUAGE AXES — do NOT fuse them back into one value:
+//   • AGENT_LANGS      = the language Vokter chats/speaks/listens in (the 7 of v1).
+//        The user picks this at onboarding; it governs the three capas (chat + TTS +
+//        STT) and is stored as agent_config.language.
+//   • ONBOARDING_LANGS = the languages the wizard's OWN text (chrome) is translated
+//        into (only those with a full I18N dict). Running the agent in French while the
+//        wizard chrome shows English is fine and expected — the chrome catches up on its
+//        own schedule and must NEVER gate which agent language a user can choose.
+// (The wizard used to fuse these into ONE value, capping the agent language to the
+// translated set — that was a bug; this split fixes it. Keep them separate.)
+// Adding an AGENT language: mirror app/languages.py (voice + STT + chat are wired there).
+// Adding a CHROME translation: add its I18N dict + an ONBOARDING_LANGS entry. Priority
+// (by AFFINITY, not market size): Norwegian, Swedish, Dutch, Finnish, Polish, Hungarian,
+// Catalan, Portuguese. Only ship a chrome language once fully translated.
+const AGENT_LANGS = [
+  {code: 'en', label: 'English'},
+  {code: 'es', label: 'Español'},
+  {code: 'fr', label: 'Français'},
+  {code: 'de', label: 'Deutsch'},
+  {code: 'it', label: 'Italiano'},
+  {code: 'pt', label: 'Português'},
+  {code: 'nl', label: 'Nederlands'},
+];
 const ONBOARDING_LANGS = [
   {code: 'en', label: 'English'},
   {code: 'es', label: 'Español'},
 ];
+
+// Chrome language for a given agent language: use its own chrome if translated, else
+// English — the agent stays in its language either way (the two axes never block).
+function _chromeFor(agentLang) { return I18N[agentLang] ? agentLang : 'en'; }
+// Deny-closed: only ever return one of the 7 agent languages, else English. A locale
+// outside the list (Greek, Russian, Swedish, the parked ca/pl…) pre-selects English —
+// never an option absent from the list. Same fail-closed rule the backend uses.
+function _agentLangFor(code) { return AGENT_LANGS.some(l => l.code === code) ? code : 'en'; }
 
 const I18N = {
   en: {
@@ -958,9 +1003,10 @@ const I18N = {
 };
 
 const ONB_STEPS = 4;
-const onbState = { step: 0, language: 'en', agent_name: '', tone: 'neutral', mode: 'conversational' };
+const onbState = { step: 0, agentLang: 'en', chromeLang: 'en', agent_name: '', tone: 'neutral', mode: 'conversational' };
 
-function _onbT() { return I18N[onbState.language] || I18N.en; }
+// chrome axis, not agent axis: the wizard text follows chromeLang (en/es), the agent follows agentLang (7).
+function _onbT() { return I18N[onbState.chromeLang] || I18N.en; }
 
 function _onbEl(tag, cls, text) {
   const el = document.createElement(tag);
@@ -995,9 +1041,12 @@ function renderOnb() {
     body.appendChild(_onbEl('div', 'onb-h', t.welcome_title));
     body.appendChild(_onbEl('div', 'onb-sub', t.welcome_sub));
     body.appendChild(_onbEl('div', 'onb-field-label', t.choose_lang));
-    ONBOARDING_LANGS.forEach(l => {
-      _onbOption(body, l.label, null, onbState.language === l.code, () => {
-        onbState.language = l.code;
+    // The 7 AGENT languages (not the chrome set): picking one sets the agent language and
+    // pulls the chrome along ONLY if that language is translated, else chrome stays English.
+    AGENT_LANGS.forEach(l => {
+      _onbOption(body, l.label, null, onbState.agentLang === l.code, () => {
+        onbState.agentLang = l.code;
+        onbState.chromeLang = _chromeFor(l.code);
         renderOnb();
       });
     });
@@ -1091,12 +1140,15 @@ function startOnboarding(cfg) {
     if (cfg.tone) onbState.tone = cfg.tone;
     if (cfg.mode) onbState.mode = cfg.mode;
   }
-  // Step 0 is an explicit language choice: pre-select the current language if we
-  // ship it, else fall back to the browser's.
+  // Step 0 is an explicit AGENT-language choice, pre-selected from the saved config (a
+  // returning user clicking through) or else the system locale, mapped DENY-CLOSED to the
+  // 7 (anything outside → English). The user still confirms; we never pre-pick a language
+  // that isn't in the list. Chrome then follows only if that language is translated.
   const cur  = cfg && cfg.language;
   const nav2 = (navigator.language || 'en').slice(0, 2).toLowerCase();
-  if (cur && ONBOARDING_LANGS.some(l => l.code === cur))       onbState.language = cur;
-  else if (ONBOARDING_LANGS.some(l => l.code === nav2))        onbState.language = nav2;
+  const seed = (cur && AGENT_LANGS.some(l => l.code === cur)) ? cur : nav2;
+  onbState.agentLang  = _agentLangFor(seed);
+  onbState.chromeLang = _chromeFor(onbState.agentLang);
   onbState.step = 0;
   document.getElementById('onboarding').classList.add('open');
   renderOnb();
@@ -1113,7 +1165,7 @@ function finishOnboarding() {
     agent_name: onbState.agent_name.trim() || null,
     tone: onbState.tone,
     mode: onbState.mode,
-    language: onbState.language,
+    language: onbState.agentLang,   // AGENT axis — governs chat + voice + STT
     onboarded: true,
   };
   closeOnboarding();
