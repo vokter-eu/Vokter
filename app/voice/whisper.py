@@ -3,7 +3,9 @@ import tempfile
 
 from fastapi import APIRouter, HTTPException, UploadFile
 
+from agent_config import get_config
 from config import VOICE_MODELS_DIR, WHISPER_DEVICE, WHISPER_MODEL
+from languages import whisper_lang
 
 router = APIRouter()
 
@@ -44,7 +46,10 @@ async def transcribe(audio: UploadFile):
         tmp_path = tmp.name
     try:
         model = _get_model()
-        segments, _ = model.transcribe(tmp_path, beam_size=5)
+        # Pass the selected language to Whisper when it's concrete (more accurate); None for
+        # 'auto'/unknown → Whisper auto-detects, today's behaviour.
+        lang = whisper_lang(get_config().get("language", "auto"))
+        segments, _ = model.transcribe(tmp_path, beam_size=5, language=lang)
         text = " ".join(s.text.strip() for s in segments).strip()
         return {"text": text}
     except HTTPException:

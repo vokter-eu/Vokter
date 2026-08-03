@@ -7,6 +7,7 @@ Reads always merge stored values with DEFAULTS so new keys are backward-compatib
 from contextlib import closing
 
 from db import get_db
+from languages import chat_name
 
 DEFAULTS: dict[str, str] = {
     "agent_name":  "Vokter",
@@ -67,7 +68,9 @@ def build_system_prompt(cfg: dict[str, str]) -> str:
     elif mode == "conversational":
         parts.append("Feel free to elaborate when it adds clarity.")
     if lang != "auto":
-        parts.append(f"Always respond in {lang}.")
+        # Use the language's human name (and the European-Portuguese nuance) from the shared
+        # table; fall back to the raw code for any parked/unknown value (backward-compat).
+        parts.append(f"Always respond in {chat_name(lang) or lang}.")
     else:
         # Default: mirror the user, like a bilingual person. Anchor on the
         # QUESTION's language, not the documents' — a Spanish question about an
