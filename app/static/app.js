@@ -102,15 +102,13 @@ async function speakText(text, btn) {
     });
     if (!r.ok) {
       // C′ robustness: the voice for the chosen language isn't downloaded yet. Degrade
-      // cleanly — chat keeps working — and turn ▶ into a visible "retry" (clicking it
-      // calls speakText again; the actual fetch lands in stage 3).
+      // cleanly — chat keeps working — and arm ▶ as a real "download & retry" (stage 3
+      // trigger 2): the click DOWNLOADS the voice (ensure_voice) and speaks when ready.
       if (r.status === 503) {
         let notReady = false;
         try { notReady = (await r.json()).error === 'voice_not_ready'; } catch {}
         if (notReady && btn) {
-          btn.disabled = false;
-          btn.textContent = '⚠';
-          btn.title = 'Voice not available yet — click to retry';
+          _armVoiceRetry(btn, text);
           return;
         }
       }
@@ -125,6 +123,93 @@ async function speakText(text, btn) {
   } catch {
     _resetSpeakBtn(btn);
   }
+}
+
+// ── Stage 3: voice availability (the three triggers' UI side) ────────────────────
+// ONE UI primitive, `ensureVoice`, over the ONE backend primitive (/api/voice/ensure,
+// idempotent + in-flight-coalesced). Non-blocking by construction: /ensure returns at
+// once and the download runs in a backend thread; we only ever POLL /api/voice/state.
+// Surfaced two ways that read the SAME state: the header pill (triggers 1 + 3) and the
+// per-message ▶/⚠ button (trigger 2). Failure degrades to ⚠, never throws, never blocks.
+
+const _voicePill = () => document.getElementById('voice-status');
+let _voicePollTimer = null;
+
+function _renderVoicePill(st) {
+  const pill = _voicePill();
+  if (!pill) return;
+  if (st && st.status === 'downloading') {
+    const pct = st.total ? Math.floor(100 * st.downloaded / st.total) : 0;
+    pill.className = 'voice-pill downloading';
+    pill.textContent = '⬇ Downloading voice… ' + pct + '%';
+    pill.style.display = '';
+    pill.onclick = null;
+  } else if (st && st.status === 'error') {
+    pill.className = 'voice-pill error';
+    pill.textContent = '⚠ Voice unavailable — retry';
+    pill.style.display = '';
+    pill.onclick = () => ensureVoice();      // re-triggerable: a click re-downloads
+  } else {                                    // ready | absent → nothing to show
+    pill.style.display = 'none';
+    pill.onclick = null;
+  }
+}
+
+// Poll /state until it settles (not "downloading"), then stop — one loop at a time.
+async function _pollVoiceState() {
+  let st = null;
+  try { st = await (await fetch('/api/voice/state')).json(); } catch { st = null; }
+  _renderVoicePill(st);
+  if (st && st.status === 'downloading') {
+    _voicePollTimer = setTimeout(_pollVoiceState, 700);
+  } else {
+    _voicePollTimer = null;
+  }
+}
+
+function _watchVoice() {              // (re)start the single poll loop if idle
+  if (_voicePollTimer) return;
+  _pollVoiceState();
+}
+
+// The one UI-side primitive. Kick the (idempotent) backend download, then watch state.
+// Never throws, never blocks — callers fire and forget.
+async function ensureVoice() {
+  try { await fetch('/api/voice/ensure', {method: 'POST'}); } catch {}
+  _watchVoice();
+}
+
+// Wait for the current voice to settle after an ensure. Resolves true on ready, false on
+// error/absent/timeout. Capped so a permanently-failing download can't spin forever.
+async function _awaitVoiceReady(maxMs = 180000) {
+  const deadline = Date.now() + maxMs;
+  while (Date.now() < deadline) {
+    let st;
+    try { st = await (await fetch('/api/voice/state')).json(); } catch { return false; }
+    if (st.status === 'ready') return true;
+    if (st.status === 'error' || st.status === 'absent') return false;
+    await new Promise(r => setTimeout(r, 700));       // downloading → keep waiting
+  }
+  return false;
+}
+
+// Trigger 2: arm a not-ready ▶ as ⚠. Clicking it DOWNLOADS the voice (real fetch, not a
+// bare speak-retry) and speaks when ready; if the download fails, it falls back to ⚠ so
+// the user can try again — a failure never leaves the button dead.
+function _armVoiceRetry(btn, text) {
+  btn.disabled = false;
+  btn.textContent = '⚠';
+  btn.title = 'Voice not available yet — click to download & retry';
+  btn.onclick = async () => {
+    btn.disabled = true; btn.textContent = '…'; btn.title = 'Downloading voice…';
+    await ensureVoice();                          // coalesces with any in-flight download
+    if (await _awaitVoiceReady()) {
+      btn.onclick = () => speakText(text, btn);   // restore normal play, then speak now
+      speakText(text, btn);
+    } else {
+      _armVoiceRetry(btn, text);                  // failed → back to ⚠, re-triggerable
+    }
+  };
 }
 
 let _mediaRecorder = null;
@@ -1173,7 +1258,15 @@ function finishOnboarding() {
     method: 'PATCH',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(patch),
-  }).catch(() => {}).finally(() => { loadConfig(); loadAvatar(); });
+  })
+    // Trigger 1: the language is now saved → download ITS voice, with in-app progress
+    // (the header pill). Chained on SAVE SUCCESS (not finally) because ensure reads the
+    // stored language; on a failed save we must not fetch the stale language's voice.
+    // Fire-and-forget: onboarding has already closed, so a download failure can NEVER
+    // trap the user — chat + STT work, the voice just shows ⚠ until a retry succeeds.
+    .then(r => { if (r && r.ok) ensureVoice(); })
+    .catch(() => {})
+    .finally(() => { loadConfig(); loadAvatar(); });
 }
 
 function skipOnboarding() {
@@ -1194,6 +1287,10 @@ async function initApp() {
   catch { loadAvatar(); return; }   // API unreachable → show the normal UI, never block
   applyConfig(cfg);
   loadAvatar();
+  // Trigger 3 (surface): the backend's opportunistic startup fetch may already be
+  // downloading the current language's voice — reflect it in the pill. If the voice is
+  // ready, the pill stays hidden; if that fetch failed (e.g. offline boot), it shows ⚠.
+  _watchVoice();
   if (cfg.onboarded !== '1') startOnboarding(cfg);
 }
 

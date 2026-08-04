@@ -24,6 +24,7 @@ from email_connector import router as email_router
 from voice.whisper import router as whisper_router
 from voice.piper import router as piper_router
 from voice.fetch import router as voice_fetch_router
+from voice.fetch import opportunistic_startup_fetch
 from browser import router as browser_router
 from planner import router as planner_router
 from wallet_routes import router as wallet_router
@@ -54,6 +55,10 @@ async def lifespan(_app: FastAPI):
         )
     sched_task  = asyncio.create_task(scheduler_loop())
     nostr_task  = asyncio.create_task(nostr_listener.start())
+    # Stage 3 trigger 3 — opportunistic voice fetch. Best-effort in a daemon thread: if the
+    # current language's voice is missing and there's network, it downloads; if not, the
+    # backend comes up regardless. Never awaited, never raised → cannot block boot.
+    opportunistic_startup_fetch()
     yield
     # Cancel background tasks
     for t in (sched_task, nostr_task):

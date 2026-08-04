@@ -200,6 +200,23 @@ def _safe_ensure(voice_id: str) -> None:
         pass                                  # state is already set to "error"; nothing to crash
 
 
+def opportunistic_startup_fetch() -> None:
+    """Trigger 3 — opportunistic startup. On backend boot, if the current language's voice
+    is absent, kick ONE best-effort download in a daemon thread. Best-effort BY DESIGN: any
+    failure (offline boot, server down, corrupt file) leaves the voice absent and the backend
+    keeps running — it can NEVER block or crash startup. That is the C′ invariant ("startup
+    never blocks") at the boot seam. Idempotent + in-flight-guarded through ensure_voice, so it
+    also coalesces with a user who triggers the same download by hand right after opening."""
+    try:
+        voice_id = _current_voice()
+        if _present(voice_id):
+            return                            # already have it → nothing to do
+    except Exception:
+        return                                # can't resolve config/voice → skip silently
+    _set_state(voice_id, "downloading")
+    threading.Thread(target=_safe_ensure, args=(voice_id,), daemon=True).start()
+
+
 @router.post("/api/voice/ensure")
 def voice_ensure():
     """Kick off (or join) the download of the current language's voice. Non-blocking: returns

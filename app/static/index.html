@@ -160,6 +160,9 @@
     border:1px solid var(--line); background:var(--panel);
     color:var(--text); font-size:.83rem; }
   #cfg-status { font-size:.82rem; color:var(--muted); }
+  .voice-pill { font-size:.72rem; padding:3px 9px; border-radius:10px; border:1px solid var(--line); color:var(--muted); }
+  .voice-pill.downloading { border-color:var(--accent); color:var(--accent); }
+  .voice-pill.error { border-color:#f0a020; color:#f0a020; cursor:pointer; }
   #hdr-avatar { width:32px;height:32px;border-radius:50%;object-fit:cover;
                 border:2px solid var(--line);display:none; }
   #cfg-avatar-preview { width:52px;height:52px;border-radius:50%;object-fit:cover;
@@ -227,6 +230,7 @@
     <img id="hdr-avatar" alt="avatar">
     <h1>🛡️ <span id="hdr-agent-name">Vokter</span> <span style="color:var(--muted);font-size:.8rem">v0.7</span></h1>
     <button class="btn-sm" id="btn-settings" style="font-size:.78rem;padding:4px 9px">⚙ Settings</button>
+    <span id="voice-status" class="voice-pill" style="display:none"></span>
   </div>
   <div class="tag">Everything runs on your machine. Not a single byte leaves here.</div>
   <label class="upload">＋ Teach it a document (PDF, TXT, MD)
