@@ -23,6 +23,7 @@ from chat import router as chat_router
 from email_connector import router as email_router
 from voice.whisper import router as whisper_router
 from voice.piper import router as piper_router
+from voice.fetch import router as voice_fetch_router
 from browser import router as browser_router
 from planner import router as planner_router
 from wallet_routes import router as wallet_router
@@ -91,6 +92,7 @@ app.include_router(chat_router)
 app.include_router(email_router)
 app.include_router(whisper_router)
 app.include_router(piper_router)
+app.include_router(voice_fetch_router)
 app.include_router(browser_router)
 app.include_router(planner_router)
 app.include_router(wallet_router)

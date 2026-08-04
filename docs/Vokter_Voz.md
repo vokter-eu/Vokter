@@ -533,7 +533,151 @@ bajo `auto`, si detecta portugués, no puede forzar registro (mirror puro). Acep
   mapeado deny-closed a los 7** (fuera → inglés; probado: griego/ruso/sueco/ca/pl/auto → en),
   el chrome sigue solo si está traducido. Comentario prominente en el código advierte de NO
   volver a fundir los dos ejes (era el bug del wizard). Sintaxis JS verificada.
-- **⏳ ETAPA 3 — Descarga de voz en onboarding + reintento (auto en arranque + botón).** Aquí
-  vive la descarga real que hoy el ▶ solo señala como no-disponible. Pendiente.
+- **✅ ETAPA 3 (motor) — `app/voice/fetch.py` (2026-08-03).** Primitiva `ensure_voice` +
+  endpoints `POST /api/voice/ensure` (no bloqueante) y `GET /api/voice/state`. Descarga desde
+  HF `v1.0.0`, **verifica size+md5 del `voices.json` fijado** (checksums NO en la tabla →
+  swap = una línea, probado: `grep md5 languages.py` = 0), **temp único → verificar → `os.replace`**,
+  **guard in-flight** por voice_id. Árbol de fallos **probado en dev** (servidor local
+  manipulable): baseline→ready; sin red / 404 / trunc / **corrupto(md5)** → `error`, AUSENTE,
+  **cero temps sueltos**, chat+STT intactos; **concurrencia**: 2 `ensure` a la vez → **1 sola
+  descarga**, sin temp compartido. Happy-path REAL contra HF (de_DE-thorsten, 63 MB, md5 en
+  disco == voices.json, idempotente). **Pendiente (cableado de disparadores, no el motor):**
+  onboarding-finish → `ensure`; botón ⚠ → `ensure` (hoy sólo reintenta `speak`); orquestador
+  arranque oportunista (§9.1, reusa barra 3.3-D desde 2º lanzamiento).
 - **⏳ ETAPA 4 — Empaquetado C′** (quitar `voice-seed` del `.spec`/`package.json`, `.deb`
   ~327 MB, prueba E2E en VM). Pendiente.
+
+---
+
+# 9. DISEÑO — Etapa 3: descarga de voz con reintento (la robustez de C′)
+
+> Estado: DISEÑO, sin código. Es la etapa de MÁS RIESGO del frente: bajar un `.onnx` de
+> internet sin dejar nunca un fichero a medias que `_present()` confunda con "listo". El
+> riesgo real no es "no hay red" (eso degrada limpio) — es **el `.onnx` corrupto/truncado**.
+> Todo el diseño gira en torno a **verificar-antes-de-promover**.
+
+## 9.0 Una primitiva, tres disparadores
+
+Toda la descarga vive en UNA función idempotente — llámala `ensure_voice(lang)` (backend):
+- voz ya presente y verificada → *ready* al instante.
+- ausente → descarga → verifica → promueve atómicamente → *ready*; si algo falla → limpia y
+  *error* (nunca deja fichero a medias).
+
+La disparan **tres** sitios, todos la misma primitiva (sin duplicar lógica):
+1. **Fin del onboarding** (in-app): el usuario confirmó idioma → se baja su voz con progreso.
+2. **Cambiar idioma en Ajustes** (in-app, §9.5): misma primitiva, disparada al guardar.
+3. **Arranque oportunista** (loading screen) + **botón ⚠ Reintentar** (in-app): si la voz del
+   idioma actual falta, se (re)intenta. Cura fallos transitorios sin intervención + a demanda.
+
+## 9.1 De dónde y con qué integridad (§Q1)
+
+- **Origen:** HuggingFace `rhasspy/piper-voices`, **tag inmutable `v1.0.0`** (no `main` — así
+  el binario de un usuario baja SIEMPRE el mismo fichero, reproducible). Ruta derivada del
+  `voice_id`: `{base}/{lang}/{lang_full}/{speaker}/{quality}/{voice_id}.onnx` (+ `.onnx.json`).
+- **Integridad — SÍ se verifica (no se confía):** `voices.json` de Piper trae **`size_bytes` +
+  `md5_digest`** por fichero. Tras bajar: comprobar tamaño Y md5; **si no cuadra → descartar y
+  contar como AUSENTE** (un `.onnx` a medias es peor que ausente → nunca se trata como listo).
+  - **⚠️ SUB-DECISIÓN DE BILAL — de dónde salen los checksums:** dos opciones, con una tensión
+    real contra "cambiar una voz = una línea" (que prometimos barato):
+    - **(a) Hornear** los 14 pares size/md5 en `languages.py`. Verificación sin red. **Pero**
+      cambiar una voz pasa a ser 2 cosas (key + md5 nuevo), y **si alguien cambia el key y
+      olvida el md5 → TODA descarga de esa voz falla verificación → `voice_not_ready`
+      permanente que solo se ve como ⚠**. Footgun silencioso en la operación que dijiste barata.
+    - **(b) ✅ Recomendada — leer los checksums del `voices.json` fijado (`v1.0.0`) en el
+      momento de la descarga**, cacheándolo en disco. La tabla sigue siendo **solo voice-id →
+      swap = una línea de verdad**. Y no añade dependencia offline: la verificación solo ocurre
+      DURANTE una descarga, que ya requiere red → bajar el `voices.json` (~200 KB) ahí es gratis.
+    - Mi voto: **(b)** — preserva el swap de una línea que valoraste, con verificación igual de
+      robusta. Tú decides.
+- **Corrección + verificación de la premisa de Q1 (barra 3.3-D):** verifiqué la secuencia de
+  `orchestrator.main()`: **`db_key` está disponible en la línea 600, ANTES de `ensure_models`
+  (602)**. O sea el orquestador SÍ puede abrir el DB cifrado, leer `agent_config.language` y
+  bajar la voz en la MISMA fase que los modelos → **el disparador de arranque SÍ reutiliza la
+  barra 3.3-D** (mejor de lo que temíamos). Dos matices honestos: (i) solo desde el **2º
+  lanzamiento** (en el 1º el idioma aún no está elegido — eso lo cubre el disparador in-app
+  post-onboarding); (ii) el onboarding/Ajustes **in-app** siguen usando su **propio progreso**
+  (son otra superficie, la página hablando con el backend), NO la barra de la loading screen.
+
+## 9.2 Atomicidad — el corazón anti-corrupción (§Q3)
+
+1. Bajar a un **temporal ÚNICO** (`mkstemp` en el dir de piper) — no un `.part` de nombre fijo,
+   para que dos intentos no puedan pisar el mismo fichero (ver §9.2b concurrencia).
+2. **Verificar** size + md5 de AMBOS temporales (.onnx y .onnx.json).
+3. Solo si ambos verifican → `os.replace(temp → final)` (rename atómico en el mismo FS).
+4. Cualquier fallo (red, verificación, disco) → **borrar los temporales**; nunca se promueve.
+
+`_present()` (etapa 1) comprueba las rutas **finales** (`.onnx` **y** `.onnx.json`). Como solo
+se promueve tras verificar, **`_present()` no puede ver jamás un fichero a medias como listo**.
+Es el patrón `os.replace` del viejo `_download_voice`, PERO con verificación intercalada y temp
+único.
+
+**Medio-promovido explícito (pre-empto la pregunta obvia):** si el proceso muere ENTRE los dos
+renames (`.onnx` promovido, `.onnx.json` no), `_present()` exige **los DOS** finales → lo lee
+como **AUSENTE**, no como listo → el reintento re-baja y re-promueve. Un `.onnx` huérfano sin su
+`.json` nunca se sirve. La no-atomicidad de "dos ficheros" queda cubierta por el AND de `_present`.
+
+## 9.2b Concurrencia — que dos descargas no se pisen (§añadido al árbol de fallos)
+
+Tres disparadores pueden pedir la MISMA voz casi a la vez (onboarding-finish + usuario
+impaciente pulsando ⚠ + arranque oportunista). Cobertura en dos niveles:
+- **Entre PROCESOS (orquestador vs backend): por secuencia, no por lock.** El fetch de arranque
+  (orquestador) ocurre ANTES de `start_backend` (línea 604) → el backend aún no sirve → nunca
+  coincide en el tiempo con un fetch in-app (que es post-UI). No hay dos procesos bajando a la vez.
+- **Dentro del backend (onboarding + ⚠ + Ajustes): guard in-flight.** Un dict/lock por
+  `voice_id`: el primer `ensure_voice` marca "en curso" y baja; los siguientes ven `downloading`
+  y **esperan/consultan estado**, no arrancan una segunda descarga. Coalescen en una sola.
+- **Cinturón y tirantes:** como cada intento baja a un **temp único** (§9.2-1), aunque algo
+  patológico solapara, no hay `.part` compartido que corromper — a lo sumo dos descargas
+  redundantes, cada una a su temp, y gana el `os.replace` del que verifique; el otro se descarta.
+
+## 9.3 Árbol de casos de fallo (§Q2) — qué pasa EXACTAMENTE
+
+| Fallo | Qué ocurre | Estado tras el fallo |
+|---|---|---|
+| **Sin red** al empezar | `ensure_voice` falla al conectar, rápido | `.part` no creado; voz AUSENTE; chat+STT OK; ▶ = ⚠ retry |
+| **Red cae a media descarga** | `.part` incompleto | `.part` **borrado**; voz AUSENTE (no corrupta); retry re-baja de cero |
+| **Servidor caído / 404 / 5xx** | nada se promueve | `.part` (si hubo) borrado; AUSENTE; retry luego |
+| **Baja completo pero CORRUPTO** (truncado, bit-rot) | size/md5 **no cuadran** | `.part` **borrado**, NO se promueve; AUSENTE; retry | 
+| **Disco lleno** a media escritura | escritura falla | temp borrado; AUSENTE |
+| **Llamadas concurrentes** (onboarding + ⚠ + arranque) | guard in-flight coalescen; entre procesos, por secuencia | una sola descarga; nunca temp compartido (§9.2b) |
+
+Invariantes en TODOS los casos:
+- **El onboarding NUNCA bloquea:** se completa; la voz queda pendiente. Chat + STT (Whisper
+  sembrado) funcionan enteros. Solo la salida por voz muestra ⚠.
+- **Nunca queda un `.onnx` corrupto en su sitio** (verificar-antes-de-promover + limpiar `.part`).
+- **Reintento:** el botón ⚠ dispara `ensure_voice` (descarga limpia de cero); el arranque
+  oportunista la dispara en cada lanzamiento si el idioma actual sigue sin voz.
+
+## 9.4 Orden respecto al 2 GB de modelos (§Q4)
+
+Son **momentos distintos, por fuerza**, no simultáneos:
+1. **Arranque / loading screen:** `ensure_models` baja ~2 GB (chat + embed). Necesario para que
+   el app funcione. El idioma aún NO está elegido (o es el pre-guess del locale).
+2. **App abierta → onboarding:** el usuario confirma idioma.
+3. **Tras confirmar (in-app):** `ensure_voice` baja los ~60 MB de esa voz, con progreso propio.
+
+Consecuencia: un fallo de red en (1) **impide el app entero** (sin modelos no hay chat — es el
+comportamiento actual, no lo cambia la etapa 3); un fallo en (3) **solo degrada la voz**
+(chat+STT siguen). Ambos exigen red, pero son secuenciales → un fallo de voz no arrastra al chat.
+
+*Alternativa considerada y descartada:* pre-bajar en (1) la voz del locale-guess junto a los
+modelos (una sola barra). Descartada porque el guess puede fallar (el usuario cambia en el
+wizard) → descarga desperdiciada. Mejor bajar tras confirmar (3); el arranque oportunista es la
+red de seguridad. (Como voz = ~60 MB, si más tarde se quiere el pre-fetch, es barato de añadir.)
+
+## 9.5 Cambiar idioma DESPUÉS del onboarding (§Q5)
+
+**Mismo mecanismo**, distinto disparador: al guardar un idioma nuevo en Ajustes cuya voz falta,
+se llama a `ensure_voice` (progreso in-app), igual que en el onboarding. Y si el usuario no
+espera, el `speak()` siguiente da `voice_not_ready` → ▶ = ⚠ retry, y el arranque oportunista la
+completa. Una sola primitiva cubre onboarding, Ajustes, retry y arranque — sin caminos paralelos.
+
+## 9.6 Modelo de estado (para la UI)
+
+`GET /api/voice/state` → `{status: ready | downloading | absent | error, progress?}` para el
+idioma actual. `POST /api/voice/ensure` (idempotente) arranca la descarga si hace falta. El ▶
+(⚠/listo), el onboarding y Ajustes leen el MISMO estado → coherencia entre las tres superficies.
+
+**Sin implementar hasta OK de Bilal.** Riesgo cubierto: `.onnx` corrupto imposible de ver como
+listo (verificar-antes-de-promover, §9.2); fallo de red degrada limpio (§9.3); onboarding nunca
+bloquea.
