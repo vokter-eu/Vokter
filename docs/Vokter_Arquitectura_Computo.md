@@ -52,6 +52,25 @@ Vokter la blinda localmente. Ese foso no depende de chip ni modelo.
 > anterior — buscada en memoria/docs/transcripciones/outputs el 2026-08-03 y NO encontrada en
 > ningún sitio. Su hueco natural es aquí, junto a Wafer. Reponer si reaparece la fuente.
 
+### Radar de modelos locales (Modo 1) — el chat del ThinkPad 8 GB
+
+Campo local de 8 GB **investigado entero (2026-08-04)**. Conclusión: **NO hay candidato oculto
+mejor** — los nombres se repiten (Qwen, Gemma, Phi, Llama, Mistral); no hay un "tapado" fuera de
+esa lista. Deja de tener sentido seguir barriendo el campo.
+
+- **Regla física confirmada:** en **CPU 8 GB, la zona real es 3-4B**. Un 8B **cabe** (~5.5 GB en
+  Q4) pero **va lento en CPU sin GPU** → **8B DESCARTADO para el ThinkPad**. La restricción no es
+  la RAM, es el throughput sin GPU.
+- **Los dos candidatos siguen siendo `Qwen 3.6 4B` y `Gemma 4 4B`** — confirmados ahora contra el
+  campo entero, no elegidos a ciegas.
+- **NUEVO al radar — `Phi-4 Mini`** (Microsoft, 3.8B, **el más rápido, ~28 tok/s**): fuerte en
+  **inglés/código**, pero **DÉBIL en multilingüe europeo** → **candidato débil para MI criterio
+  (catalán)**. Anotado y **casi descartado** (la velocidad no compensa el idioma).
+- **El desempate sigue siendo EMPÍRICO:** **ningún benchmark mide catalán** (miden swahili,
+  bengalí…). La **única prueba válida** es **bajar Qwen 4B + Gemma 4B y probar catalán a mano**.
+  **No leer más benchmarks** — no van a resolver esto. Liga con el swap ca/pl del frente de voz
+  (`docs/Vokter_Voz.md`): catalán = candidato #1 a recuperar cuando el chat lo aguante.
+
 ---
 
 ## Proyectos externos analizados (radar)
