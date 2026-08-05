@@ -3,849 +3,584 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title data-i18n="page_title">Vokter — Your AI. Your machine. Your data.</title>
-<meta name="description" content="Vokter is a sovereign AI agent that runs entirely on your machine. No cloud, no accounts, no telemetry. Your documents, emails, wallet, and voice — all local.">
-<meta property="og:title" content="Vokter — Your AI. Your machine. Your data.">
-<meta property="og:description" content="A sovereign AI agent that runs entirely on your machine. Open source, AGPL-3.0.">
-<meta property="og:type" content="website">
+<title>Vokter — Your agent. Your data. Your machine.</title>
+<meta name="description" content="A sovereign, private, local-first AI agent built on European values — privacy, self-custody, digital rights. For anyone, anywhere. Everything runs on your machine. Not a single byte leaves.">
 <style>
   :root {
-    --bg:     #0e1116;
-    --panel:  #161b22;
-    --line:   #2d333b;
-    --text:   #e6edf3;
-    --muted:  #8b949e;
+    --bg: #0a0e0d;
+    --bg-raised: #101614;
+    --ink: #e8efe9;
+    --ink-dim: #8fa398;
+    --ink-faint: #56655d;
+    --line: #1c2622;
     --accent: #4cc38a;
-    --red:    #f85149;
+    --accent-deep: #2d8a5f;
+    --warn: #d9a441;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --measure: 66ch;
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html { scroll-behavior: smooth; }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+
   body {
     background: var(--bg);
-    color: var(--text);
-    font: 17px/1.6 system-ui, -apple-system, sans-serif;
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 17px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
   }
 
-  /* ── Nav ── */
-  nav {
-    position: sticky; top: 0; z-index: 10;
-    background: #0e1116ee;
-    backdrop-filter: blur(8px);
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    * { animation: none !important; transition: none !important; }
+  }
+
+  a { color: inherit; text-decoration: none; }
+
+  ::selection { background: var(--accent); color: var(--bg); }
+
+  /* ---- layout scaffold ---- */
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 28px; }
+
+  /* ---- top bar ---- */
+  header {
+    position: sticky; top: 0; z-index: 50;
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter: blur(14px);
     border-bottom: 1px solid var(--line);
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 32px; gap: 16px;
   }
-  .nav-logo { font-weight: 700; font-size: 1.1rem; color: var(--accent); text-decoration: none; }
-  .nav-links { display: flex; gap: 24px; }
-  .nav-links a { color: var(--muted); text-decoration: none; font-size: .9rem; }
-  .nav-links a:hover { color: var(--text); }
-  .nav-right { display: flex; align-items: center; gap: 12px; }
-  .nav-cta {
-    background: var(--accent); color: #06251a; font-weight: 700;
-    padding: 8px 20px; border-radius: 8px; text-decoration: none;
-    font-size: .9rem; white-space: nowrap;
+  .bar { display: flex; align-items: center; justify-content: space-between; height: 62px; }
+  .brand { display: flex; align-items: center; gap: 11px; font-weight: 600; letter-spacing: -0.01em; font-size: 18px; }
+  .brand .mark {
+    width: 26px; height: 26px; flex: none;
+    display: grid; place-items: center;
   }
-  .nav-cta:hover { opacity: .9; }
+  .brand .mark svg { width: 26px; height: 26px; }
+  .bar nav { display: flex; align-items: center; gap: 26px; }
+  .bar nav a { color: var(--ink-dim); font-size: 14.5px; transition: color .15s; }
+  .bar nav a:hover { color: var(--ink); }
+  .lang-toggle {
+    font-family: var(--mono); font-size: 12px; letter-spacing: .04em;
+    color: var(--ink-dim); border: 1px solid var(--line); border-radius: 6px;
+    padding: 5px 9px; cursor: pointer; background: transparent; transition: all .15s;
+  }
+  .lang-toggle:hover { color: var(--ink); border-color: var(--ink-faint); }
+  .lang-toggle b { color: var(--accent); }
+  @media (max-width: 680px) { .bar nav a.navlink { display: none; } }
 
-  /* ── Language selector ── */
-  .lang-sel { display: flex; gap: 4px; }
-  .lang-btn {
-    background: none; border: 1px solid transparent;
-    color: var(--muted); font-size: .78rem; font-weight: 600;
-    padding: 4px 7px; border-radius: 5px; cursor: pointer;
-    letter-spacing: .04em;
-  }
-  .lang-btn:hover { color: var(--text); border-color: var(--line); }
-  .lang-btn.active { color: var(--accent); border-color: #4cc38a44; background: #4cc38a0d; }
-
-  /* ── Hero ── */
-  .hero {
-    max-width: 760px; margin: 0 auto;
-    padding: 96px 24px 80px;
-    text-align: center;
-  }
-  .hero-badge {
-    display: inline-block; margin-bottom: 24px;
-    background: var(--panel); border: 1px solid var(--line);
-    color: var(--muted); font-size: .82rem;
-    padding: 4px 12px; border-radius: 20px;
-  }
-  .hero-badge span { color: var(--accent); }
-  h1 {
-    font-size: clamp(2rem, 6vw, 3.4rem);
-    line-height: 1.15; font-weight: 800; letter-spacing: -.02em;
-    margin-bottom: 24px;
-  }
-  h1 em { color: var(--accent); font-style: normal; }
-  .hero-sub {
-    color: var(--muted); font-size: 1.15rem;
-    max-width: 540px; margin: 0 auto 40px;
-  }
-  .hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-  .btn-primary {
-    background: var(--accent); color: #06251a; font-weight: 700;
-    padding: 14px 32px; border-radius: 10px; text-decoration: none;
-    font-size: 1rem;
-  }
-  .btn-primary:hover { opacity: .9; }
-  .btn-secondary {
-    border: 1px solid var(--line); color: var(--muted);
-    padding: 14px 32px; border-radius: 10px; text-decoration: none;
-    font-size: 1rem;
-  }
-  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
-
-  /* ── Install ── */
-  .install {
-    background: var(--panel);
-    border-top: 1px solid var(--line);
-    border-bottom: 1px solid var(--line);
-    padding: 64px 24px;
-  }
-  .install-inner { max-width: 720px; margin: 0 auto; }
-  .install > .install-inner > h2 { font-size: 1.6rem; margin-bottom: 8px; }
-  .install > .install-inner > p  { color: var(--muted); margin-bottom: 48px; }
-
-  .istep { display: flex; gap: 20px; align-items: flex-start; margin-bottom: 40px; }
-  .istep-num {
-    flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%;
-    background: #4cc38a18; border: 1px solid #4cc38a44;
-    color: var(--accent); font-size: 1rem; font-weight: 800;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .istep-body { flex: 1; }
-  .istep-body h3 { font-size: 1.05rem; margin-bottom: 6px; }
-  .istep-body > p { color: var(--muted); font-size: .9rem; margin-bottom: 16px; }
-
-  .docker-btns { display: flex; gap: 10px; flex-wrap: wrap; }
-  .docker-btn {
+  /* ---- status pill ---- */
+  .status {
     display: inline-flex; align-items: center; gap: 8px;
-    border: 1px solid var(--line); border-radius: 8px;
-    padding: 10px 16px; text-decoration: none;
-    color: var(--text); font-size: .88rem; font-weight: 500;
-    background: var(--bg);
+    font-family: var(--mono); font-size: 12.5px; letter-spacing: .03em;
+    color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 32%, transparent);
+    background: color-mix(in srgb, var(--warn) 8%, transparent);
+    border-radius: 100px; padding: 6px 14px;
   }
-  .docker-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .status .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--warn); animation: pulse 2.4s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
 
-  .dl-btns { display: flex; flex-direction: column; gap: 10px; }
-  .dl-btn {
-    display: flex; align-items: center; gap: 16px;
-    background: var(--bg); border: 1px solid var(--line);
-    border-radius: 12px; padding: 14px 18px;
-    text-decoration: none; color: var(--text);
-    transition: border-color .15s;
+  /* ---- hero ---- */
+  .hero { padding: 88px 0 76px; position: relative; }
+  .hero h1 {
+    font-size: clamp(38px, 7vw, 76px);
+    line-height: 1.02; letter-spacing: -0.035em; font-weight: 680;
+    margin: 26px 0 0; max-width: 15ch;
   }
-  .dl-btn:hover { border-color: var(--accent); }
-  .dl-btn.active { border-color: var(--accent); background: #4cc38a08; }
-  .dl-icon { font-size: 1.6rem; flex-shrink: 0; }
-  .dl-label strong { display: block; font-size: .95rem; margin-bottom: 2px; }
-  .dl-label small { color: var(--muted); font-size: .8rem; }
-  .dl-arrow { margin-left: auto; color: var(--accent); font-size: 1.1rem; }
+  .hero h1 .em { color: var(--accent); }
+  .hero .lede {
+    margin-top: 26px; max-width: 52ch;
+    font-size: clamp(17px, 2.2vw, 20px); color: var(--ink-dim); line-height: 1.55;
+  }
+  .hero .cta-row { margin-top: 38px; display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-size: 15.5px; font-weight: 550; border-radius: 9px;
+    padding: 13px 22px; cursor: pointer; transition: all .16s; border: 1px solid transparent;
+  }
+  .btn-primary { background: var(--accent); color: #04120b; }
+  .btn-primary:hover { background: #5ad197; transform: translateY(-1px); }
+  .btn-ghost { border-color: var(--line); color: var(--ink); }
+  .btn-ghost:hover { border-color: var(--ink-faint); background: var(--bg-raised); }
+  .btn svg { width: 16px; height: 16px; }
+  .hero .undernote { margin-top: 16px; font-family: var(--mono); font-size: 12.5px; color: var(--ink-faint); }
 
-  .done-box {
-    background: var(--bg); border: 1px solid var(--line);
-    border-radius: 12px; padding: 18px 20px;
-    color: var(--muted); font-size: .9rem; line-height: 1.6;
+  /* ---- the manifesto line — the signature ---- */
+  .creed {
+    border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+    padding: 34px 0; margin-top: 8px;
   }
-  .done-box strong { color: var(--text); }
+  .creed-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); }
+  .creed-cell {
+    background: var(--bg); padding: 22px 20px;
+  }
+  .creed-cell .k { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent-deep); }
+  .creed-cell .v { margin-top: 9px; font-size: 17px; font-weight: 560; letter-spacing: -0.01em; }
+  .creed-cell .v span { color: var(--ink-dim); font-weight: 400; }
+  @media (max-width: 760px) { .creed-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 400px) { .creed-grid { grid-template-columns: 1fr; } }
 
-  .coming-soon {
-    margin-top: 16px;
-    background: var(--bg); border: 1px dashed var(--line);
-    border-radius: 12px; padding: 16px 20px;
-    display: flex; align-items: center; gap: 14px;
-    color: var(--muted); font-size: .88rem;
+  /* ---- section frame ---- */
+  section { padding: 84px 0; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 12px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--accent-deep); display: flex; align-items: center; gap: 12px;
   }
-  .coming-soon-icon { font-size: 1.5rem; flex-shrink: 0; }
-  .coming-soon strong { color: var(--text); display: block; margin-bottom: 2px; }
+  .eyebrow::before { content: ""; width: 26px; height: 1px; background: var(--accent-deep); }
+  h2 { font-size: clamp(28px, 4.5vw, 42px); letter-spacing: -0.03em; line-height: 1.08; font-weight: 640; margin-top: 20px; max-width: 20ch; }
+  .section-lede { margin-top: 18px; max-width: var(--measure); color: var(--ink-dim); font-size: 18px; }
 
-  /* ── Features ── */
-  .features { max-width: 760px; margin: 0 auto; padding: 80px 24px; }
-  .features h2 { font-size: 1.6rem; margin-bottom: 8px; }
-  .features > p { color: var(--muted); margin-bottom: 40px; }
-  .feat-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 12px;
-  }
-  .feat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
-  .feat-icon { font-size: 1.5rem; margin-bottom: 10px; }
-  .feat h3 { font-size: .95rem; margin-bottom: 6px; }
-  .feat p { color: var(--muted); font-size: .84rem; line-height: 1.5; }
+  /* ---- the honeypot argument ---- */
+  .honeypot { background: var(--bg-raised); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .hp-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
+  @media (max-width: 820px) { .hp-inner { grid-template-columns: 1fr; gap: 34px; } }
+  .hp-quote { font-size: clamp(22px, 3.2vw, 30px); line-height: 1.32; letter-spacing: -0.02em; font-weight: 560; }
+  .hp-quote em { color: var(--accent); font-style: normal; }
+  .hp-body p { color: var(--ink-dim); margin-bottom: 16px; max-width: 48ch; }
+  .hp-body p:last-child { margin-bottom: 0; }
+  .hp-body strong { color: var(--ink); font-weight: 560; }
 
-  /* ── Principles ── */
-  .principles {
-    background: var(--panel);
-    border-top: 1px solid var(--line);
-    border-bottom: 1px solid var(--line);
-    padding: 80px 24px;
-  }
-  .principles-inner { max-width: 760px; margin: 0 auto; }
-  .principles h2 { font-size: 1.6rem; margin-bottom: 8px; }
-  .principles > div > p { color: var(--muted); margin-bottom: 40px; }
-  .principle-list { list-style: none; display: flex; flex-direction: column; gap: 12px; }
-  .principle-list li {
-    display: flex; gap: 14px; align-items: flex-start;
-    background: var(--bg); border: 1px solid var(--line);
-    border-radius: 10px; padding: 14px 18px;
-  }
-  .pl-num { color: var(--accent); font-weight: 700; font-size: .9rem; min-width: 20px; margin-top: 1px; }
-  .pl-text strong { display: block; margin-bottom: 2px; }
-  .pl-text span { color: var(--muted); font-size: .88rem; }
+  /* ---- capabilities ---- */
+  .caps { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-top: 44px; }
+  @media (max-width: 720px) { .caps { grid-template-columns: 1fr; } }
+  .cap { background: var(--bg); padding: 26px 26px 28px; transition: background .15s; }
+  .cap:hover { background: var(--bg-raised); }
+  .cap .ci { width: 22px; height: 22px; color: var(--accent); margin-bottom: 15px; }
+  .cap h3 { font-size: 17px; font-weight: 580; letter-spacing: -0.01em; }
+  .cap p { margin-top: 7px; font-size: 15px; color: var(--ink-dim); line-height: 1.5; }
+  .cap .soon { font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent); border-radius: 4px; padding: 2px 6px; margin-left: 8px; vertical-align: 2px; }
 
-  /* ── Hardware ── */
-  .hardware { max-width: 760px; margin: 0 auto; padding: 80px 24px; }
-  .hardware h2 { font-size: 1.6rem; margin-bottom: 8px; }
-  .hardware > p { color: var(--muted); margin-bottom: 32px; }
-  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-  th {
-    text-align: left; padding: 10px 14px;
-    color: var(--muted); font-size: .8rem; text-transform: uppercase;
-    letter-spacing: .06em; border-bottom: 1px solid var(--line);
+  /* ---- security ledger ---- */
+  .ledger { margin-top: 44px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .ledger-row { display: grid; grid-template-columns: 200px 1fr; gap: 0; border-bottom: 1px solid var(--line); }
+  .ledger-row:last-child { border-bottom: none; }
+  .ledger-row:hover { background: var(--bg-raised); }
+  .ledger-k { padding: 20px 24px; font-weight: 560; font-size: 15.5px; border-right: 1px solid var(--line); display: flex; align-items: center; gap: 11px; }
+  .ledger-k svg { width: 17px; height: 17px; color: var(--accent); flex: none; }
+  .ledger-v { padding: 20px 24px; color: var(--ink-dim); font-size: 15px; }
+  @media (max-width: 640px) {
+    .ledger-row { grid-template-columns: 1fr; }
+    .ledger-k { border-right: none; border-bottom: 1px solid var(--line); }
   }
-  td { padding: 10px 14px; border-bottom: 1px solid var(--line); }
-  tr:last-child td { border-bottom: none; }
-  td code { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; font-family: monospace; font-size: .82rem; }
 
-  /* ── Manifesto strip ── */
-  .manifesto-strip {
-    background: #4cc38a0a; border-top: 1px solid #4cc38a22;
-    border-bottom: 1px solid #4cc38a22;
-    padding: 56px 24px; text-align: center;
+  /* ---- languages ---- */
+  .langs { margin-top: 40px; display: flex; flex-wrap: wrap; gap: 10px; }
+  .lang-chip {
+    font-family: var(--mono); font-size: 13.5px; letter-spacing: .02em;
+    border: 1px solid var(--line); border-radius: 7px; padding: 9px 15px; color: var(--ink);
+    display: flex; align-items: center; gap: 9px; transition: border-color .15s;
   }
-  .manifesto-strip blockquote {
-    max-width: 600px; margin: 0 auto 24px;
-    font-size: 1.15rem; line-height: 1.7; font-style: italic; color: var(--text);
-  }
-  .manifesto-strip blockquote strong { color: var(--accent); font-style: normal; }
-  .manifesto-strip a { color: var(--accent); font-size: .9rem; }
+  .lang-chip:hover { border-color: var(--accent-deep); }
+  .lang-chip .flag { font-size: 15px; }
+  .lang-chip.pending { color: var(--ink-faint); border-style: dashed; }
+  .lang-note { margin-top: 18px; font-size: 14.5px; color: var(--ink-faint); max-width: 60ch; }
 
-  /* ── Footer ── */
-  footer {
-    max-width: 760px; margin: 0 auto;
-    padding: 40px 24px; color: var(--muted);
-    display: flex; justify-content: space-between; align-items: center;
-    flex-wrap: wrap; gap: 12px; font-size: .85rem;
+  /* ---- install ---- */
+  .install { background: var(--bg-raised); border-top: 1px solid var(--line); }
+  .terminal {
+    margin-top: 40px; border: 1px solid var(--line); border-radius: 11px; overflow: hidden;
+    background: #070b0a; font-family: var(--mono); box-shadow: 0 24px 60px -30px rgba(0,0,0,.7);
   }
-  footer a { color: var(--muted); text-decoration: none; }
-  footer a:hover { color: var(--accent); }
-  .footer-links { display: flex; gap: 20px; }
+  .term-bar { display: flex; align-items: center; gap: 8px; padding: 13px 16px; border-bottom: 1px solid var(--line); }
+  .term-bar .d { width: 11px; height: 11px; border-radius: 50%; background: var(--line); }
+  .term-bar .name { margin-left: 10px; font-size: 12.5px; color: var(--ink-faint); }
+  .term-body { padding: 22px 20px; font-size: 14px; line-height: 1.85; }
+  .term-body .cmt { color: var(--ink-faint); }
+  .term-body .pr { color: var(--accent); }
+  .term-body .cmd { color: var(--ink); }
+  .term-body .out { color: var(--ink-dim); }
+  .install-cards { margin-top: 26px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 680px) { .install-cards { grid-template-columns: 1fr; } }
+  .ic { border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; transition: all .15s; display: flex; align-items: center; justify-content: space-between; }
+  .ic:hover { border-color: var(--ink-faint); background: var(--bg); }
+  .ic .os { font-weight: 560; font-size: 15px; display: flex; align-items: center; gap: 10px; }
+  .ic .os svg { width: 18px; height: 18px; color: var(--ink-dim); }
+  .ic .fmt { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); }
+  .ic.disabled { opacity: .45; }
+  .ic.disabled .fmt { color: var(--warn); }
 
-  /* ── Vision / Roadmap ── */
-  .vision {
-    background: #0e1116;
-    border-top: 1px solid var(--line);
-    border-bottom: 1px solid var(--line);
-    padding: 80px 24px;
-  }
-  .vision-inner { max-width: 760px; margin: 0 auto; }
-  .vision h2 { font-size: 1.6rem; margin-bottom: 8px; }
-  .vision-sub { color: var(--muted); margin-bottom: 20px; }
-  .vision-badge {
-    display: inline-block; margin-bottom: 40px;
-    background: #7c3aed12; border: 1px solid #7c3aed44;
-    color: #a78bfa; font-size: .78rem; font-weight: 600;
-    padding: 4px 14px; border-radius: 20px;
-  }
-  .vision-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 12px;
-  }
-  .vision-card {
-    background: var(--panel); border: 1px solid var(--line);
-    border-radius: 12px; padding: 20px;
-    display: flex; flex-direction: column;
-  }
-  .vision-card-icon { font-size: 1.5rem; margin-bottom: 10px; }
-  .vision-card h3 { font-size: .95rem; margin-bottom: 6px; }
-  .vision-card-desc { color: var(--muted); font-size: .84rem; line-height: 1.5; margin-bottom: 14px; flex: 1; }
-  .vision-card-agents {
-    font-size: .76rem; color: #a78bfa;
-    border-top: 1px solid var(--line); padding-top: 10px;
-  }
-  .vision-card-agents .agents-label { color: var(--muted); margin-right: 4px; }
+  /* ---- callout ---- */
+  .callout { border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent); background: color-mix(in srgb, var(--accent) 6%, transparent); border-radius: 12px; padding: 26px 28px; margin-top: 34px; display: flex; gap: 18px; align-items: flex-start; }
+  .callout svg { width: 22px; height: 22px; color: var(--accent); flex: none; margin-top: 2px; }
+  .callout p { color: var(--ink-dim); font-size: 15.5px; }
+  .callout strong { color: var(--ink); font-weight: 560; }
 
-  @media (max-width: 600px) {
-    nav { padding: 12px 16px; }
-    .nav-links { display: none; }
-    .hero { padding: 64px 16px 56px; }
-    .lang-sel { gap: 2px; }
-    .lang-btn { padding: 3px 5px; font-size: .72rem; }
-  }
+  /* ---- footer ---- */
+  footer { border-top: 1px solid var(--line); padding: 52px 0 44px; }
+  .foot-grid { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 30px; }
+  .foot-brand { max-width: 34ch; }
+  .foot-brand .creed-mini { font-family: var(--mono); font-size: 13px; color: var(--ink-dim); margin-top: 12px; letter-spacing: .01em; }
+  .foot-links { display: flex; gap: 60px; flex-wrap: wrap; }
+  .foot-col h4 { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 14px; }
+  .foot-col a { display: block; color: var(--ink-dim); font-size: 14.5px; margin-bottom: 9px; transition: color .15s; }
+  .foot-col a:hover { color: var(--accent); }
+  .foot-base { margin-top: 44px; padding-top: 24px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; font-size: 13px; color: var(--ink-faint); font-family: var(--mono); }
+
+  /* reveal on scroll */
+  .reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s ease, transform .6s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+
+  [data-es] { display: none; }
+  html[lang="es"] [data-en] { display: none; }
+  html[lang="es"] [data-es] { display: inline; }
+  html[lang="es"] [data-es].block { display: block; }
 </style>
 </head>
 <body>
 
-<nav>
-  <a class="nav-logo" href="/">🛡️ Vokter</a>
-  <div class="nav-links">
-    <a href="#install" data-i18n="nav_download">Download</a>
-    <a href="#features" data-i18n="nav_features">Features</a>
-    <a href="#principles" data-i18n="nav_principles">Principles</a>
-    <a href="MANIFESTO.html" data-i18n="nav_manifesto">Manifesto</a>
-  </div>
-  <div class="nav-right">
-    <div class="lang-sel">
-      <button class="lang-btn" data-lang="en">EN</button>
-      <button class="lang-btn" data-lang="es">ES</button>
-      <button class="lang-btn" data-lang="fr">FR</button>
-      <button class="lang-btn" data-lang="de">DE</button>
-      <button class="lang-btn" data-lang="it">IT</button>
+<header>
+  <div class="wrap bar">
+    <div class="brand">
+      <span class="mark">
+        <svg viewBox="0 0 32 32" fill="none">
+          <path d="M16 2 L28 8 V17 C28 24 22 29 16 31 C10 29 4 24 4 17 V8 Z" stroke="var(--accent)" stroke-width="1.7" fill="color-mix(in srgb, var(--accent) 8%, transparent)"/>
+          <path d="M11 15 l4 5 6-9" stroke="var(--accent)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      Vokter
     </div>
-    <a class="nav-cta" href="https://github.com/vokter-eu/Vokter" target="_blank" data-i18n="nav_github">View on GitHub →</a>
+    <nav>
+      <a class="navlink" href="#why" data-en>Why</a><a class="navlink" href="#why" data-es>Por qué</a>
+      <a class="navlink" href="#security" data-en>Security</a><a class="navlink" href="#security" data-es>Seguridad</a>
+      <a class="navlink" href="#languages" data-en>Languages</a><a class="navlink" href="#languages" data-es>Idiomas</a>
+      <a class="navlink" href="#install" data-en>Install</a><a class="navlink" href="#install" data-es>Instalar</a>
+      <button class="lang-toggle" onclick="toggleLang()">
+        <span data-en><b>EN</b> / ES</span><span data-es>EN / <b>ES</b></span>
+      </button>
+    </nav>
   </div>
-</nav>
+</header>
 
-<section class="hero">
-  <div class="hero-badge">Open source · AGPL-3.0 · <span data-i18n="badge_european">European project</span></div>
-  <h1 data-i18n-html="hero_h1">Your AI.<br><em>Your machine.</em><br>Your data. By right.</h1>
-  <p class="hero-sub" data-i18n="hero_sub">
-    Vokter is a sovereign AI agent that runs entirely on your hardware.
-    No cloud. No accounts. No telemetry. Not a single byte leaves your machine
-    without your explicit permission.
-  </p>
-  <div class="hero-actions">
-    <a class="btn-primary" href="#install" data-i18n="hero_cta_download">Download Vokter — free</a>
-    <a class="btn-secondary" href="https://github.com/vokter-eu/Vokter" target="_blank" data-i18n="hero_cta_github">★ Star on GitHub</a>
-  </div>
-</section>
+<main>
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap">
+      <span class="status">
+        <span class="dot"></span>
+        <span data-en>In active development · downloadable now</span>
+        <span data-es>En desarrollo activo · ya descargable</span>
+      </span>
+      <h1>
+        <span data-en>Your agent.<br>Your data.<br>Your money.<br><span class="em">By right.</span></span>
+        <span data-es>Tu agente.<br>Tus datos.<br>Tu dinero.<br><span class="em">Por derecho.</span></span>
+      </h1>
+      <p class="lede">
+        <span data-en>A sovereign AI assistant built on European values — privacy, self-custody, the right to own your digital life. For anyone, anywhere. It talks, remembers, and acts on your behalf — and everything runs on your own machine. Not a single byte leaves.</span>
+        <span data-es>Un asistente de IA soberano construido sobre valores europeos — privacidad, autocustodia, el derecho a ser dueño de tu vida digital. Para cualquier persona, en cualquier lugar. Conversa, recuerda y actúa por ti — y todo corre en tu propia máquina. No sale ni un solo byte.</span>
+      </p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#install">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M8 1v9m0 0L4.5 6.5M8 10l3.5-3.5M2 13h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span data-en>Download for Linux</span><span data-es>Descargar para Linux</span>
+        </a>
+        <a class="btn btn-ghost" href="https://github.com/vokter-eu/Vokter" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          <span data-en>Source on GitHub</span><span data-es>Código en GitHub</span>
+        </a>
+      </div>
+      <p class="undernote">
+        <span data-en>AGPL-3.0 · No account · No telemetry · No cloud</span>
+        <span data-es>AGPL-3.0 · Sin cuenta · Sin telemetría · Sin nube</span>
+      </p>
+    </div>
+  </section>
 
-<section class="install" id="install">
-  <div class="install-inner">
-    <h2 data-i18n="install_h2">Set up in 3 steps — no technical knowledge needed</h2>
-    <p data-i18n="install_sub">Total time: about 10 minutes, mostly waiting for downloads.</p>
-
-    <div class="istep">
-      <div class="istep-num">1</div>
-      <div class="istep-body">
-        <h3 data-i18n="step1_h3">Install Docker Desktop — it's free</h3>
-        <p data-i18n="step1_p">Docker is a free app that lets Vokter run safely in its own space on your computer. Install it like any normal app. You only do this once.</p>
-        <div class="docker-btns">
-          <a class="docker-btn" href="https://www.docker.com/products/docker-desktop/" target="_blank">🍎 <span data-i18n="docker_mac">Docker for Mac</span></a>
-          <a class="docker-btn" href="https://www.docker.com/products/docker-desktop/" target="_blank">🪟 <span data-i18n="docker_win">Docker for Windows</span></a>
-          <a class="docker-btn" href="https://docs.docker.com/desktop/install/linux/" target="_blank">🐧 <span data-i18n="docker_linux">Docker for Linux</span></a>
+  <!-- CREED — the four-part thesis as a ledger -->
+  <div class="creed">
+    <div class="wrap">
+      <div class="creed-grid">
+        <div class="creed-cell">
+          <div class="k" data-en>The agent</div><div class="k" data-es>El agente</div>
+          <div class="v" data-en>Runs local <span>— on your CPU, offline</span></div>
+          <div class="v" data-es>Corre local <span>— en tu CPU, sin conexión</span></div>
+        </div>
+        <div class="creed-cell">
+          <div class="k" data-en>The data</div><div class="k" data-es>Los datos</div>
+          <div class="v" data-en>Encrypted <span>— key in your keyring</span></div>
+          <div class="v" data-es>Cifrados <span>— llave en tu llavero</span></div>
+        </div>
+        <div class="creed-cell">
+          <div class="k" data-en>The money</div><div class="k" data-es>El dinero</div>
+          <div class="v" data-en>Self-custody <span>— no one spends it but you</span></div>
+          <div class="v" data-es>Autocustodia <span>— solo tú lo gastas</span></div>
+        </div>
+        <div class="creed-cell">
+          <div class="k" data-en>The code</div><div class="k" data-es>El código</div>
+          <div class="v" data-en>Open <span>— AGPL, auditable</span></div>
+          <div class="v" data-es>Abierto <span>— AGPL, auditable</span></div>
         </div>
       </div>
     </div>
+  </div>
 
-    <div class="istep">
-      <div class="istep-num">2</div>
-      <div class="istep-body">
-        <h3 data-i18n="step2_h3">Download and open the Vokter installer</h3>
-        <p data-i18n="step2_p">Download the file for your computer. Open it. The installer does everything for you — no setup, no typing, no configuration.</p>
-        <div class="dl-btns">
-          <a class="dl-btn" id="dl-mac" href="install/vokter-mac.zip" download>
-            <span class="dl-icon">🍎</span>
-            <div class="dl-label">
-              <strong data-i18n="dl_mac_title">Download for Mac</strong>
-              <small data-i18n="dl_mac_hint">Unzip → double-click "vokter-mac.command". First time: right-click → Open</small>
-            </div>
-            <span class="dl-arrow">↓</span>
-          </a>
-          <a class="dl-btn" id="dl-win" href="install/vokter-windows.bat" download>
-            <span class="dl-icon">🪟</span>
-            <div class="dl-label">
-              <strong data-i18n="dl_win_title">Download for Windows</strong>
-              <small data-i18n="dl_win_hint">Double-click the downloaded file. If Windows asks, click "More info → Run anyway"</small>
-            </div>
-            <span class="dl-arrow">↓</span>
-          </a>
-          <a class="dl-btn" id="dl-linux" href="install/vokter-linux.sh" download>
-            <span class="dl-icon">🐧</span>
-            <div class="dl-label">
-              <strong data-i18n="dl_linux_title">Download for Linux</strong>
-              <small data-i18n="dl_linux_hint">Run in terminal: bash vokter-linux.sh</small>
-            </div>
-            <span class="dl-arrow">↓</span>
-          </a>
-        </div>
-      </div>
-    </div>
-
-    <div class="istep">
-      <div class="istep-num">3</div>
-      <div class="istep-body">
-        <h3 data-i18n="step3_h3">Your browser opens automatically</h3>
-        <div class="done-box" data-i18n-html="step3_box">
-          The installer asks you to choose an AI model — <strong>Compact (~800 MB)</strong>
-          for fast downloads and 8 GB machines, or <strong>Standard (~2 GB)</strong>
-          for better quality. This download happens only once.<br><br>
-          It also generates a <strong>unique encryption key</strong> for your data
-          and opens Vokter at <strong>http://localhost:8080</strong> automatically.<br><br>
-          Next time, Vokter starts automatically when you open Docker Desktop.
-          <strong>No need to run the installer again.</strong>
-        </div>
-      </div>
-    </div>
-
-    <div class="coming-soon">
-      <span class="coming-soon-icon">📱</span>
+  <!-- WHY / HONEYPOT ARGUMENT -->
+  <section class="honeypot" id="why">
+    <div class="wrap hp-inner">
       <div>
-        <strong data-i18n="soon_android_title">Android &amp; tablet app — coming soon</strong>
-        <span data-i18n="soon_android_sub">Connect to your home Vokter from your phone or tablet, anywhere on your local network.</span>
+        <span class="eyebrow" data-en>The problem</span><span class="eyebrow" data-es>El problema</span>
+        <p class="hp-quote" style="margin-top:20px">
+          <span data-en>An AI that knows everything about you is <em>the most valuable target</em> ever built. So it shouldn't live on someone else's server.</span>
+          <span data-es>Una IA que lo sabe todo de ti es <em>el objetivo más valioso</em> jamás construido. Por eso no debería vivir en el servidor de otro.</span>
+        </p>
+      </div>
+      <div class="hp-body">
+        <p data-en>Every cloud assistant is a bargain: convenience in exchange for your private life, held on infrastructure you don't control, under a jurisdiction that isn't yours.</p>
+        <p data-es>Cada asistente en la nube es un trato: comodidad a cambio de tu vida privada, guardada en infraestructura que no controlas, bajo una jurisdicción que no es la tuya.</p>
+        <p data-en><strong>Vokter refuses the bargain.</strong> Your conversations, your documents, your memory, and your keys stay on your machine — protected like a vault, not stored like a product.</p>
+        <p data-es><strong>Vokter rechaza el trato.</strong> Tus conversaciones, tus documentos, tu memoria y tus llaves se quedan en tu máquina — protegidos como una caja fuerte, no almacenados como un producto.</p>
       </div>
     </div>
+  </section>
 
-    <div class="coming-soon">
-      <span class="coming-soon-icon">🔒</span>
-      <div>
-        <strong data-i18n="soon_tee_title">Sovereign cloud compute — coming soon</strong>
-        <span data-i18n="soon_tee_sub">No local hardware? Pay per use for confidential compute in a TEE (Trusted Execution Environment). You receive cryptographic proof from the chip itself that your data is private — not a promise, not a policy. Audited by independent security firms.</span>
+  <!-- CAPABILITIES -->
+  <section id="what">
+    <div class="wrap">
+      <span class="eyebrow" data-en>What it does</span><span class="eyebrow" data-es>Qué hace</span>
+      <h2 data-en>A real assistant, not a chatbot in a box.</h2>
+      <h2 data-es>Un asistente de verdad, no un chatbot en una caja.</h2>
+      <p class="section-lede" data-en>You talk to it by voice or text. It reads your documents, remembers what matters, and — with your say-so — acts across the tools you already use.</p>
+      <p class="section-lede" data-es>Le hablas por voz o texto. Lee tus documentos, recuerda lo que importa y — con tu permiso — actúa sobre las herramientas que ya usas.</p>
+
+      <div class="caps">
+        <div class="cap">
+          <svg class="ci" viewBox="0 0 24 24" fill="none"><path d="M12 2a4 4 0 00-4 4v6a4 4 0 008 0V6a4 4 0 00-4-4z" stroke="currentColor" stroke-width="1.6"/><path d="M5 11a7 7 0 0014 0M12 18v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <h3 data-en>Talks with you</h3><h3 data-es>Conversa contigo</h3>
+          <p data-en>Natural voice in and out, or plain text. Local speech, local hearing — no audio ever uploaded.</p>
+          <p data-es>Voz natural de entrada y salida, o texto. Habla y escucha en local — ningún audio sale a la nube.</p>
+        </div>
+        <div class="cap">
+          <svg class="ci" viewBox="0 0 24 24" fill="none"><path d="M4 4h11l5 5v11a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1z" stroke="currentColor" stroke-width="1.6"/><path d="M14 4v5h5M7 13h10M7 17h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <h3 data-en>Reads your documents</h3><h3 data-es>Lee tus documentos</h3>
+          <p data-en>Ask questions about your own files and get grounded answers, with citations — indexed entirely on-device.</p>
+          <p data-es>Pregunta sobre tus propios archivos y obtén respuestas fundamentadas, con citas — indexado por completo en el dispositivo.</p>
+        </div>
+        <div class="cap">
+          <svg class="ci" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <h3 data-en>Remembers what matters</h3><h3 data-es>Recuerda lo que importa</h3>
+          <p data-en>A private memory that persists across conversations — and only ever grows when you say so.</p>
+          <p data-es>Una memoria privada que persiste entre conversaciones — y solo crece cuando tú lo dices.</p>
+        </div>
+        <div class="cap">
+          <svg class="ci" viewBox="0 0 24 24" fill="none"><path d="M21 12a9 9 0 11-9-9M21 3l-9 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M15 3h6v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <h3 data-en>Browses the web</h3><h3 data-es>Navega la web</h3>
+          <p data-en>Fetches and reads live pages on your behalf, with guardrails against reaching into your local network.</p>
+          <p data-es>Busca y lee páginas en vivo por ti, con salvaguardas para no alcanzar tu red local.</p>
+        </div>
+        <div class="cap">
+          <svg class="ci" viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="13" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M3 8l9 6 9-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <h3 data-en>Handles email <span class="soon" data-en>preview</span></h3><h3 data-es>Gestiona el correo <span class="soon" data-es>preview</span></h3>
+          <p data-en>Reads and drafts through your own account — a connector you switch on, not a middleman.</p>
+          <p data-es>Lee y redacta desde tu propia cuenta — un conector que enciendes, no un intermediario.</p>
+        </div>
+        <div class="cap">
+          <svg class="ci" viewBox="0 0 24 24" fill="none"><path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.6"/></svg>
+          <h3 data-en>Holds a wallet</h3><h3 data-es>Lleva una cartera</h3>
+          <p data-en>Self-custodial and Bitcoin-native. Any payment needs your explicit confirmation — never an agent's.</p>
+          <p data-es>Autocustodia, nativa en Bitcoin. Todo pago exige tu confirmación explícita — nunca la de un agente.</p>
+        </div>
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<section class="vision" id="vision">
-  <div class="vision-inner">
-    <h2 data-i18n="vis_h2">The future of your agent</h2>
-    <p class="vision-sub" data-i18n="vis_sub">Where Vokter is going: your agent negotiates for you with the AI agents of every service — never revealing your personal data to anyone.</p>
-    <div class="vision-badge" data-i18n="vis_badge">🔮 Future vision</div>
-    <div class="vision-grid">
-      <div class="vision-card">
-        <div class="vision-card-icon">✈️</div>
-        <h3 data-i18n="v1_title">Plan your trip to the Alps</h3>
-        <p class="vision-card-desc" data-i18n="v1_desc">Tell Vokter where you want to go. It checks the weather, suggests what to pack for the snow, and books everything.</p>
-        <div class="vision-card-agents"><span class="agents-label" data-i18n="vis_agents">Talks with:</span> <span data-i18n="v1_agents">Airline AI · Hotel AI · Experiences AI</span></div>
+  <!-- SECURITY LEDGER -->
+  <section id="security" style="background:var(--bg-raised); border-top:1px solid var(--line); border-bottom:1px solid var(--line)">
+    <div class="wrap">
+      <span class="eyebrow" data-en>How it's protected</span><span class="eyebrow" data-es>Cómo se protege</span>
+      <h2 data-en>Built like a vault, not a database.</h2>
+      <h2 data-es>Construido como una caja fuerte, no una base de datos.</h2>
+      <p class="section-lede" data-en>Because a private agent is only as good as its weakest door, we treat every path your data could take as something to lock — and prove locked.</p>
+      <p class="section-lede" data-es>Porque un agente privado vale lo que su puerta más débil, tratamos cada camino que tus datos podrían tomar como algo que cerrar — y demostrar cerrado.</p>
+
+      <div class="ledger">
+        <div class="ledger-row">
+          <div class="ledger-k">
+            <svg viewBox="0 0 24 24" fill="none"><rect x="4" y="10" width="16" height="11" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M8 10V7a4 4 0 018 0v3" stroke="currentColor" stroke-width="1.7"/></svg>
+            <span data-en>Encrypted at rest</span><span data-es>Cifrado en reposo</span>
+          </div>
+          <div class="ledger-v" data-en>Your database is encrypted with a key held in your system keyring — not in a file, not in the cloud, not readable by another process.</div>
+          <div class="ledger-v" data-es>Tu base de datos se cifra con una llave guardada en el llavero del sistema — no en un fichero, no en la nube, no legible por otro proceso.</div>
+        </div>
+        <div class="ledger-row">
+          <div class="ledger-k">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 2l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V5z" stroke="currentColor" stroke-width="1.7"/></svg>
+            <span data-en>Sandboxed</span><span data-es>Aislado</span>
+          </div>
+          <div class="ledger-v" data-en>The whole agent runs under an OS-level confinement profile, so a compromised page or tool can't wander into the rest of your system.</div>
+          <div class="ledger-v" data-es>Todo el agente corre bajo un perfil de confinamiento del sistema, para que una página o herramienta comprometida no pueda pasearse por el resto de tu equipo.</div>
+        </div>
+        <div class="ledger-row">
+          <div class="ledger-k">
+            <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+            <span data-en>Memory can't leak</span><span data-es>La memoria no se filtra</span>
+          </div>
+          <div class="ledger-v" data-en>What Vokter remembers about you is released only to you, in your local session — never to a connected agent, tool, or peer. Enforced, and tested.</div>
+          <div class="ledger-v" data-es>Lo que Vokter recuerda de ti se entrega solo a ti, en tu sesión local — nunca a un agente, herramienta o par conectado. Impuesto, y con test.</div>
+        </div>
+        <div class="ledger-row">
+          <div class="ledger-k">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M6 12l4 4 8-8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span data-en>You confirm actions</span><span data-es>Tú confirmas las acciones</span>
+          </div>
+          <div class="ledger-v" data-en>Anything with a consequence — spending money, sending a message — waits for a human yes. An agent can propose; only you dispose.</div>
+          <div class="ledger-v" data-es>Todo lo que tiene consecuencias — gastar dinero, enviar un mensaje — espera un sí humano. Un agente propone; solo tú dispones.</div>
+        </div>
       </div>
-      <div class="vision-card">
-        <div class="vision-card-icon">🚗</div>
-        <h3 data-i18n="v2_title">Strange noise in the engine</h3>
-        <p class="vision-card-desc" data-i18n="v2_desc">Vokter identifies the part, finds the best price across online stores, and negotiates the repair slot with local mechanics.</p>
-        <div class="vision-card-agents"><span class="agents-label" data-i18n="vis_agents">Talks with:</span> <span data-i18n="v2_agents">Parts store AIs · Mechanic AIs</span></div>
-      </div>
-      <div class="vision-card">
-        <div class="vision-card-icon">👗</div>
-        <h3 data-i18n="v3_title">Carnival outfit needed</h3>
-        <p class="vision-card-desc" data-i18n="v3_desc">Vokter knows your style and size, compares shops, negotiates prices, and pays — with crypto — when you say yes.</p>
-        <div class="vision-card-agents"><span class="agents-label" data-i18n="vis_agents">Talks with:</span> <span data-i18n="v3_agents">Shop AIs · Payment network</span></div>
-      </div>
-      <div class="vision-card">
-        <div class="vision-card-icon">🎭</div>
-        <h3 data-i18n="v4_title">Concert tickets</h3>
-        <p class="vision-card-desc" data-i18n="v4_desc">Vokter monitors seat availability, connects with the venue's AI to secure the best seats, and confirms without queuing.</p>
-        <div class="vision-card-agents"><span class="agents-label" data-i18n="vis_agents">Talks with:</span> <span data-i18n="v4_agents">Theater AI · Ticketing AI</span></div>
-      </div>
-      <div class="vision-card">
-        <div class="vision-card-icon">🏥</div>
-        <h3 data-i18n="v5_title">Find the right specialist</h3>
-        <p class="vision-card-desc" data-i18n="v5_desc">Describe your need. Vokter finds relevant specialists near you and books your appointment through their AI.</p>
-        <div class="vision-card-agents"><span class="agents-label" data-i18n="vis_agents">Talks with:</span> <span data-i18n="v5_agents">Clinic AIs · Booking AI</span></div>
-      </div>
-      <div class="vision-card">
-        <div class="vision-card-icon">🏠</div>
-        <h3 data-i18n="v6_title">Too expensive? Let's fix that</h3>
-        <p class="vision-card-desc" data-i18n="v6_desc">Vokter audits your subscriptions and bills, finds better deals, and switches providers — always with your approval.</p>
-        <div class="vision-card-agents"><span class="agents-label" data-i18n="vis_agents">Talks with:</span> <span data-i18n="v6_agents">Energy AI · Telecom AI · Bank AI</span></div>
+
+      <div class="callout">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7v6c0 5 4 8.5 10 10 6-1.5 10-5 10-10V7z" stroke="currentColor" stroke-width="1.6"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <p>
+          <span data-en><strong>Open by design.</strong> Every claim here is code you can read. Vokter is AGPL-licensed and its security model is written down, reviewed, and continuously tested against regression.</span>
+          <span data-es><strong>Abierto por diseño.</strong> Cada afirmación aquí es código que puedes leer. Vokter es AGPL y su modelo de seguridad está escrito, revisado y probado de forma continua contra regresiones.</span>
+        </p>
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<section class="features" id="features">
-  <h2 data-i18n="feat_h2">Everything runs locally</h2>
-  <p data-i18n="feat_sub">Vokter is not a wrapper around a cloud AI. It is a complete local stack.</p>
-  <div class="feat-grid">
-    <div class="feat"><div class="feat-icon">📄</div><h3 data-i18n="f1_h">Document memory</h3><p data-i18n="f1_p">Ingest PDF, TXT, Markdown. Chunked, embedded, and stored with AES-256 encryption. Real deletion — embeddings included.</p></div>
-    <div class="feat"><div class="feat-icon">💬</div><h3 data-i18n="f2_h">Local chat</h3><p data-i18n="f2_p">Ask questions about your documents. Persistent conversation history per session. Answers cite their sources.</p></div>
-    <div class="feat"><div class="feat-icon">📧</div><h3 data-i18n="f3_h">Email connector</h3><p data-i18n="f3_p">IMAP/SSL — syncs and indexes your inbox locally. Ask Vokter about your emails without any cloud service seeing them.</p></div>
-    <div class="feat"><div class="feat-icon">🎤</div><h3 data-i18n="f4_h">Local voice</h3><p data-i18n="f4_p">Talk to Vokter with Whisper (speech-to-text) and Piper (text-to-speech). Your voice never leaves the machine.</p></div>
-    <div class="feat"><div class="feat-icon">🌐</div><h3 data-i18n="f5_h">Web browsing</h3><p data-i18n="f5_p">Fetch and memorize web pages. Allowlist-only — Vokter only visits domains you explicitly permit.</p></div>
-    <div class="feat"><div class="feat-icon">🗓️</div><h3 data-i18n="f6_h">Task planner</h3><p data-i18n="f6_p">Give Vokter a goal. It breaks it into steps, browses, queries its memory, and streams the result back.</p></div>
-    <div class="feat"><div class="feat-icon">💸</div><h3 data-i18n="f7_h">Non-custodial wallet</h3><p data-i18n="f7_p">Cashu e-cash, Lightning, EURC/EURe, Solana, Monero, Bitcoin. Human confirmation always. Your keys never leave.</p></div>
-    <div class="feat"><div class="feat-icon">⏰</div><h3 data-i18n="f8_h">Scheduled tasks</h3><p data-i18n="f8_p">Set recurring goals — daily digest, price alerts, email summaries. Vokter runs them autonomously and saves the output.</p></div>
-    <div class="feat"><div class="feat-icon">🔌</div><h3 data-i18n="f9_h">MCP + Nostr</h3><p data-i18n="f9_p">Connect Vokter to Claude Desktop via MCP. Or send it encrypted DMs on Nostr — it responds using your local tools.</p></div>
-  </div>
-</section>
+  <!-- LANGUAGES -->
+  <section id="languages">
+    <div class="wrap">
+      <span class="eyebrow" data-en>In your language</span><span class="eyebrow" data-es>En tu idioma</span>
+      <h2 data-en>It should speak your language — not just English.</h2>
+      <h2 data-es>Debería hablar tu idioma — no solo inglés.</h2>
+      <p class="section-lede" data-en>Most assistants think in English and translate the rest. Vokter talks, listens, and reasons natively in seven languages today — voice, transcription, and thought, all switched by a single setting.</p>
+      <p class="section-lede" data-es>La mayoría de asistentes piensan en inglés y traducen el resto. Vokter habla, escucha y razona de forma nativa en siete idiomas hoy — voz, transcripción y pensamiento, todo con un solo ajuste.</p>
 
-<section class="principles" id="principles">
-  <div class="principles-inner">
-    <h2 data-i18n="pr_h2">Non-negotiable principles</h2>
-    <div>
-      <p data-i18n="pr_sub">These are architectural constraints, not marketing claims. They cannot be changed without forking the project.</p>
-      <ul class="principle-list">
-        <li><span class="pl-num">1</span><div class="pl-text"><strong data-i18n="p1_h">Local first</strong><span data-i18n="p1_p">Everything runs on your hardware by default. No setting can change this.</span></div></li>
-        <li><span class="pl-num">2</span><div class="pl-text"><strong data-i18n="p2_h">Zero hidden calls</strong><span data-i18n="p2_p">No requests to third-party AI APIs. Check the code — that's the point.</span></div></li>
-        <li><span class="pl-num">3</span><div class="pl-text"><strong data-i18n="p3_h">Your keys, your money</strong><span data-i18n="p3_p">Non-custodial or nothing. Vokter never holds your funds.</span></div></li>
-        <li><span class="pl-num">4</span><div class="pl-text"><strong data-i18n="p4_h">Real deletion</strong><span data-i18n="p4_p">Delete means delete. Embeddings, history, everything. No soft deletes.</span></div></li>
-        <li><span class="pl-num">5</span><div class="pl-text"><strong data-i18n="p5_h">Open source</strong><span data-i18n="p5_p">AGPL-3.0. We don't ask for your trust — we give you proof.</span></div></li>
-        <li><span class="pl-num">6</span><div class="pl-text"><strong data-i18n="p6_h">For your life, not to retain you</strong><span data-i18n="p6_p">No engagement mechanics. No exploiting loneliness. Vokter gives you back time.</span></div></li>
-      </ul>
+      <div class="langs">
+        <span class="lang-chip"><span class="flag">🇬🇧</span> English</span>
+        <span class="lang-chip"><span class="flag">🇪🇸</span> Español</span>
+        <span class="lang-chip"><span class="flag">🇫🇷</span> Français</span>
+        <span class="lang-chip"><span class="flag">🇩🇪</span> Deutsch</span>
+        <span class="lang-chip"><span class="flag">🇮🇹</span> Italiano</span>
+        <span class="lang-chip"><span class="flag">🇵🇹</span> Português</span>
+        <span class="lang-chip"><span class="flag">🇳🇱</span> Nederlands</span>
+        <span class="lang-chip pending"><span class="flag">🏴󠁥󠁳󠁣󠁴󠁿</span> Català <span data-en>· soon</span><span data-es>· pronto</span></span>
+      </div>
+      <p class="lang-note">
+        <span data-en>More languages arrive as local models improve — Catalan, Galician, Basque and Greek are on the roadmap, each returning the day a model reasons in it well enough to deserve you.</span>
+        <span data-es>Llegarán más idiomas según mejoren los modelos locales — catalán, gallego, euskera y griego están en la hoja de ruta, cada uno de vuelta el día que un modelo lo razone lo bastante bien como para merecerte.</span>
+      </p>
     </div>
-  </div>
-</section>
+  </section>
 
-<section class="hardware" id="hardware">
-  <h2 data-i18n="hw_h2">Hardware guide</h2>
-  <p data-i18n="hw_sub">Vokter runs on any machine that can run Docker. No GPU required.</p>
-  <table>
-    <thead>
-      <tr><th data-i18n="hw_col_ram">RAM</th><th data-i18n="hw_col_model">Recommended model</th><th data-i18n="hw_col_speed">Speed</th></tr>
-    </thead>
-    <tbody>
-      <tr><td>8 GB</td><td><code>llama3.2:3b</code> or <code>qwen2.5:3b</code></td><td data-i18n="hw_r1_speed">Fast on CPU</td></tr>
-      <tr><td>16 GB</td><td><code>mistral</code> or <code>llama3.1:8b</code></td><td data-i18n="hw_r2_speed">Good quality</td></tr>
-      <tr><td>32 GB+</td><td><code>llama3.1:70b</code> (quantized)</td><td data-i18n="hw_r3_speed">Excellent quality</td></tr>
-      <tr><td>NVIDIA GPU</td><td data-i18n="hw_r4_model">Any model above</td><td data-i18n="hw_r4_speed">5–10× faster</td></tr>
-    </tbody>
-  </table>
-</section>
+  <!-- INSTALL -->
+  <section class="install" id="install">
+    <div class="wrap">
+      <span class="eyebrow" data-en>Get it running</span><span class="eyebrow" data-es>Ponlo en marcha</span>
+      <h2 data-en>One download. No Docker, no account, no setup ritual.</h2>
+      <h2 data-es>Una descarga. Sin Docker, sin cuenta, sin ritual de instalación.</h2>
+      <p class="section-lede" data-en>Vokter ships as a native package. Install it, and on first launch it fetches its local models and starts — after that, it works fully offline.</p>
+      <p class="section-lede" data-es>Vokter se distribuye como un paquete nativo. Instálalo, y al primer arranque descarga sus modelos locales y arranca — después, funciona del todo sin conexión.</p>
 
-<div class="manifesto-strip">
-  <blockquote data-i18n-html="manifesto_quote">
-    "There's a right older than the internet: <strong>what is yours cannot be taken</strong>.
-    Norwegians call it <em>odel</em> — the land that no crown, bank, or lord can wrest
-    from a family, protected in their Constitution for centuries.
-    A thousand years later, we apply that right to your digital life."
-  </blockquote>
-  <a href="MANIFESTO.html" data-i18n="manifesto_link">Read the full manifesto →</a>
-</div>
+      <div class="terminal">
+        <div class="term-bar">
+          <span class="d"></span><span class="d"></span><span class="d"></span>
+          <span class="name">bash — install Vokter</span>
+        </div>
+        <div class="term-body">
+          <div><span class="cmt" data-en># download the .deb from the releases page, then:</span><span class="cmt" data-es># descarga el .deb de releases, y luego:</span></div>
+          <div><span class="pr">$</span> <span class="cmd">sudo apt install ./vokter-desktop_amd64.deb</span></div>
+          <div><span class="pr">$</span> <span class="cmd">vokter-desktop</span></div>
+          <div><span class="out" data-en">→ fetching local models…  ✓ ready — everything runs on your machine.</span><span class="out" data-es">→ descargando modelos locales…  ✓ listo — todo corre en tu máquina.</span></div>
+        </div>
+      </div>
+
+      <div class="install-cards">
+        <a class="ic" href="https://github.com/vokter-eu/Vokter/releases" target="_blank" rel="noopener">
+          <span class="os"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 4a2.5 2.5 0 110 5 2.5 2.5 0 010-5zm0 13c-2.5 0-4.7-1.3-6-3.2.03-2 4-3.1 6-3.1s5.97 1.1 6 3.1c-1.3 1.9-3.5 3.2-6 3.2z"/></svg> Linux</span>
+          <span class="fmt">.deb · .AppImage</span>
+        </a>
+        <span class="ic disabled">
+          <span class="os"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 1c-1.3.1-2.8.9-3.7 2-.8.9-1.5 2.3-1.2 3.6 1.4.1 2.9-.7 3.7-1.8.8-1 1.4-2.4 1.2-3.8zM19.7 17c-.6 1.4-1 2-1.8 3.2-1.1 1.7-2.7 3.8-4.6 3.8-1.7 0-2.1-1.1-4.4-1.1s-2.8 1.1-4.4 1.1c-1.9 0-3.4-1.9-4.5-3.6C-.7 16.8-1 11.3 1.4 8.4c1-1.4 2.8-2.3 4.5-2.3 1.8 0 2.9 1.1 4.4 1.1 1.4 0 2.3-1.1 4.4-1.1 1.5 0 3.1.8 4.2 2.2-3.7 2-3.1 7.3.4 8.7z"/></svg> macOS</span>
+          <span class="fmt" data-en>coming soon</span><span class="fmt" data-es>pronto</span>
+        </span>
+        <span class="ic disabled">
+          <span class="os"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.5L10.5 4.5V11.5H3V5.5zM11.5 4.3L21 3V11.5H11.5V4.3zM3 12.5H10.5V19.5L3 18.5V12.5zM11.5 12.5H21V21L11.5 19.7V12.5z"/></svg> Windows</span>
+          <span class="fmt" data-en>coming soon</span><span class="fmt" data-es>pronto</span>
+        </span>
+      </div>
+
+      <div class="callout">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+        <p>
+          <span data-en><strong>Honest status:</strong> Vokter is under active development. It's real, it runs, and it's yours to try today — but it's still growing, and you may hit rough edges. That's the deal, and we'd rather tell you than pretend.</span>
+          <span data-es><strong>Estado honesto:</strong> Vokter está en desarrollo activo. Es real, funciona y puedes probarlo hoy — pero sigue creciendo y puede que encuentres asperezas. Ese es el trato, y preferimos decírtelo a fingir.</span>
+        </p>
+      </div>
+    </div>
+  </section>
+</main>
 
 <footer>
-  <span>🛡️ Vokter — <span data-i18n="footer_tagline">an independent European project</span></span>
-  <div class="footer-links">
-    <a href="https://github.com/vokter-eu/Vokter" target="_blank">GitHub</a>
-    <a href="MANIFESTO.html" data-i18n="nav_manifesto">Manifesto</a>
-    <a href="https://github.com/vokter-eu/Vokter/blob/main/CONTRIBUTING.md" target="_blank" data-i18n="footer_contribute">Contribute</a>
-    <a href="https://github.com/vokter-eu/Vokter/blob/main/LICENSE" target="_blank">AGPL-3.0</a>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <div class="brand">
+          <span class="mark">
+            <svg viewBox="0 0 32 32" fill="none">
+              <path d="M16 2 L28 8 V17 C28 24 22 29 16 31 C10 29 4 24 4 17 V8 Z" stroke="var(--accent)" stroke-width="1.7" fill="color-mix(in srgb, var(--accent) 8%, transparent)"/>
+              <path d="M11 15 l4 5 6-9" stroke="var(--accent)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          Vokter
+        </div>
+        <p class="creed-mini">
+          <span data-en>vokter — norwegian for "guardian"</span>
+          <span data-es>vokter — "guardián" en noruego</span>
+        </p>
+      </div>
+      <div class="foot-links">
+        <div class="foot-col">
+          <h4 data-en>Product</h4><h4 data-es>Producto</h4>
+          <a href="#why" data-en>Why sovereign</a><a href="#why" data-es>Por qué soberano</a>
+          <a href="#security" data-en>Security</a><a href="#security" data-es>Seguridad</a>
+          <a href="#languages" data-en>Languages</a><a href="#languages" data-es>Idiomas</a>
+          <a href="#install" data-en>Download</a><a href="#install" data-es>Descargar</a>
+        </div>
+        <div class="foot-col">
+          <h4 data-en>Open source</h4><h4 data-es>Código abierto</h4>
+          <a href="https://github.com/vokter-eu/Vokter" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://github.com/vokter-eu/Vokter/blob/main/LICENSE" target="_blank" rel="noopener" data-en>License (AGPL-3.0)</a>
+          <a href="https://github.com/vokter-eu/Vokter/blob/main/LICENSE" target="_blank" rel="noopener" data-es>Licencia (AGPL-3.0)</a>
+          <a href="MANIFESTO.html" data-en>Manifesto</a><a href="MANIFIESTO.md" data-es>Manifiesto</a>
+        </div>
+      </div>
+    </div>
+    <div class="foot-base">
+      <span>© 2026 Vokter · vokter.eu</span>
+      <span data-en>No account · No telemetry · No cloud · By right.</span>
+      <span data-es>Sin cuenta · Sin telemetría · Sin nube · Por derecho.</span>
+    </div>
   </div>
 </footer>
 
 <script>
-const T = {
-  en: {
-    page_title: "Vokter — Your AI. Your machine. Your data.",
-    nav_download: "Download", nav_features: "Features", nav_principles: "Principles",
-    nav_manifesto: "Manifesto", nav_github: "View on GitHub →",
-    badge_european: "European project",
-    hero_h1: "Your AI.<br><em>Your machine.</em><br>Your data. By right.",
-    hero_sub: "Vokter is a sovereign AI agent that runs entirely on your hardware. No cloud. No accounts. No telemetry. Not a single byte leaves your machine without your explicit permission.",
-    hero_cta_download: "Download Vokter — free", hero_cta_github: "★ Star on GitHub",
-    install_h2: "Set up in 3 steps — no technical knowledge needed",
-    install_sub: "Total time: about 10 minutes, mostly waiting for downloads.",
-    step1_h3: "Install Docker Desktop — it's free",
-    step1_p: "Docker is a free app that lets Vokter run safely in its own space on your computer. Install it like any normal app. You only do this once.",
-    docker_mac: "Docker for Mac", docker_win: "Docker for Windows", docker_linux: "Docker for Linux",
-    step2_h3: "Download and open the Vokter installer",
-    step2_p: "Download the file for your computer. Open it. The installer does everything for you — no setup, no typing, no configuration.",
-    dl_mac_title: "Download for Mac", dl_mac_hint: "Unzip → double-click \"vokter-mac.command\". First time: right-click → Open",
-    dl_win_title: "Download for Windows", dl_win_hint: "Double-click the downloaded file. If Windows asks, click \"More info → Run anyway\"",
-    dl_linux_title: "Download for Linux", dl_linux_hint: "Run in terminal: bash vokter-linux.sh",
-    step3_h3: "Your browser opens automatically",
-    step3_box: "The installer asks you to choose an AI model — <strong>Compact (~800 MB)</strong> for fast downloads and 8 GB machines, or <strong>Standard (~2 GB)</strong> for better quality. This download happens only once.<br><br>It also generates a <strong>unique encryption key</strong> for your data and opens Vokter at <strong>http://localhost:8080</strong> automatically.<br><br>Next time, Vokter starts automatically when you open Docker Desktop. <strong>No need to run the installer again.</strong>",
-    soon_android_title: "Android & tablet app — coming soon", soon_android_sub: "Connect to your home Vokter from your phone or tablet, anywhere on your local network.",
-    soon_tee_title: "Sovereign cloud compute — coming soon", soon_tee_sub: "No local hardware? Pay per use for confidential compute in a TEE (Trusted Execution Environment). You receive cryptographic proof from the chip itself that your data is private — not a promise, not a policy. Audited by independent security firms.",
-    feat_h2: "Everything runs locally", feat_sub: "Vokter is not a wrapper around a cloud AI. It is a complete local stack.",
-    f1_h: "Document memory", f1_p: "Ingest PDF, TXT, Markdown. Chunked, embedded, and stored with AES-256 encryption. Real deletion — embeddings included.",
-    f2_h: "Local chat", f2_p: "Ask questions about your documents. Persistent conversation history per session. Answers cite their sources.",
-    f3_h: "Email connector", f3_p: "IMAP/SSL — syncs and indexes your inbox locally. Ask Vokter about your emails without any cloud service seeing them.",
-    f4_h: "Local voice", f4_p: "Talk to Vokter with Whisper (speech-to-text) and Piper (text-to-speech). Your voice never leaves the machine.",
-    f5_h: "Web browsing", f5_p: "Fetch and memorize web pages. Allowlist-only — Vokter only visits domains you explicitly permit.",
-    f6_h: "Task planner", f6_p: "Give Vokter a goal. It breaks it into steps, browses, queries its memory, and streams the result back.",
-    f7_h: "Non-custodial wallet", f7_p: "Cashu e-cash, Lightning, EURC/EURe, Solana, Monero, Bitcoin. Human confirmation always. Your keys never leave.",
-    f8_h: "Scheduled tasks", f8_p: "Set recurring goals — daily digest, price alerts, email summaries. Vokter runs them autonomously and saves the output.",
-    f9_h: "MCP + Nostr", f9_p: "Connect Vokter to Claude Desktop via MCP. Or send it encrypted DMs on Nostr — it responds using your local tools.",
-    pr_h2: "Non-negotiable principles", pr_sub: "These are architectural constraints, not marketing claims. They cannot be changed without forking the project.",
-    p1_h: "Local first", p1_p: "Everything runs on your hardware by default. No setting can change this.",
-    p2_h: "Zero hidden calls", p2_p: "No requests to third-party AI APIs. Check the code — that's the point.",
-    p3_h: "Your keys, your money", p3_p: "Non-custodial or nothing. Vokter never holds your funds.",
-    p4_h: "Real deletion", p4_p: "Delete means delete. Embeddings, history, everything. No soft deletes.",
-    p5_h: "Open source", p5_p: "AGPL-3.0. We don't ask for your trust — we give you proof.",
-    p6_h: "For your life, not to retain you", p6_p: "No engagement mechanics. No exploiting loneliness. Vokter gives you back time.",
-    hw_h2: "Hardware guide", hw_sub: "Vokter runs on any machine that can run Docker. No GPU required.",
-    hw_col_ram: "RAM", hw_col_model: "Recommended model", hw_col_speed: "Speed",
-    hw_r1_speed: "Fast on CPU", hw_r2_speed: "Good quality", hw_r3_speed: "Excellent quality",
-    hw_r4_model: "Any model above", hw_r4_speed: "5–10× faster",
-    manifesto_quote: "“There’s a right older than the internet: <strong>what is yours cannot be taken</strong>. Norwegians call it <em>odel</em> — the land that no crown, bank, or lord can wrest from a family, protected in their Constitution for centuries. A thousand years later, we apply that right to your digital life.”",
-    manifesto_link: "Read the full manifesto →",
-    footer_tagline: "an independent European project", footer_contribute: "Contribute",
-    vis_h2: "The future of your agent",
-    vis_sub: "Where Vokter is going: your agent negotiates for you with the AI agents of every service — never revealing your personal data to anyone.",
-    vis_badge: "🔮 Future vision",
-    vis_agents: "Talks with:",
-    v1_title: "Plan your trip to the Alps", v1_desc: "Tell Vokter where you want to go. It checks the weather, suggests what to pack for the snow, and books everything.", v1_agents: "Airline AI · Hotel AI · Experiences AI",
-    v2_title: "Strange noise in the engine", v2_desc: "Vokter identifies the part, finds the best price across online stores, and negotiates the repair slot with local mechanics.", v2_agents: "Parts store AIs · Mechanic AIs",
-    v3_title: "Carnival outfit needed", v3_desc: "Vokter knows your style and size, compares shops, negotiates prices, and pays — with crypto — when you say yes.", v3_agents: "Shop AIs · Payment network",
-    v4_title: "Concert tickets", v4_desc: "Vokter monitors seat availability, connects with the venue's AI to secure the best seats, and confirms without queuing.", v4_agents: "Theater AI · Ticketing AI",
-    v5_title: "Find the right specialist", v5_desc: "Describe your need. Vokter finds relevant specialists near you and books your appointment through their AI.", v5_agents: "Clinic AIs · Booking AI",
-    v6_title: "Too expensive? Let's fix that", v6_desc: "Vokter audits your subscriptions and bills, finds better deals, and switches providers — always with your approval.", v6_agents: "Energy AI · Telecom AI · Bank AI"
-  },
-
-  es: {
-    page_title: "Vokter — Tu IA. Tu máquina. Tus datos.",
-    nav_download: "Descargar", nav_features: "Funciones", nav_principles: "Principios",
-    nav_manifesto: "Manifiesto", nav_github: "Ver en GitHub →",
-    badge_european: "Proyecto europeo",
-    hero_h1: "Tu IA.<br><em>Tu máquina.</em><br>Tus datos. Por derecho.",
-    hero_sub: "Vokter es un agente de IA soberano que se ejecuta completamente en tu ordenador. Sin nube. Sin cuentas. Sin telemetría. Ni un solo byte sale de tu máquina sin tu permiso explícito.",
-    hero_cta_download: "Descargar Vokter — gratis", hero_cta_github: "★ Star en GitHub",
-    install_h2: "En 3 pasos — sin conocimientos técnicos",
-    install_sub: "Tiempo total: unos 10 minutos, la mayoría esperando descargas.",
-    step1_h3: "Instala Docker Desktop — es gratis",
-    step1_p: "Docker es una app gratuita que permite a Vokter ejecutarse de forma segura en tu ordenador. Instálala como cualquier otra aplicación. Solo lo haces una vez.",
-    docker_mac: "Docker para Mac", docker_win: "Docker para Windows", docker_linux: "Docker para Linux",
-    step2_h3: "Descarga y abre el instalador de Vokter",
-    step2_p: "Descarga el archivo para tu ordenador. Ábrelo. El instalador lo hace todo por ti — sin configuración, sin escribir nada.",
-    dl_mac_title: "Descargar para Mac", dl_mac_hint: "Descomprime → doble clic en \"vokter-mac.command\". Primera vez: clic derecho → Abrir",
-    dl_win_title: "Descargar para Windows", dl_win_hint: "Doble clic en el archivo descargado. Si Windows pregunta, pulsa \"Más información → Ejecutar de todas formas\"",
-    dl_linux_title: "Descargar para Linux", dl_linux_hint: "Ejecuta en terminal: bash vokter-linux.sh",
-    step3_h3: "Tu navegador se abre automáticamente",
-    step3_box: "El instalador te pregunta qué modelo de IA quieres — <strong>Compacto (~800 MB)</strong> para descargas rápidas y máquinas de 8 GB, o <strong>Estándar (~2 GB)</strong> para mayor calidad. Esta descarga solo ocurre una vez.<br><br>También genera una <strong>clave de cifrado única</strong> para tus datos y abre Vokter en <strong>http://localhost:8080</strong> automáticamente.<br><br>La próxima vez, Vokter arranca automáticamente con Docker Desktop. <strong>No hace falta volver a ejecutar el instalador.</strong>",
-    soon_android_title: "App para Android y tablet — próximamente", soon_android_sub: "Conéctate a tu Vokter doméstico desde tu móvil o tablet, en cualquier lugar de tu red local.",
-    soon_tee_title: "Compute soberano en la nube — próximamente", soon_tee_sub: "¿Sin hardware local? Paga por uso para computación confidencial en un TEE (Entorno de Ejecución de Confianza). Recibes prueba criptográfica del propio chip de que tus datos son privados — no es una promesa, es matemática. Auditado por empresas de seguridad independientes.",
-    feat_h2: "Todo se ejecuta localmente", feat_sub: "Vokter no es un envoltorio sobre una IA en la nube. Es una pila local completa.",
-    f1_h: "Memoria de documentos", f1_p: "Ingesta PDF, TXT, Markdown. Fragmentado, vectorizado y almacenado con cifrado AES-256. Borrado real — embeddings incluidos.",
-    f2_h: "Chat local", f2_p: "Pregunta sobre tus documentos. Historial de conversación persistente por sesión. Las respuestas citan sus fuentes.",
-    f3_h: "Conector de email", f3_p: "IMAP/SSL — sincroniza e indexa tu bandeja de entrada localmente. Pregunta a Vokter sobre tus emails sin que ningún servicio en la nube los vea.",
-    f4_h: "Voz local", f4_p: "Habla con Vokter mediante Whisper (voz a texto) y Piper (texto a voz). Tu voz nunca sale de la máquina.",
-    f5_h: "Navegación web", f5_p: "Obtén y memoriza páginas web. Solo dominios permitidos — Vokter solo visita los dominios que tú autorices.",
-    f6_h: "Planificador de tareas", f6_p: "Dale un objetivo a Vokter. Lo divide en pasos, navega, consulta su memoria y te devuelve el resultado.",
-    f7_h: "Cartera sin custodia", f7_p: "Cashu e-cash, Lightning, EURC/EURe, Solana, Monero, Bitcoin. Siempre con confirmación humana. Tus claves nunca salen.",
-    f8_h: "Tareas programadas", f8_p: "Define objetivos recurrentes — resumen diario, alertas de precio, resúmenes de email. Vokter los ejecuta de forma autónoma y guarda el resultado.",
-    f9_h: "MCP + Nostr", f9_p: "Conecta Vokter a Claude Desktop mediante MCP. O envíale mensajes directos cifrados por Nostr — responde usando tus herramientas locales.",
-    pr_h2: "Principios no negociables", pr_sub: "Son restricciones arquitectónicas, no afirmaciones de marketing. No pueden cambiarse sin hacer un fork del proyecto.",
-    p1_h: "Local primero", p1_p: "Todo se ejecuta en tu hardware por defecto. Ningún ajuste puede cambiar esto.",
-    p2_h: "Cero llamadas ocultas", p2_p: "Sin peticiones a APIs de IA de terceros. Revisa el código — ese es el punto.",
-    p3_h: "Tus claves, tu dinero", p3_p: "Sin custodia o nada. Vokter nunca tiene tus fondos.",
-    p4_h: "Borrado real", p4_p: "Borrar significa borrar. Embeddings, historial, todo. Sin borrados suaves.",
-    p5_h: "Código abierto", p5_p: "AGPL-3.0. No pedimos tu confianza — te damos la prueba.",
-    p6_h: "Para tu vida, no para retenerte", p6_p: "Sin mecánicas de enganche. Sin explotar la soledad. Vokter te devuelve tiempo.",
-    hw_h2: "Guía de hardware", hw_sub: "Vokter funciona en cualquier máquina que pueda ejecutar Docker. No se necesita GPU.",
-    hw_col_ram: "RAM", hw_col_model: "Modelo recomendado", hw_col_speed: "Velocidad",
-    hw_r1_speed: "Rápido en CPU", hw_r2_speed: "Buena calidad", hw_r3_speed: "Excelente calidad",
-    hw_r4_model: "Cualquiera de los anteriores", hw_r4_speed: "5–10× más rápido",
-    manifesto_quote: "“Existe un derecho más antiguo que internet: <strong>lo que es tuyo no puede ser arrebatado</strong>. Los noruegos lo llaman <em>odel</em> — la tierra que ninguna corona, banco ni señor puede quitarle a una familia, protegida en su Constitución durante siglos. Mil años después, aplicamos ese derecho a tu vida digital.”",
-    manifesto_link: "Leer el manifiesto completo →",
-    footer_tagline: "un proyecto europeo independiente", footer_contribute: "Contribuir",
-    vis_h2: "El futuro de tu agente",
-    vis_sub: "Hacia dónde va Vokter: tu agente negocia por ti con los agentes IA de cada servicio, sin revelar tus datos personales.",
-    vis_badge: "🔮 Visión de futuro",
-    vis_agents: "Habla con:",
-    v1_title: "Planifica tu viaje a los Alpes", v1_desc: "Dile a Vokter dónde quieres ir. Consulta el tiempo, te sugiere qué ropa llevar para la nieve y reserva todo.", v1_agents: "IA Aerolínea · IA Hotel · IA Experiencias",
-    v2_title: "Ruido extraño en el motor", v2_desc: "Vokter identifica la pieza, encuentra el mejor precio en tiendas online y negocia el turno con los mecánicos locales.", v2_agents: "IA Tiendas de piezas · IA Talleres",
-    v3_title: "Disfraz para el Carnaval", v3_desc: "Vokter conoce tu talla y estilo, compara tiendas, negocia precios y paga — con crypto — cuando tú dices sí.", v3_agents: "IA Tiendas · Red de pago",
-    v4_title: "Entradas para el concierto", v4_desc: "Vokter monitoriza disponibilidad, conecta con la IA del teatro para conseguir los mejores asientos y confirma sin colas.", v4_agents: "IA Teatro · IA Ticketing",
-    v5_title: "Encuentra al especialista adecuado", v5_desc: "Describe tu necesidad. Vokter busca especialistas cercanos y reserva tu cita a través de su IA.", v5_agents: "IA Clínicas · IA Reservas",
-    v6_title: "¿Demasiado caro? Lo arreglamos", v6_desc: "Vokter audita tus suscripciones y facturas, encuentra mejores ofertas y cambia de proveedor — siempre con tu aprobación.", v6_agents: "IA Energía · IA Telecom · IA Banca"
-  },
-
-  fr: {
-    page_title: "Vokter — Ton IA. Ta machine. Tes données.",
-    nav_download: "Télécharger", nav_features: "Fonctions", nav_principles: "Principes",
-    nav_manifesto: "Manifeste", nav_github: "Voir sur GitHub →",
-    badge_european: "Projet européen",
-    hero_h1: "Ton IA.<br><em>Ta machine.</em><br>Tes données. Par droit.",
-    hero_sub: "Vokter est un agent IA souverain qui fonctionne entièrement sur votre matériel. Pas de cloud. Pas de comptes. Pas de télémétrie. Pas un seul octet ne quitte votre machine sans votre permission explicite.",
-    hero_cta_download: "Télécharger Vokter — gratuit", hero_cta_github: "★ Star sur GitHub",
-    install_h2: "Installé en 3 étapes — aucune connaissance technique requise",
-    install_sub: "Temps total : environ 10 minutes, principalement des téléchargements.",
-    step1_h3: "Installer Docker Desktop — c'est gratuit",
-    step1_p: "Docker est une application gratuite qui permet à Vokter de fonctionner en sécurité sur votre ordinateur. Installez-le comme n'importe quelle application. Vous ne le faites qu'une seule fois.",
-    docker_mac: "Docker pour Mac", docker_win: "Docker pour Windows", docker_linux: "Docker pour Linux",
-    step2_h3: "Téléchargez et ouvrez l'installateur Vokter",
-    step2_p: "Téléchargez le fichier pour votre ordinateur. Ouvrez-le. L'installateur fait tout pour vous — aucune configuration, aucune saisie.",
-    dl_mac_title: "Télécharger pour Mac", dl_mac_hint: "Décompressez → double-cliquez sur \"vokter-mac.command\". Première fois : clic droit → Ouvrir",
-    dl_win_title: "Télécharger pour Windows", dl_win_hint: "Double-cliquez sur le fichier téléchargé. Si Windows demande, cliquez sur \"Informations complémentaires → Exécuter quand même\"",
-    dl_linux_title: "Télécharger pour Linux", dl_linux_hint: "Exécutez dans le terminal : bash vokter-linux.sh",
-    step3_h3: "Votre navigateur s'ouvre automatiquement",
-    step3_box: "L'installateur vous demande de choisir un modèle IA — <strong>Compact (~800 Mo)</strong> pour des téléchargements rapides et les machines 8 Go, ou <strong>Standard (~2 Go)</strong> pour une meilleure qualité. Ce téléchargement n'a lieu qu'une seule fois.<br><br>Il génère également une <strong>clé de chiffrement unique</strong> pour vos données et ouvre Vokter à <strong>http://localhost:8080</strong> automatiquement.<br><br>La prochaine fois, Vokter démarre automatiquement avec Docker Desktop. <strong>Inutile de relancer l'installateur.</strong>",
-    soon_android_title: "Application Android & tablette — bientôt disponible", soon_android_sub: "Connectez-vous à votre Vokter depuis votre téléphone ou tablette, partout sur votre réseau local.",
-    soon_tee_title: "Calcul souverain dans le cloud — bientôt disponible", soon_tee_sub: "Pas de matériel local ? Payez à l'usage pour un calcul confidentiel dans un TEE (Trusted Execution Environment). Vous recevez une preuve cryptographique du puce elle-même que vos données sont privées — pas une promesse, des mathématiques. Audité par des sociétés de sécurité indépendantes.",
-    feat_h2: "Tout fonctionne localement", feat_sub: "Vokter n'est pas une surcouche autour d'une IA dans le cloud. C'est une pile locale complète.",
-    f1_h: "Mémoire documentaire", f1_p: "Ingérez des PDF, TXT, Markdown. Découpé, vectorisé et stocké avec chiffrement AES-256. Suppression réelle — embeddings inclus.",
-    f2_h: "Chat local", f2_p: "Posez des questions sur vos documents. Historique de conversation persistant par session. Les réponses citent leurs sources.",
-    f3_h: "Connecteur e-mail", f3_p: "IMAP/SSL — synchronise et indexe votre boîte de réception localement. Interrogez Vokter sur vos e-mails sans qu'aucun service cloud ne les voie.",
-    f4_h: "Voix locale", f4_p: "Parlez à Vokter avec Whisper (parole en texte) et Piper (texte en parole). Votre voix ne quitte jamais la machine.",
-    f5_h: "Navigation web", f5_p: "Récupérez et mémorisez des pages web. Liste d'autorisation uniquement — Vokter ne visite que les domaines que vous autorisez.",
-    f6_h: "Planificateur de tâches", f6_p: "Donnez un objectif à Vokter. Il le décompose en étapes, navigue, interroge sa mémoire et vous renvoie le résultat.",
-    f7_h: "Portefeuille non-custodial", f7_p: "Cashu e-cash, Lightning, EURC/EURe, Solana, Monero, Bitcoin. Confirmation humaine toujours. Vos clés ne quittent jamais l'appareil.",
-    f8_h: "Tâches planifiées", f8_p: "Définissez des objectifs récurrents — résumé quotidien, alertes de prix, résumés d'e-mails. Vokter les exécute de manière autonome et sauvegarde le résultat.",
-    f9_h: "MCP + Nostr", f9_p: "Connectez Vokter à Claude Desktop via MCP. Ou envoyez-lui des DMs chiffrés sur Nostr — il répond en utilisant vos outils locaux.",
-    pr_h2: "Principes non négociables", pr_sub: "Ce sont des contraintes architecturales, pas des arguments marketing. Ils ne peuvent pas être modifiés sans forker le projet.",
-    p1_h: "Local d'abord", p1_p: "Tout fonctionne sur votre matériel par défaut. Aucun paramètre ne peut changer cela.",
-    p2_h: "Zéro appel caché", p2_p: "Aucune requête vers des API d'IA tierces. Vérifiez le code — c'est tout le propos.",
-    p3_h: "Vos clés, votre argent", p3_p: "Non-custodial ou rien. Vokter ne détient jamais vos fonds.",
-    p4_h: "Suppression réelle", p4_p: "Supprimer signifie supprimer. Embeddings, historique, tout. Pas de suppression douce.",
-    p5_h: "Open source", p5_p: "AGPL-3.0. Nous ne demandons pas votre confiance — nous vous donnons la preuve.",
-    p6_h: "Pour votre vie, pas pour vous retenir", p6_p: "Pas de mécaniques d'engagement. Pas d'exploitation de la solitude. Vokter vous redonne du temps.",
-    hw_h2: "Guide matériel", hw_sub: "Vokter fonctionne sur toute machine pouvant faire tourner Docker. Pas de GPU nécessaire.",
-    hw_col_ram: "RAM", hw_col_model: "Modèle recommandé", hw_col_speed: "Vitesse",
-    hw_r1_speed: "Rapide sur CPU", hw_r2_speed: "Bonne qualité", hw_r3_speed: "Excellente qualité",
-    hw_r4_model: "N'importe lequel ci-dessus", hw_r4_speed: "5–10× plus rapide",
-    manifesto_quote: "« Il existe un droit plus ancien qu’internet : <strong>ce qui est à vous ne peut vous être pris</strong>. Les Norvégiens l’appellent <em>odel</em> — la terre qu’aucune couronne, banque ou seigneur ne peut arracher à une famille, protégée dans leur Constitution depuis des siècles. Mille ans plus tard, nous appliquons ce droit à votre vie numérique. »",
-    manifesto_link: "Lire le manifeste complet →",
-    footer_tagline: "un projet européen indépendant", footer_contribute: "Contribuer",
-    vis_h2: "L'avenir de ton agent",
-    vis_sub: "Là où Vokter se dirige : ton agent négocie pour toi avec les agents IA de chaque service — sans jamais révéler tes données personnelles.",
-    vis_badge: "🔮 Vision future",
-    vis_agents: "Parle avec :",
-    v1_title: "Planifie ton voyage dans les Alpes", v1_desc: "Dis à Vokter où tu veux aller. Il vérifie la météo, suggère quoi emporter pour la neige et réserve tout.", v1_agents: "IA Compagnie aérienne · IA Hôtel · IA Expériences",
-    v2_title: "Bruit étrange dans le moteur", v2_desc: "Vokter identifie la pièce, trouve le meilleur prix en ligne et négocie le rendez-vous avec les garagistes locaux.", v2_agents: "IA Pièces auto · IA Garages",
-    v3_title: "Costume pour le Carnaval", v3_desc: "Vokter connaît ta taille et ton style, compare les boutiques, négocie les prix et paie — en crypto — quand tu dis oui.", v3_agents: "IA Boutiques · Réseau de paiement",
-    v4_title: "Billets de concert", v4_desc: "Vokter surveille les disponibilités, contacte l'IA du théâtre pour les meilleures places et confirme sans faire la queue.", v4_agents: "IA Théâtre · IA Billetterie",
-    v5_title: "Trouver le bon spécialiste", v5_desc: "Décris ton besoin. Vokter trouve les spécialistes proches et réserve ton rendez-vous via leur IA.", v5_agents: "IA Cliniques · IA Réservations",
-    v6_title: "Trop cher ? On arrange ça", v6_desc: "Vokter audite tes abonnements et factures, trouve de meilleures offres et change de fournisseur — toujours avec ton accord.", v6_agents: "IA Énergie · IA Telecom · IA Banque"
-  },
-
-  de: {
-    page_title: "Vokter — Deine KI. Deine Maschine. Deine Daten.",
-    nav_download: "Download", nav_features: "Funktionen", nav_principles: "Grundsätze",
-    nav_manifesto: "Manifest", nav_github: "Auf GitHub ansehen →",
-    badge_european: "Europäisches Projekt",
-    hero_h1: "Deine KI.<br><em>Deine Maschine.</em><br>Deine Daten. Von Rechts wegen.",
-    hero_sub: "Vokter ist ein souveräner KI-Agent, der vollständig auf Ihrer Hardware läuft. Keine Cloud. Keine Konten. Keine Telemetrie. Kein einziges Byte verlässt Ihren Computer ohne Ihre ausdrückliche Erlaubnis.",
-    hero_cta_download: "Vokter herunterladen — kostenlos", hero_cta_github: "★ Star auf GitHub",
-    install_h2: "In 3 Schritten einrichten — kein technisches Wissen nötig",
-    install_sub: "Gesamtzeit: etwa 10 Minuten, meist Wartezeit für Downloads.",
-    step1_h3: "Docker Desktop installieren — kostenlos",
-    step1_p: "Docker ist eine kostenlose App, mit der Vokter sicher auf Ihrem Computer läuft. Installieren Sie es wie jede andere normale App. Sie tun das nur einmal.",
-    docker_mac: "Docker für Mac", docker_win: "Docker für Windows", docker_linux: "Docker für Linux",
-    step2_h3: "Vokter-Installer herunterladen und öffnen",
-    step2_p: "Laden Sie die Datei für Ihren Computer herunter. Öffnen Sie sie. Der Installer erledigt alles für Sie — keine Einrichtung, kein Tippen, keine Konfiguration.",
-    dl_mac_title: "Für Mac herunterladen", dl_mac_hint: "Entzippen → Doppelklick auf \"vokter-mac.command\". Erstmalig: Rechtsklick → Öffnen",
-    dl_win_title: "Für Windows herunterladen", dl_win_hint: "Doppelklick auf die heruntergeladene Datei. Wenn Windows fragt, klicken Sie auf \"Weitere Informationen → Trotzdem ausführen\"",
-    dl_linux_title: "Für Linux herunterladen", dl_linux_hint: "Im Terminal ausführen: bash vokter-linux.sh",
-    step3_h3: "Ihr Browser öffnet sich automatisch",
-    step3_box: "Der Installer fragt Sie, welches KI-Modell Sie möchten — <strong>Kompakt (~800 MB)</strong> für schnelle Downloads und 8-GB-Maschinen, oder <strong>Standard (~2 GB)</strong> für bessere Qualität. Dieser Download findet nur einmal statt.<br><br>Außerdem generiert er einen <strong>einzigartigen Verschlüsselungsschlüssel</strong> für Ihre Daten und öffnet Vokter automatisch unter <strong>http://localhost:8080</strong>.<br><br>Beim nächsten Mal startet Vokter automatisch mit Docker Desktop. <strong>Den Installer müssen Sie nicht erneut ausführen.</strong>",
-    soon_android_title: "Android- & Tablet-App — demnächst", soon_android_sub: "Verbinden Sie sich von Ihrem Telefon oder Tablet aus mit Ihrem Heim-Vokter, überall in Ihrem lokalen Netzwerk.",
-    soon_tee_title: "Souveränes Cloud-Computing — demnächst", soon_tee_sub: "Keine lokale Hardware? Zahlen Sie pro Nutzung für vertrauliches Computing in einer TEE (Trusted Execution Environment). Sie erhalten einen kryptografischen Beweis direkt vom Chip, dass Ihre Daten privat sind — kein Versprechen, Mathematik. Geprüft von unabhängigen Sicherheitsunternehmen.",
-    feat_h2: "Alles läuft lokal", feat_sub: "Vokter ist kein Wrapper um eine Cloud-KI. Es ist ein vollständiger lokaler Stack.",
-    f1_h: "Dokumentengedächtnis", f1_p: "PDF, TXT, Markdown einlesen. Aufgeteilt, vektorisiert und mit AES-256-Verschlüsselung gespeichert. Echte Löschung — Embeddings inklusive.",
-    f2_h: "Lokaler Chat", f2_p: "Stellen Sie Fragen zu Ihren Dokumenten. Persistenter Gesprächsverlauf pro Sitzung. Antworten zitieren ihre Quellen.",
-    f3_h: "E-Mail-Connector", f3_p: "IMAP/SSL — synchronisiert und indexiert Ihren Posteingang lokal. Fragen Sie Vokter nach Ihren E-Mails, ohne dass ein Cloud-Dienst sie sieht.",
-    f4_h: "Lokale Stimme", f4_p: "Sprechen Sie mit Vokter via Whisper (Sprache-zu-Text) und Piper (Text-zu-Sprache). Ihre Stimme verlässt nie das Gerät.",
-    f5_h: "Web-Browsing", f5_p: "Webseiten abrufen und speichern. Nur Allowlist — Vokter besucht nur Domains, die Sie ausdrücklich erlauben.",
-    f6_h: "Aufgabenplaner", f6_p: "Geben Sie Vokter ein Ziel. Es zerlegt es in Schritte, surft, fragt sein Gedächtnis ab und streamt das Ergebnis zurück.",
-    f7_h: "Nicht-verwahrender Wallet", f7_p: "Cashu E-Cash, Lightning, EURC/EURe, Solana, Monero, Bitcoin. Immer mit menschlicher Bestätigung. Ihre Schlüssel verlassen nie das Gerät.",
-    f8_h: "Geplante Aufgaben", f8_p: "Wiederkehrende Ziele festlegen — tägliche Zusammenfassung, Preisalarme, E-Mail-Zusammenfassungen. Vokter führt sie autonom aus und speichert das Ergebnis.",
-    f9_h: "MCP + Nostr", f9_p: "Verbinden Sie Vokter via MCP mit Claude Desktop. Oder senden Sie verschlüsselte DMs über Nostr — es antwortet mit Ihren lokalen Tools.",
-    pr_h2: "Nicht verhandelbare Grundsätze", pr_sub: "Das sind architektonische Einschränkungen, keine Marketingaussagen. Sie können nicht geändert werden, ohne das Projekt zu forken.",
-    p1_h: "Lokal zuerst", p1_p: "Alles läuft standardmäßig auf Ihrer Hardware. Keine Einstellung kann das ändern.",
-    p2_h: "Null versteckte Aufrufe", p2_p: "Keine Anfragen an KI-APIs von Drittanbietern. Prüfen Sie den Code — das ist der Punkt.",
-    p3_h: "Ihre Schlüssel, Ihr Geld", p3_p: "Nicht-verwahrend oder gar nicht. Vokter hält nie Ihre Gelder.",
-    p4_h: "Echte Löschung", p4_p: "Löschen bedeutet löschen. Embeddings, Verlauf, alles. Keine Soft-Deletes.",
-    p5_h: "Open Source", p5_p: "AGPL-3.0. Wir bitten nicht um Ihr Vertrauen — wir geben Ihnen den Beweis.",
-    p6_h: "Für Ihr Leben, nicht um Sie zu binden", p6_p: "Keine Engagement-Mechanismen. Keine Ausbeutung von Einsamkeit. Vokter gibt Ihnen Zeit zurück.",
-    hw_h2: "Hardware-Leitfaden", hw_sub: "Vokter läuft auf jeder Maschine, die Docker ausführen kann. Keine GPU erforderlich.",
-    hw_col_ram: "RAM", hw_col_model: "Empfohlenes Modell", hw_col_speed: "Geschwindigkeit",
-    hw_r1_speed: "Schnell auf CPU", hw_r2_speed: "Gute Qualität", hw_r3_speed: "Exzellente Qualität",
-    hw_r4_model: "Jedes der obigen", hw_r4_speed: "5–10× schneller",
-    manifesto_quote: "„Es gibt ein Recht, das älter ist als das Internet: <strong>Was Ihnen gehört, kann Ihnen nicht genommen werden</strong>. Die Norweger nennen es <em>odel</em> — das Land, das keine Krone, keine Bank und kein Herr einer Familie entreißen kann, seit Jahrhunderten in ihrer Verfassung verankert. Tausend Jahre später wenden wir dieses Recht auf Ihr digitales Leben an.“",
-    manifesto_link: "Das vollständige Manifest lesen →",
-    footer_tagline: "ein unabhängiges europäisches Projekt", footer_contribute: "Beitragen",
-    vis_h2: "Die Zukunft deines Agenten",
-    vis_sub: "Wohin Vokter führt: Dein Agent verhandelt in deinem Namen mit den KI-Agenten jedes Dienstleisters — ohne deine Daten preiszugeben.",
-    vis_badge: "🔮 Zukunftsvision",
-    vis_agents: "Spricht mit:",
-    v1_title: "Deine Reise in die Alpen planen", v1_desc: "Sag Vokter, wohin du willst. Er prüft das Wetter, schlägt vor, was du einpacken sollst, und bucht alles.", v1_agents: "KI Airline · KI Hotel · KI Erlebnisse",
-    v2_title: "Komisches Geräusch im Motor", v2_desc: "Vokter identifiziert das Ersatzteil, findet den besten Preis online und verhandelt den Termin mit lokalen Werkstätten.", v2_agents: "KI Ersatzteillager · KI Werkstätten",
-    v3_title: "Kostüm für den Karneval", v3_desc: "Vokter kennt deine Größe und deinen Stil, vergleicht Shops, handelt Preise aus und zahlt — mit Krypto — wenn du ja sagst.", v3_agents: "KI Shops · Zahlungsnetzwerk",
-    v4_title: "Konzerttickets", v4_desc: "Vokter überwacht die Verfügbarkeit, kontaktiert die KI des Theaters für die besten Plätze und bestätigt ohne Warteschlange.", v4_agents: "KI Theater · KI Ticketing",
-    v5_title: "Den richtigen Spezialisten finden", v5_desc: "Beschreibe dein Anliegen. Vokter findet passende Spezialisten in der Nähe und bucht deinen Termin über deren KI.", v5_agents: "KI Kliniken · KI Buchung",
-    v6_title: "Zu teuer? Das ändern wir", v6_desc: "Vokter prüft deine Abonnements und Rechnungen, findet bessere Angebote und wechselt Anbieter — immer mit deiner Zustimmung.", v6_agents: "KI Energie · KI Telekom · KI Bank"
-  },
-
-  it: {
-    page_title: "Vokter — La tua IA. La tua macchina. I tuoi dati.",
-    nav_download: "Scarica", nav_features: "Funzioni", nav_principles: "Principi",
-    nav_manifesto: "Manifesto", nav_github: "Vedi su GitHub →",
-    badge_european: "Progetto europeo",
-    hero_h1: "La tua IA.<br><em>La tua macchina.</em><br>I tuoi dati. Di diritto.",
-    hero_sub: "Vokter è un agente IA sovrano che gira interamente sul tuo hardware. Nessun cloud. Nessun account. Nessuna telemetria. Nemmeno un byte lascia il tuo dispositivo senza il tuo esplicito consenso.",
-    hero_cta_download: "Scarica Vokter — gratuito", hero_cta_github: "★ Star su GitHub",
-    install_h2: "Pronto in 3 passi — nessuna competenza tecnica richiesta",
-    install_sub: "Tempo totale: circa 10 minuti, principalmente in attesa dei download.",
-    step1_h3: "Installa Docker Desktop — è gratuito",
-    step1_p: "Docker è un'app gratuita che permette a Vokter di girare in sicurezza sul tuo computer. Installala come qualsiasi altra app. Lo fai una volta sola.",
-    docker_mac: "Docker per Mac", docker_win: "Docker per Windows", docker_linux: "Docker per Linux",
-    step2_h3: "Scarica e apri l'installer di Vokter",
-    step2_p: "Scarica il file per il tuo computer. Aprilo. L'installer fa tutto per te — nessuna configurazione, nessuna digitazione.",
-    dl_mac_title: "Scarica per Mac", dl_mac_hint: "Decomprimi → doppio clic su \"vokter-mac.command\". Prima volta: clic destro → Apri",
-    dl_win_title: "Scarica per Windows", dl_win_hint: "Doppio clic sul file scaricato. Se Windows chiede, clicca \"Ulteriori informazioni → Esegui comunque\"",
-    dl_linux_title: "Scarica per Linux", dl_linux_hint: "Esegui nel terminale: bash vokter-linux.sh",
-    step3_h3: "Il tuo browser si apre automaticamente",
-    step3_box: "L'installer ti chiede di scegliere un modello IA — <strong>Compatto (~800 MB)</strong> per download veloci e macchine da 8 GB, o <strong>Standard (~2 GB)</strong> per qualità migliore. Questo download avviene una volta sola.<br><br>Genera anche una <strong>chiave di cifratura unica</strong> per i tuoi dati e apre Vokter su <strong>http://localhost:8080</strong> automaticamente.<br><br>La prossima volta, Vokter si avvia automaticamente con Docker Desktop. <strong>Non è necessario rieseguire l'installer.</strong>",
-    soon_android_title: "App Android & tablet — prossimamente", soon_android_sub: "Connettiti al tuo Vokter di casa dal tuo telefono o tablet, ovunque sulla tua rete locale.",
-    soon_tee_title: "Calcolo sovrano nel cloud — prossimamente", soon_tee_sub: "Nessun hardware locale? Paga a utilizzo per il calcolo confidenziale in un TEE (Trusted Execution Environment). Ricevi una prova crittografica dal chip stesso che i tuoi dati sono privati — non una promessa, matematica. Certificato da aziende di sicurezza indipendenti.",
-    feat_h2: "Tutto gira localmente", feat_sub: "Vokter non è un wrapper attorno a una IA cloud. È uno stack locale completo.",
-    f1_h: "Memoria documentale", f1_p: "Importa PDF, TXT, Markdown. Suddiviso, vettorizzato e memorizzato con cifratura AES-256. Cancellazione reale — embedding inclusi.",
-    f2_h: "Chat locale", f2_p: "Fai domande sui tuoi documenti. Cronologia della conversazione persistente per sessione. Le risposte citano le loro fonti.",
-    f3_h: "Connettore email", f3_p: "IMAP/SSL — sincronizza e indicizza la tua casella localmente. Chiedi a Vokter delle tue email senza che nessun servizio cloud le veda.",
-    f4_h: "Voce locale", f4_p: "Parla con Vokter tramite Whisper (voce in testo) e Piper (testo in voce). La tua voce non lascia mai il dispositivo.",
-    f5_h: "Navigazione web", f5_p: "Recupera e memorizza pagine web. Solo whitelist — Vokter visita solo i domini che autorizzi esplicitamente.",
-    f6_h: "Pianificatore di attività", f6_p: "Dai un obiettivo a Vokter. Lo scompone in passi, naviga, consulta la sua memoria e ti restituisce il risultato.",
-    f7_h: "Portafoglio non custodiale", f7_p: "Cashu e-cash, Lightning, EURC/EURe, Solana, Monero, Bitcoin. Sempre con conferma umana. Le tue chiavi non lasciano mai il dispositivo.",
-    f8_h: "Attività pianificate", f8_p: "Imposta obiettivi ricorrenti — riassunto quotidiano, avvisi di prezzo, riassunti email. Vokter li esegue autonomamente e salva il risultato.",
-    f9_h: "MCP + Nostr", f9_p: "Connetti Vokter a Claude Desktop via MCP. O invia DM cifrati su Nostr — risponde usando i tuoi strumenti locali.",
-    pr_h2: "Principi non negoziabili", pr_sub: "Sono vincoli architetturali, non affermazioni di marketing. Non possono essere modificati senza fare un fork del progetto.",
-    p1_h: "Locale prima di tutto", p1_p: "Tutto gira sul tuo hardware di default. Nessuna impostazione può cambiarlo.",
-    p2_h: "Zero chiamate nascoste", p2_p: "Nessuna richiesta ad API IA di terze parti. Controlla il codice — è proprio questo il punto.",
-    p3_h: "Le tue chiavi, il tuo denaro", p3_p: "Non custodiale o niente. Vokter non detiene mai i tuoi fondi.",
-    p4_h: "Cancellazione reale", p4_p: "Cancellare significa cancellare. Embedding, cronologia, tutto. Nessuna cancellazione morbida.",
-    p5_h: "Open source", p5_p: "AGPL-3.0. Non chiediamo la tua fiducia — ti diamo la prova.",
-    p6_h: "Per la tua vita, non per trattenerti", p6_p: "Nessuna meccanica di coinvolgimento. Nessuno sfruttamento della solitudine. Vokter ti restituisce tempo.",
-    hw_h2: "Guida all'hardware", hw_sub: "Vokter gira su qualsiasi macchina che possa eseguire Docker. Nessuna GPU richiesta.",
-    hw_col_ram: "RAM", hw_col_model: "Modello consigliato", hw_col_speed: "Velocità",
-    hw_r1_speed: "Veloce su CPU", hw_r2_speed: "Buona qualità", hw_r3_speed: "Qualità eccellente",
-    hw_r4_model: "Qualsiasi dei precedenti", hw_r4_speed: "5–10× più veloce",
-    manifesto_quote: "«Esiste un diritto più antico di internet: <strong>ciò che è tuo non può essere tolto</strong>. I norvegesi lo chiamano <em>odel</em> — la terra che nessuna corona, banca o signore può strappare a una famiglia, protetta nella loro Costituzione da secoli. Mille anni dopo, applichiamo quel diritto alla tua vita digitale.»",
-    manifesto_link: "Leggi il manifesto completo →",
-    footer_tagline: "un progetto europeo indipendente", footer_contribute: "Contribuisci",
-    vis_h2: "Il futuro del tuo agente",
-    vis_sub: "Dove sta andando Vokter: il tuo agente negozia per te con gli agenti IA di ogni servizio — senza mai rivelare i tuoi dati personali.",
-    vis_badge: "🔮 Visione futura",
-    vis_agents: "Parla con:",
-    v1_title: "Pianifica il tuo viaggio sulle Alpi", v1_desc: "Di' a Vokter dove vuoi andare. Controlla il meteo, suggerisce cosa mettere in valigia per la neve e prenota tutto.", v1_agents: "IA Compagnia aerea · IA Hotel · IA Esperienze",
-    v2_title: "Rumore strano nel motore", v2_desc: "Vokter identifica il pezzo, trova il prezzo migliore nei negozi online e negozia l'appuntamento con i meccanici locali.", v2_agents: "IA Ricambi · IA Officine",
-    v3_title: "Costume per il Carnevale", v3_desc: "Vokter conosce la tua taglia e il tuo stile, confronta i negozi, negozia i prezzi e paga — in crypto — quando dici sì.", v3_agents: "IA Negozi · Rete di pagamento",
-    v4_title: "Biglietti per il concerto", v4_desc: "Vokter monitora la disponibilità, contatta l'IA del teatro per i posti migliori e conferma senza code.", v4_agents: "IA Teatro · IA Ticketing",
-    v5_title: "Trovare lo specialista giusto", v5_desc: "Descrivi il tuo bisogno. Vokter trova gli specialisti vicino a te e prenota la visita tramite la loro IA.", v5_agents: "IA Cliniche · IA Prenotazioni",
-    v6_title: "Troppo caro? Lo sistemiamo", v6_desc: "Vokter controlla i tuoi abbonamenti e le bollette, trova offerte migliori e cambia fornitore — sempre con la tua approvazione.", v6_agents: "IA Energia · IA Telecom · IA Banca"
+  function toggleLang() {
+    const html = document.documentElement;
+    const next = html.lang === 'es' ? 'en' : 'es';
+    html.lang = next;
+    try { localStorage.setItem('vokter-lang', next); } catch (e) {}
   }
-};
+  (function () {
+    // NB: localStorage may be unavailable in some embedded contexts; guard it.
+    try {
+      const saved = localStorage.getItem('vokter-lang');
+      if (saved === 'es') document.documentElement.lang = 'es';
+    } catch (e) {}
+  })();
 
-function applyLang(code) {
-  var t = T[code] || T.en;
-  if (document.documentElement.lang !== code) {
-    document.querySelectorAll('[data-i18n]').forEach(function(el) {
-      if (t[el.dataset.i18n] !== undefined) el.textContent = t[el.dataset.i18n];
-    });
-    document.querySelectorAll('[data-i18n-html]').forEach(function(el) {
-      if (t[el.dataset.i18nHtml] !== undefined) el.innerHTML = t[el.dataset.i18nHtml];
-    });
-  }
-  document.documentElement.lang = code;
-  localStorage.setItem('vokter-lang', code);
-  document.querySelectorAll('.lang-btn').forEach(function(btn) {
-    btn.classList.toggle('active', btn.dataset.lang === code);
+  // scroll reveal
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('section .wrap > *, .creed-grid, .caps, .ledger, .langs').forEach((el, i) => {
+    el.classList.add('reveal');
+    el.style.transitionDelay = (i % 4 * 40) + 'ms';
+    io.observe(el);
   });
-}
-
-document.querySelectorAll('.lang-btn').forEach(function(btn) {
-  btn.addEventListener('click', function() { applyLang(btn.dataset.lang); });
-});
-
-// OS highlight
-(function() {
-  var ua = navigator.userAgent;
-  var id = (ua.indexOf('Android') > -1 || ua.indexOf('iPhone') > -1 || ua.indexOf('iPad') > -1) ? null
-         : ua.indexOf('Win')   > -1 ? 'dl-win'
-         : ua.indexOf('Linux') > -1 ? 'dl-linux'
-         : ua.indexOf('Mac')   > -1 ? 'dl-mac'
-         : null;
-  if (id) document.getElementById(id).classList.add('active');
-})();
-
-// Language detection
-(function() {
-  var saved = localStorage.getItem('vokter-lang');
-  var browser = (navigator.language || 'en').slice(0, 2).toLowerCase();
-  var supported = ['en', 'es', 'fr', 'de', 'it'];
-  var lang = supported.indexOf(saved) > -1 ? saved :
-             supported.indexOf(browser) > -1 ? browser : 'en';
-  applyLang(lang);
-})();
 </script>
 </body>
 </html>
