@@ -114,6 +114,27 @@
   .langrow .tick{margin-left:auto;color:var(--green)}
   .langrow:focus-visible{outline:2px solid var(--green);outline-offset:-2px;border-radius:4px}
 
+  /* Settings sub-view form controls — shared by the Email/Web/Tasks/Model panels */
+  .subwrap .sfield{display:flex;flex-direction:column;gap:6px;margin:12px 0}
+  .subwrap .sfield label{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--grey)}
+  .subwrap .sin{width:100%;font-family:inherit;font-size:14.5px;color:var(--ink);background:var(--cream2);border:1px solid var(--sand);border-radius:6px;padding:10px 12px;outline:none}
+  .subwrap select.sin{appearance:none;-webkit-appearance:none;cursor:pointer}
+  .subwrap .sin:focus{border-color:var(--green)}
+  .subwrap .sin:focus-visible{outline:2px solid var(--green);outline-offset:1px}
+  .subwrap .sbtn{cursor:pointer;font-family:inherit;font-size:13.5px;font-weight:600;border-radius:5px;padding:10px 16px;border:1px solid var(--green);background:var(--green);color:var(--cream);transition:background .15s}
+  .subwrap .sbtn:hover{background:var(--green-deep)}
+  .subwrap .sbtn.ghost{background:none;color:var(--green)}
+  .subwrap .sbtn.ghost:hover{background:var(--tint)}
+  .subwrap .sbtn.mini{padding:5px 11px;font-size:11.5px;border-radius:4px}
+  .subwrap .sbtn:disabled{opacity:.5;cursor:default}
+  .subwrap .sbtn:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+  .subwrap .sactions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .subwrap .saddrow{display:flex;gap:8px;margin:12px 0}
+  .subwrap .saddrow .sin{flex:1}
+  .subwrap .smeta{font-family:var(--mono);font-size:11.5px;color:var(--grey2);line-height:1.6;padding:6px 4px}
+  .subwrap .drow .dc.on{color:var(--green)}
+  .subwrap .drow .acts{display:flex;gap:6px;align-items:center;margin-left:auto}
+
   .toast{position:absolute;left:50%;bottom:98px;transform:translate(-50%,10px);background:var(--ink);color:var(--tint);font-size:13px;padding:9px 15px;border-radius:5px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:30;max-width:80%;text-align:center}
   .toast.on{opacity:1;transform:translate(-50%,0)}
 

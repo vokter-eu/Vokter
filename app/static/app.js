@@ -12,16 +12,29 @@
       serverErr:"Something went wrong.", noReachShort:"Couldn't reach your agent",
       settingsNote:"Everything here stays on your machine. You're in control of all of it.",
       rowDocuments:"Documents", rowEmail:"Email", rowWeb:"Web access", rowTasks:"Scheduled tasks",
-      rowVoice:"Voice", rowModel:"Model & tone", rowLanguage:"Language", rowPay:"Payments", soon:"Soon",
-      noteEmail:"Connect an inbox — indexed on this machine, never uploaded. Full controls are coming to this screen.",
-      noteWeb:"Choose which sites your agent may visit. Full controls are coming to this screen.",
-      noteTasks:"Let your agent work on a routine and report back. Full controls are coming to this screen.",
+      rowVoice:"Voice", rowModel:"Model & tone", rowLanguage:"Language", soon:"Soon",
+      noteEmail:"Connect an inbox — indexed on this machine, never uploaded.",
+      noteWeb:"Choose which sites your agent may visit.",
+      noteTasks:"Let your agent work on a routine and report back.",
       noteVoice:"Speak and listen, fully on-device. Full controls are coming to this screen.",
-      noteModel:"Choose how your agent thinks and sounds. Full controls are coming to this screen.",
+      noteModel:"Choose how your agent thinks and sounds.",
       docsEmpty:"No documents yet. Attach one from the chat and your agent will read it — all on your disk.",
       passages:"{n} passages", deleted:"Deleted — document and its memory", loading:"Loading…",
       couldntCatch:"Couldn't catch that", micPerm:"Microphone permission needed", voiceUnavail:"Voice isn't available right now",
-      langNote:"Choose the language for the app. Your agent still replies in whatever language you write or speak."
+      langNote:"Choose the language for the app. Your agent still replies in whatever language you write or speak.",
+      emailNotConfigured:"Email isn't set up on this machine. Add your inbox settings in the environment to connect it.",
+      emailInMemory:"{n} emails indexed on this device", emailNoneSynced:"Connected. No emails synced yet.",
+      emailSync:"Sync now", emailSyncing:"Syncing… this can take a while.", emailSynced:"Synced · {n} new, {e} errors",
+      emailDelete:"Delete synced emails", emailDeleteConfirm:"Delete all synced emails from your agent's memory?", emailDeleted:"Removed {n} emails",
+      webEmpty:"No sites allowed yet. Add one to let your agent visit it.", webAddPh:"https://example.com",
+      webAdd:"Add", webAddErr:"Use a full URL, like https://example.com", removeAria:"Remove",
+      tasksEmpty:"No scheduled tasks yet.", taskName:"Name", taskGoal:"What should it do?", taskInterval:"Every — e.g. 30m, 2h, 1d",
+      taskCreate:"Create task", taskCreateErr:"Couldn't create it. Check the interval (e.g. 30m, 2h, 1d).", taskFill:"Add a name, a goal and an interval.",
+      taskPause:"Pause", taskResume:"Resume", taskOn:"on", taskPaused:"paused", taskDeleteConfirm:"Delete \"{name}\"?",
+      modelName:"Agent name", modelTone:"Tone", modelMode:"Mode", modelModel:"Chat model", modelModelPh:"e.g. llama3.2:3b",
+      modelModelHint:"Leave blank to use this machine's default model.",
+      toneFormal:"Formal", toneNeutral:"Neutral", toneFriendly:"Friendly", modeConversational:"Conversational", modeProductive:"Productive",
+      modelSave:"Save", modelSaving:"Saving…", modelSaved:"Saved ✓"
     },
     es:{
       onDevice:"En tu dispositivo", settings:"Ajustes", send:"Enviar", speak:"Hablar", addDoc:"Añadir un documento",
@@ -33,16 +46,29 @@
       serverErr:"Algo ha ido mal.", noReachShort:"No llego a tu agente",
       settingsNote:"Todo lo que hay aquí se queda en tu máquina. Tú controlas todo.",
       rowDocuments:"Documentos", rowEmail:"Correo", rowWeb:"Acceso a la web", rowTasks:"Tareas programadas",
-      rowVoice:"Voz", rowModel:"Modelo y tono", rowLanguage:"Idioma", rowPay:"Pagos", soon:"Pronto",
-      noteEmail:"Conecta un buzón — se indexa en esta máquina, nunca se sube. Los controles completos llegarán a esta pantalla.",
-      noteWeb:"Elige a qué sitios puede acceder tu agente. Los controles completos llegarán a esta pantalla.",
-      noteTasks:"Deja que tu agente trabaje con una rutina y te informe. Los controles completos llegarán a esta pantalla.",
+      rowVoice:"Voz", rowModel:"Modelo y tono", rowLanguage:"Idioma", soon:"Pronto",
+      noteEmail:"Conecta un buzón — se indexa en esta máquina, nunca se sube.",
+      noteWeb:"Elige a qué sitios puede acceder tu agente.",
+      noteTasks:"Deja que tu agente trabaje con una rutina y te informe.",
       noteVoice:"Habla y escucha, todo en el dispositivo. Los controles completos llegarán a esta pantalla.",
-      noteModel:"Elige cómo piensa y suena tu agente. Los controles completos llegarán a esta pantalla.",
+      noteModel:"Elige cómo piensa y suena tu agente.",
       docsEmpty:"Aún no hay documentos. Adjunta uno desde el chat y tu agente lo leerá — todo en tu disco.",
       passages:"{n} fragmentos", deleted:"Borrado — el documento y su memoria", loading:"Cargando…",
       couldntCatch:"No te he entendido", micPerm:"Se necesita permiso del micrófono", voiceUnavail:"La voz no está disponible ahora mismo",
-      langNote:"Elige el idioma de la app. Tu agente seguirá respondiendo en el idioma en que escribas o hables."
+      langNote:"Elige el idioma de la app. Tu agente seguirá respondiendo en el idioma en que escribas o hables.",
+      emailNotConfigured:"El correo no está configurado en esta máquina. Añade los datos de tu buzón en el entorno para conectarlo.",
+      emailInMemory:"{n} correos indexados en este dispositivo", emailNoneSynced:"Conectado. Aún no hay correos sincronizados.",
+      emailSync:"Sincronizar ahora", emailSyncing:"Sincronizando… puede tardar un poco.", emailSynced:"Sincronizado · {n} nuevos, {e} errores",
+      emailDelete:"Borrar correos sincronizados", emailDeleteConfirm:"¿Borrar todos los correos sincronizados de la memoria de tu agente?", emailDeleted:"{n} correos eliminados",
+      webEmpty:"Aún no hay sitios permitidos. Añade uno para que tu agente pueda visitarlo.", webAddPh:"https://ejemplo.com",
+      webAdd:"Añadir", webAddErr:"Usa una URL completa, como https://ejemplo.com", removeAria:"Quitar",
+      tasksEmpty:"Aún no hay tareas programadas.", taskName:"Nombre", taskGoal:"¿Qué debe hacer?", taskInterval:"Cada — p. ej. 30m, 2h, 1d",
+      taskCreate:"Crear tarea", taskCreateErr:"No se pudo crear. Revisa el intervalo (p. ej. 30m, 2h, 1d).", taskFill:"Añade un nombre, un objetivo y un intervalo.",
+      taskPause:"Pausar", taskResume:"Reanudar", taskOn:"activa", taskPaused:"en pausa", taskDeleteConfirm:"¿Borrar \"{name}\"?",
+      modelName:"Nombre del agente", modelTone:"Tono", modelMode:"Modo", modelModel:"Modelo de chat", modelModelPh:"p. ej. llama3.2:3b",
+      modelModelHint:"Déjalo en blanco para usar el modelo por defecto de esta máquina.",
+      toneFormal:"Formal", toneNeutral:"Neutral", toneFriendly:"Cercano", modeConversational:"Conversacional", modeProductive:"Productivo",
+      modelSave:"Guardar", modelSaving:"Guardando…", modelSaved:"Guardado ✓"
     }
   };
   const LANGS=[{code:'en',name:'English'},{code:'es',name:'Español'}];
@@ -171,18 +197,16 @@
     tasks:'<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     voice:'<rect x="9" y="3" width="6" height="12" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     model:'<path d="M12 3a6 6 0 0 1 6 6c0 2.5-1.8 3.5-1.8 6H7.8C7.8 12.5 6 11.5 6 9a6 6 0 0 1 6-6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 21h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
-    language:'<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M3 12h18M12 3a14 14 0 0 1 4 9 14 14 0 0 1-4 9 14 14 0 0 1-4-9 14 14 0 0 1 4-9z" stroke="currentColor" stroke-width="1.8"/>',
-    pay:'<rect x="2" y="6" width="20" height="13" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M2 10h20M16 15h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+    language:'<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M3 12h18M12 3a14 14 0 0 1 4 9 14 14 0 0 1-4 9 14 14 0 0 1-4-9 14 14 0 0 1 4-9z" stroke="currentColor" stroke-width="1.8"/>'
   };
   const ROWS=[
     {k:'documents',lk:'rowDocuments',type:'docs'},
-    {k:'email',lk:'rowEmail',type:'placeholder',note:'noteEmail'},
-    {k:'web',lk:'rowWeb',type:'placeholder',note:'noteWeb'},
-    {k:'tasks',lk:'rowTasks',type:'placeholder',note:'noteTasks'},
+    {k:'email',lk:'rowEmail',type:'email'},
+    {k:'web',lk:'rowWeb',type:'web'},
+    {k:'tasks',lk:'rowTasks',type:'tasks'},
     {k:'voice',lk:'rowVoice',type:'placeholder',note:'noteVoice'},
-    {k:'model',lk:'rowModel',type:'placeholder',note:'noteModel'},
-    {k:'language',lk:'rowLanguage',type:'lang'},
-    {k:'pay',lk:'rowPay',type:'soon'}
+    {k:'model',lk:'rowModel',type:'model'},
+    {k:'language',lk:'rowLanguage',type:'lang'}
   ];
   function renderHome(){
     sTitle.textContent=t('settings');
@@ -206,6 +230,10 @@
   function openRow(row){
     if(row.type==='docs') return renderDocs();
     if(row.type==='lang') return renderLang();
+    if(row.type==='email') return renderEmail();
+    if(row.type==='web') return renderWeb();
+    if(row.type==='tasks') return renderTasks();
+    if(row.type==='model') return renderModel();
     sTitle.textContent=t(row.lk);
     slist.innerHTML='<div class="subwrap"><div class="placeholder">'+t(row.note)+'</div></div>';
   }
@@ -236,6 +264,168 @@
         wrap.appendChild(row);
       });
     }catch{ wrap.innerHTML='<div class="placeholder">'+t('noReachShort')+'</div>'; }
+  }
+
+  // These four panels talk to admin endpoints that are NOT gated on the human-session
+  // token (only /api/ask and /api/memory/suggest are), so they use plain fetch — same as
+  // the old wired UI did. All user-controlled values are written via textContent, never
+  // interpolated into innerHTML: the shell CSP only exists in Electron, so this is the real
+  // XSS guard for the browser/Docker path.
+  function _fmtInterval(sec){
+    const m=Math.floor(sec/60);
+    if(m<60) return m+'m';
+    const h=Math.floor(m/60);
+    return h<24 ? h+'h' : Math.floor(h/24)+'d';
+  }
+  function _sub(){ slist.innerHTML=''; const w=document.createElement('div'); w.className='subwrap'; slist.appendChild(w); return w; }
+  function _note(wrap,key){ const n=document.createElement('div'); n.className='note'; n.textContent=t(key); wrap.appendChild(n); return n; }
+  function _placeholder(text){ const p=document.createElement('div'); p.className='placeholder'; p.textContent=text; return p; }
+
+  // ── Email: status / sync / delete. IMAP credentials are backend-only (env), never sent
+  //    to the page, so there is no password field to expose — same surface as the old UI.
+  async function renderEmail(){
+    sTitle.textContent=t('rowEmail');
+    const wrap=_sub(); _note(wrap,'noteEmail');
+    const status=document.createElement('div'); status.className='smeta'; status.textContent=t('loading'); wrap.appendChild(status);
+    const acts=document.createElement('div'); acts.className='sactions'; wrap.appendChild(acts);
+    const syncBtn=document.createElement('button'); syncBtn.className='sbtn'; syncBtn.textContent=t('emailSync');
+    const delBtn=document.createElement('button'); delBtn.className='sbtn ghost'; delBtn.textContent=t('emailDelete');
+    acts.appendChild(syncBtn); acts.appendChild(delBtn);
+    async function refresh(){
+      try{
+        const j=await (await fetch('/api/email/status')).json();
+        if(!j.configured){ status.textContent=t('emailNotConfigured'); syncBtn.style.display='none'; delBtn.style.display='none'; return; }
+        syncBtn.style.display='';
+        status.textContent = j.synced_emails>0 ? t('emailInMemory',{n:j.synced_emails}) : t('emailNoneSynced');
+        delBtn.style.display = j.synced_emails>0 ? '' : 'none';
+      }catch{ status.textContent=t('noReachShort'); }
+    }
+    syncBtn.onclick=async()=>{
+      syncBtn.disabled=true; status.textContent=t('emailSyncing');
+      try{ const r=await fetch('/api/email/sync',{method:'POST'}); const j=await r.json();
+        if(r.ok){ toast(t('emailSynced',{n:j.synced,e:j.errors})); await refresh(); }
+        else{ status.textContent=(typeof j.detail==='string')?j.detail:t('serverErr'); }
+      }catch{ status.textContent=t('noReachShort'); }
+      syncBtn.disabled=false;
+    };
+    delBtn.onclick=async()=>{
+      if(!confirm(t('emailDeleteConfirm'))) return;
+      try{ const j=await (await fetch('/api/email/all',{method:'DELETE'})).json();
+        toast(t('emailDeleted',{n:j.emails_removed})); await refresh();
+      }catch{ toast(t('noReachShort')); }
+    };
+    refresh();
+  }
+
+  // ── Web access: the browsing allow-list (list / add / remove).
+  async function renderWeb(){
+    sTitle.textContent=t('rowWeb');
+    const wrap=_sub(); _note(wrap,'noteWeb');
+    const addrow=document.createElement('div'); addrow.className='saddrow';
+    const input=document.createElement('input'); input.type='text'; input.className='sin'; input.placeholder=t('webAddPh'); input.setAttribute('autocomplete','off');
+    const addBtn=document.createElement('button'); addBtn.className='sbtn'; addBtn.textContent=t('webAdd');
+    addrow.appendChild(input); addrow.appendChild(addBtn); wrap.appendChild(addrow);
+    const list=document.createElement('div'); wrap.appendChild(list);
+    async function refresh(){
+      list.innerHTML='';
+      try{
+        const perms=await (await fetch('/api/browse/permissions')).json();
+        if(!perms.length){ list.appendChild(_placeholder(t('webEmpty'))); return; }
+        perms.forEach(perm=>{
+          const row=document.createElement('div'); row.className='drow';
+          const dn=document.createElement('span'); dn.className='dn'; dn.textContent=perm.pattern;
+          const del=document.createElement('button'); del.className='del'; del.setAttribute('aria-label',t('removeAria')); del.textContent='×';
+          del.onclick=async()=>{ try{ await fetch('/api/browse/permissions/'+encodeURIComponent(perm.pattern),{method:'DELETE'}); }catch{} refresh(); };
+          row.appendChild(dn); row.appendChild(del); list.appendChild(row);
+        });
+      }catch{ list.appendChild(_placeholder(t('noReachShort'))); }
+    }
+    async function add(){
+      const pattern=input.value.trim(); if(!pattern) return;
+      addBtn.disabled=true;
+      try{ const r=await fetch('/api/browse/permissions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pattern})});
+        if(r.ok){ input.value=''; refresh(); } else{ toast(t('webAddErr')); }
+      }catch{ toast(t('noReachShort')); }
+      addBtn.disabled=false;
+    }
+    addBtn.onclick=add;
+    input.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();add();} });
+    refresh();
+  }
+
+  // ── Scheduled tasks: list / create / pause-resume / delete (pause-resume = the old UI's edit).
+  async function renderTasks(){
+    sTitle.textContent=t('rowTasks');
+    const wrap=_sub(); _note(wrap,'noteTasks');
+    const nameI=document.createElement('input'); nameI.type='text'; nameI.className='sin'; nameI.placeholder=t('taskName'); nameI.setAttribute('autocomplete','off');
+    const goalI=document.createElement('input'); goalI.type='text'; goalI.className='sin'; goalI.placeholder=t('taskGoal'); goalI.setAttribute('autocomplete','off');
+    const intI=document.createElement('input'); intI.type='text'; intI.className='sin'; intI.placeholder=t('taskInterval'); intI.setAttribute('autocomplete','off');
+    [nameI,goalI,intI].forEach(el=>{ const f=document.createElement('div'); f.className='sfield'; f.appendChild(el); wrap.appendChild(f); });
+    const createBtn=document.createElement('button'); createBtn.className='sbtn'; createBtn.textContent=t('taskCreate');
+    const acts=document.createElement('div'); acts.className='sactions'; acts.appendChild(createBtn); wrap.appendChild(acts);
+    const list=document.createElement('div'); list.style.marginTop='6px'; wrap.appendChild(list);
+    async function refresh(){
+      list.innerHTML='';
+      try{
+        const tasks=await (await fetch('/api/schedule')).json();
+        if(!tasks.length){ list.appendChild(_placeholder(t('tasksEmpty'))); return; }
+        tasks.forEach(task=>{
+          const row=document.createElement('div'); row.className='drow';
+          const dn=document.createElement('span'); dn.className='dn'; dn.textContent=task.name;
+          const dc=document.createElement('span'); dc.className='dc'+(task.enabled?' on':''); dc.textContent=_fmtInterval(task.interval_seconds)+' · '+(task.enabled?t('taskOn'):t('taskPaused'));
+          const acts2=document.createElement('span'); acts2.className='acts';
+          const tg=document.createElement('button'); tg.className='sbtn mini ghost'; tg.textContent=task.enabled?t('taskPause'):t('taskResume');
+          tg.onclick=async()=>{ tg.disabled=true; try{ await fetch('/api/schedule/'+task.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:!task.enabled})}); }catch{} refresh(); };
+          const del=document.createElement('button'); del.className='del'; del.setAttribute('aria-label',t('removeAria')); del.textContent='×';
+          del.onclick=async()=>{ if(!confirm(t('taskDeleteConfirm',{name:task.name}))) return; try{ await fetch('/api/schedule/'+task.id,{method:'DELETE'}); }catch{} refresh(); };
+          acts2.appendChild(tg); acts2.appendChild(del);
+          row.appendChild(dn); row.appendChild(dc); row.appendChild(acts2); list.appendChild(row);
+        });
+      }catch{ list.appendChild(_placeholder(t('noReachShort'))); }
+    }
+    createBtn.onclick=async()=>{
+      const name=nameI.value.trim(), goal=goalI.value.trim(), interval=intI.value.trim();
+      if(!name||!goal||!interval){ toast(t('taskFill')); return; }
+      createBtn.disabled=true;
+      try{ const r=await fetch('/api/schedule',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,goal,interval})});
+        if(r.ok){ nameI.value='';goalI.value='';intI.value=''; refresh(); } else{ toast(t('taskCreateErr')); }
+      }catch{ toast(t('noReachShort')); }
+      createBtn.disabled=false;
+    };
+    refresh();
+  }
+
+  // ── Model & tone: agent name / tone / mode / chat model, from and to /api/config.
+  async function renderModel(){
+    sTitle.textContent=t('rowModel');
+    const wrap=_sub(); _note(wrap,'noteModel');
+    function field(labelKey,control){ const f=document.createElement('div'); f.className='sfield'; const l=document.createElement('label'); l.textContent=t(labelKey); f.appendChild(l); f.appendChild(control); wrap.appendChild(f); }
+    const nameI=document.createElement('input'); nameI.type='text'; nameI.className='sin'; nameI.setAttribute('autocomplete','off'); field('modelName',nameI);
+    const toneS=document.createElement('select'); toneS.className='sin';
+    [['formal','toneFormal'],['neutral','toneNeutral'],['friendly','toneFriendly']].forEach(([v,k])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t(k); toneS.appendChild(o); });
+    field('modelTone',toneS);
+    const modeS=document.createElement('select'); modeS.className='sin';
+    [['conversational','modeConversational'],['productive','modeProductive']].forEach(([v,k])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t(k); modeS.appendChild(o); });
+    field('modelMode',modeS);
+    const modelI=document.createElement('input'); modelI.type='text'; modelI.className='sin'; modelI.placeholder=t('modelModelPh'); modelI.setAttribute('autocomplete','off'); field('modelModel',modelI);
+    const hint=document.createElement('div'); hint.className='smeta'; hint.textContent=t('modelModelHint'); wrap.appendChild(hint);
+    const saveBtn=document.createElement('button'); saveBtn.className='sbtn'; saveBtn.textContent=t('modelSave');
+    const status=document.createElement('span'); status.className='smeta';
+    const acts=document.createElement('div'); acts.className='sactions'; acts.appendChild(saveBtn); acts.appendChild(status); wrap.appendChild(acts);
+    try{ const cfg=await (await fetch('/api/config')).json();
+      nameI.value=cfg.agent_name||'Vokter'; toneS.value=cfg.tone||'neutral'; modeS.value=cfg.mode||'conversational'; modelI.value=cfg.chat_model||'';
+    }catch{ status.textContent=t('noReachShort'); }
+    saveBtn.onclick=async()=>{
+      saveBtn.disabled=true; status.textContent=t('modelSaving');
+      try{ const r=await fetch('/api/config',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        agent_name:nameI.value.trim()||null, tone:toneS.value, mode:modeS.value, chat_model:modelI.value.trim()
+      })});
+        const d=await r.json();
+        if(r.ok){ status.textContent=t('modelSaved'); setTimeout(()=>{status.textContent='';},2000); }
+        else{ status.textContent=(typeof d.detail==='string')?d.detail:t('serverErr'); }
+      }catch{ status.textContent=t('noReachShort'); }
+      saveBtn.disabled=false;
+    };
   }
 
   $('openSettings').onclick=()=>{ renderHome(); settingsView.classList.add('on'); };
