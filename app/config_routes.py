@@ -33,6 +33,7 @@ class ConfigPatch(BaseModel):
     embed_model: str | None = None
     max_history: int | None = None
     rag_chunks:  int | None = None
+    onboarded:   bool | None = None
 
 
 @router.get("/api/config")
@@ -79,6 +80,9 @@ def config_patch(patch: ConfigPatch):
             raise HTTPException(400, "rag_chunks must be between 1 and 20")
         updates["rag_chunks"] = str(patch.rag_chunks)
 
+    if patch.onboarded is not None:
+        updates["onboarded"] = "1" if patch.onboarded else "0"
+
     if updates:
         set_config(updates)
     return get_config()
@@ -109,7 +113,7 @@ async def avatar_upload(file: UploadFile = File(...)):
     return {"ok": True, "url": "/api/config/avatar"}
 
 
-@router.get("/api/config/avatar")
+@router.api_route("/api/config/avatar", methods=["GET", "HEAD"])
 def avatar_get():
     path = _avatar_path()
     if not path:

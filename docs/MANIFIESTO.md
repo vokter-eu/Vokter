@@ -9,7 +9,6 @@ Por eso construimos Vokter, tu guardián:
 - **Vive en tu máquina**, no en la nube de otros.
 - **Solo sabe lo que tú le enseñas**, y puedes ver y borrar cada dato.
 - **No envía ni un byte sin tu permiso** explícito y revocable.
-- Y cuando llegue el día en que pague por ti, lo hará con **dinero que solo tú controlas**, mediante stablecoins reguladas en Europa, sin custodios ni letra pequeña.
 
 Las grandes tecnológicas te regalan inteligencia artificial porque el producto eres tú. Nosotros no podemos regalarte nada: solo darte las herramientas para que no necesites pedir permiso nunca más.
 
@@ -17,7 +16,7 @@ Y una promesa más, porque la intimidad exige carácter: **Vokter trabaja para t
 
 Todo el código es abierto. **No te pedimos confianza: te damos las pruebas.**
 
-Tu agente. Tus datos. Tu dinero. **Por derecho.**
+Tu agente. Tus datos. **Por derecho.**
 
 ---
 

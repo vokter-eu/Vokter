@@ -1,0 +1,74 @@
+{
+  "name": "vokter-desktop",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Vokter — sovereign local AI agent",
+  "author": "Vokter <noreply@vokter.eu>",
+  "homepage": "https://github.com/vokter-eu/Vokter",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test:csp": "node csp.test.js",
+    "probe:csp": "electron --no-sandbox --disable-gpu csp.probe.js",
+    "test:a2a": "../runtime/venv/bin/python ../../tests/a2a_trust_boundary_test.py",
+    "predist": "npm run test:csp && npm run probe:csp && npm run test:a2a",
+    "dist": "electron-builder --linux deb AppImage"
+  },
+  "build": {
+    "appId": "eu.vokter.desktop",
+    "productName": "Vokter",
+    "files": [
+      "main.js",
+      "loading.html",
+      "loading.js",
+      "preload.js",
+      "progress_pipe.js",
+      "netutil.js",
+      "guardrail_screen.js",
+      "csp.js",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "extraResources": [
+      {
+        "from": "../freeze/dist/vokter-backend",
+        "to": "desktop/freeze/dist/vokter-backend"
+      },
+      {
+        "from": "../runtime/ollama",
+        "to": "desktop/runtime/ollama",
+        "filter": [
+          "**/*",
+          "!lib/ollama/cuda_v12",
+          "!lib/ollama/cuda_v12/**",
+          "!lib/ollama/cuda_v13",
+          "!lib/ollama/cuda_v13/**"
+        ]
+      },
+      {
+        "from": "../runtime/voice-seed",
+        "to": "desktop/runtime/voice-seed"
+      }
+    ],
+    "linux": {
+      "target": [
+        "deb",
+        "AppImage"
+      ],
+      "category": "Utility",
+      "maintainer": "Vokter <noreply@vokter.eu>",
+      "description": "Sovereign local AI agent (C2: bundles the frozen backend, native Ollama CPU-only, and offline voice — piper + whisper. LLM weights download on first run; GPU acceleration is an optional future add-on)."
+    },
+    "deb": {
+      "afterInstall": "build/deb-after-install.sh",
+      "afterRemove": "build/deb-after-remove.sh"
+    }
+  },
+  "devDependencies": {
+    "electron": "^34.0.0",
+    "electron-builder": "^25.1.8"
+  }
+}

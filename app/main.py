@@ -1,10 +1,13 @@
 """
 Vokter — Your local AI guardian.
 
-Not a single call leaves your machine. Check it: the only host
-this code talks to is the local Ollama container.
+Not a single call leaves your machine. Check it: the only host this code
+talks to is the local inference engine (Ollama by default), reached through
+the engine adapter in engine.py — the one place a specific engine is named.
 """
 import asyncio
+import os
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -20,11 +23,13 @@ from chat import router as chat_router
 from email_connector import router as email_router
 from voice.whisper import router as whisper_router
 from voice.piper import router as piper_router
+from voice.fetch import router as voice_fetch_router
+from voice.fetch import opportunistic_startup_fetch
 from browser import router as browser_router
 from planner import router as planner_router
-from wallet_routes import router as wallet_router
 from schedule_routes import router as schedule_router
 from config_routes import router as config_router
+from memory_routes import router as memory_router
 from agent_routes import router as agent_router
 from negotiation_routes import router as negotiation_router
 from a2a_server import router as a2a_router
@@ -36,19 +41,23 @@ import nostr_listener
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     # Fail closed: refuse to start when exposed without an admin token. A2A_URL
-    # set signals intent to expose; without ADMIN_TOKEN the admin API (wallet,
-    # config, documents, email) would be reachable by anyone who can reach the
+    # set signals intent to expose; without ADMIN_TOKEN the admin API (config,
+    # documents, email) would be reachable by anyone who can reach the
     # port. (Heuristic, not proof of exposure — pair with a reverse proxy that
     # publishes only /a2a and /.well-known.)
     if A2A_URL and not ADMIN_TOKEN:
         raise RuntimeError(
             "Refusing to start: VOKTER_A2A_URL is set (Vokter is being exposed) "
-            "but VOKTER_ADMIN_TOKEN is empty — the admin API (wallet, config, "
+            "but VOKTER_ADMIN_TOKEN is empty — the admin API (config, "
             "documents, email) would be UNPROTECTED. Set VOKTER_ADMIN_TOKEN, and "
             "reverse-proxy only /a2a and /.well-known."
         )
     sched_task  = asyncio.create_task(scheduler_loop())
     nostr_task  = asyncio.create_task(nostr_listener.start())
+    # Stage 3 trigger 3 — opportunistic voice fetch. Best-effort in a daemon thread: if the
+    # current language's voice is missing and there's network, it downloads; if not, the
+    # backend comes up regardless. Never awaited, never raised → cannot block boot.
+    opportunistic_startup_fetch()
     yield
     # Cancel background tasks
     for t in (sched_task, nostr_task):
@@ -87,18 +96,24 @@ app.include_router(chat_router)
 app.include_router(email_router)
 app.include_router(whisper_router)
 app.include_router(piper_router)
+app.include_router(voice_fetch_router)
 app.include_router(browser_router)
 app.include_router(planner_router)
-app.include_router(wallet_router)
 app.include_router(schedule_router)
 app.include_router(config_router)
+app.include_router(memory_router)
 app.include_router(agent_router)
 app.include_router(negotiation_router)
 app.include_router(a2a_router)
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Resolve static/ from this file (or the PyInstaller bundle when frozen),
+# never from the process CWD — the frozen binary is launched from anywhere.
+_STATIC_DIR = os.path.join(
+    getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__))), "static"
+)
+app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
 
 
 @app.get("/")
 def index():
-    return FileResponse("static/index.html")
+    return FileResponse(os.path.join(_STATIC_DIR, "index.html"))

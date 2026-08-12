@@ -48,27 +48,6 @@ def get_db():
            )"""
     )
     conn.execute(
-        """CREATE TABLE IF NOT EXISTS cashu_proofs (
-               id         TEXT PRIMARY KEY,   -- proof secret
-               mint       TEXT NOT NULL,
-               amount     INTEGER NOT NULL,
-               proof_json TEXT NOT NULL,
-               spent      INTEGER NOT NULL DEFAULT 0
-           )"""
-    )
-    conn.execute(
-        """CREATE TABLE IF NOT EXISTS wallet_transactions (
-               id        TEXT PRIMARY KEY,
-               adapter   TEXT NOT NULL,
-               direction TEXT NOT NULL,       -- 'in' | 'out'
-               amount    INTEGER NOT NULL,
-               unit      TEXT NOT NULL,
-               memo      TEXT DEFAULT '',
-               output    TEXT DEFAULT '',     -- token / txid / bolt11 for the counterparty
-               ts        REAL NOT NULL
-           )"""
-    )
-    conn.execute(
         """CREATE TABLE IF NOT EXISTS scheduled_tasks (
                id               TEXT PRIMARY KEY,
                name             TEXT NOT NULL,
@@ -98,16 +77,28 @@ def get_db():
     )
     conn.execute(
         """CREATE TABLE IF NOT EXISTS conversations (
-               seq     INTEGER PRIMARY KEY AUTOINCREMENT,
-               conv_id TEXT NOT NULL,
-               role    TEXT NOT NULL,
-               content TEXT NOT NULL,
-               ts      REAL NOT NULL
+               seq         INTEGER PRIMARY KEY AUTOINCREMENT,
+               conv_id     TEXT NOT NULL,
+               role        TEXT NOT NULL,
+               content     TEXT NOT NULL,
+               ts          REAL NOT NULL,
+               human_owned INTEGER NOT NULL DEFAULT 0  -- C2a: 1 = the local human's thread
            )"""
     )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS conversations_conv_id_idx ON conversations(conv_id)"
     )
+    # Migrate conversations tables created before human_owned existed (C2a bit-guard).
+    # Runs ONCE, only when the column is missing. Backfill B: existing rows predate persisted
+    # peer threads in practice (peer continuity lives in the process-local _conversations map,
+    # lost on restart), so treat all prior rows as the human's — otherwise old human chats
+    # would stay human_owned=0 and remain readable by a non-human caller that knew the id.
+    # The UPDATE is DML, so it needs an explicit commit (unlike the autocommitting ALTER).
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(conversations)").fetchall()]
+    if "human_owned" not in cols:
+        conn.execute("ALTER TABLE conversations ADD COLUMN human_owned INTEGER NOT NULL DEFAULT 0")
+        conn.execute("UPDATE conversations SET human_owned=1")
+        conn.commit()
     conn.execute(
         """CREATE TABLE IF NOT EXISTS known_agents (
                id           TEXT PRIMARY KEY,   -- nostr hex pubkey, or a2a endpoint url
@@ -137,6 +128,22 @@ def get_db():
                floor      INTEGER NOT NULL,   -- reserve; never sell below, never disclosed
                max_rounds INTEGER NOT NULL DEFAULT 4,
                unit       TEXT NOT NULL DEFAULT 'sat'
+           )"""
+    )
+    # Phase 1: personal memory — facts the user explicitly asks Vokter to remember
+    # ("remember that ..."). Lives in THIS encrypted DB (same keychain-backed key),
+    # never leaves the device, fully user-visible/editable/deletable (see
+    # memory_routes + the "What Vokter knows about you" view). `embedding` is
+    # reserved for a later phase's top-k retrieval; Phase 1 includes all facts, so
+    # it stays NULL for now.
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS memory (
+               id         INTEGER PRIMARY KEY AUTOINCREMENT,
+               content    TEXT NOT NULL,                -- the fact, in the user's words
+               source     TEXT NOT NULL DEFAULT 'told',  -- told | learned (Phase 2)
+               created_at REAL NOT NULL,
+               embedding  TEXT,                          -- reserved (Phase 3 retrieval)
+               confidence REAL NOT NULL DEFAULT 1.0
            )"""
     )
     return conn

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+
+# The root .gitignore ignores every build/ dir, but here build/ is
+# electron-builder's buildResources source (icon + the deb maintainer
+# scripts that run as root) and MUST be versioned. Re-include it.
+!build/
+!build/**

@@ -2,1130 +2,209 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vokter — your guardian</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Vokter</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 56'%3E%3Cpath d='M24 2.5 41.5 9.2V26.5C41.5 39.5 33.7 48.7 24 53.5 14.3 48.7 6.5 39.5 6.5 26.5V9.2Z' fill='none' stroke='%232D6A4F' stroke-width='2.6' stroke-linejoin='round'/%3E%3Ccircle cx='24' cy='27' r='4.2' fill='%232D6A4F'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/fonts/fonts.css">
 <style>
-  :root { --bg:#0e1116; --panel:#161b22; --line:#2d333b; --text:#e6edf3;
-          --muted:#8b949e; --accent:#4cc38a; }
-  * { box-sizing:border-box; margin:0; }
-  body { background:var(--bg); color:var(--text); font:16px/1.5 system-ui,sans-serif;
-         max-width:760px; margin:0 auto; padding:16px; min-height:100vh;
-         display:flex; flex-direction:column; }
-  header { padding:8px 0 16px; border-bottom:1px solid var(--line); }
-  h1 { font-size:1.3rem; } h1 span{ color:var(--accent); }
-  .tag { color:var(--muted); font-size:.85rem; }
-  #task { padding:12px 0; border-bottom:1px solid var(--line); }
-  #task-top { display:flex; gap:8px; flex-wrap:wrap; }
-  #task-goal { flex:1; min-width:180px; padding:7px 10px; border-radius:8px;
-               border:1px solid var(--line); background:var(--panel);
-               color:var(--text); font-size:.85rem; }
-  #task-log { margin-top:8px; font-size:.82rem; }
-  .tlog-step  { color:var(--muted); padding:2px 0; }
-  .tlog-done  { color:var(--accent); }
-  .tlog-error { color:#f85149; }
-  .tlog-answer { margin-top:8px; background:var(--panel); border:1px solid var(--line);
-                 border-radius:8px; padding:10px 12px; white-space:pre-wrap; }
-  #wallet { padding:12px 0; border-bottom:1px solid var(--line); }
-  #wallet-top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-  #wallet-balance { font-size:.95rem; }
-  #wallet-balance strong { color:var(--accent); }
-  #wallet-badge { font-size:.75rem; color:var(--muted); background:var(--panel);
-                  border:1px solid var(--line); border-radius:4px; padding:2px 6px; }
-  #wallet-sections { margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; }
-  .wallet-input { padding:7px 10px; border-radius:8px; border:1px solid var(--line);
-                  background:var(--panel); color:var(--text); font-size:.85rem; }
-  #wallet-token { width:100%; margin-top:8px; font-family:monospace; font-size:.78rem; }
-  #wallet-send-row { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
-  #wallet-send-amount { width:90px; }
-  #wallet-send-memo { flex:1; min-width:120px; }
-  #wallet-output { margin-top:8px; }
-  #wallet-output-token { width:100%; font-family:monospace; font-size:.75rem;
-                          background:var(--panel); border:1px solid var(--line);
-                          border-radius:6px; padding:8px; color:var(--accent);
-                          word-break:break-all; white-space:pre-wrap; }
-  #wallet-history { margin-top:8px; font-size:.82rem; display:none; }
-  .wtx { display:flex; justify-content:space-between; align-items:center;
-          padding:4px 8px; background:var(--panel); border:1px solid var(--line);
-          border-radius:6px; margin-top:3px; }
-  .wtx-in  { color:var(--accent); }
-  .wtx-out { color:#f85149; }
-  #wallet-adapters-panel { margin-top:8px; display:none; }
-  .wadapter { padding:5px 8px; border:1px solid var(--line); border-radius:6px;
-               margin-top:4px; font-size:.8rem; }
-  .wadapter-name { font-weight:600; }
-  .wadapter-tier { font-size:.72rem; color:var(--muted); margin-left:6px; }
-  .wadapter-status { color:var(--muted); font-size:.75rem; margin-top:2px; }
-  .wadapter.active { border-color:var(--accent); }
-  /* confirmation modal */
-  #wallet-modal { display:none; position:fixed; inset:0; background:#0009;
-                   z-index:100; align-items:center; justify-content:center; }
-  #wallet-modal.open { display:flex; }
-  #wallet-modal-box { background:var(--panel); border:1px solid var(--line);
-                       border-radius:12px; padding:20px 24px; max-width:380px; width:90%; }
-  #wallet-modal-box h3 { margin-bottom:8px; font-size:1rem; }
-  #wallet-modal-box p { color:var(--muted); font-size:.88rem; margin-bottom:16px; }
-  #wallet-modal-btns { display:flex; gap:8px; }
-  /* scheduled tasks */
-  #schedule { padding:12px 0; border-bottom:1px solid var(--line); }
-  #schedule-top { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px; }
-  #schedule-form { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; display:none; }
-  #sched-name { width:140px; }
-  #sched-goal { flex:1; min-width:180px; }
-  #sched-interval { width:72px; }
-  #schedule-list { font-size:.82rem; }
-  .stask { background:var(--panel); border:1px solid var(--line); border-radius:8px;
-           margin-top:4px; overflow:hidden; }
-  .stask-header { display:flex; align-items:center; gap:8px; padding:7px 10px; cursor:pointer; }
-  .stask-name { font-weight:600; flex:1; }
-  .stask-interval { color:var(--muted); font-size:.75rem; }
-  .stask-status { font-size:.72rem; padding:1px 5px; border-radius:3px; }
-  .stask-status.on  { background:#4cc38a22; color:var(--accent); border:1px solid #4cc38a44; }
-  .stask-status.off { background:#8b949e22; color:var(--muted);  border:1px solid var(--line); }
-  .stask-runs { display:none; border-top:1px solid var(--line); padding:6px 10px; }
-  .srun { display:flex; justify-content:space-between; align-items:flex-start;
-          padding:3px 0; border-bottom:1px solid var(--line); font-size:.78rem; }
-  .srun:last-child { border-bottom:none; }
-  .srun-status { font-size:.72rem; padding:1px 5px; border-radius:3px; margin-right:6px; }
-  .srun-status.done    { color:var(--accent); }
-  .srun-status.error   { color:#f85149; }
-  .srun-status.running { color:#e3b341; }
-  .srun-output { color:var(--muted); margin-top:2px; font-size:.75rem; white-space:pre-wrap; word-break:break-word; }
-  #web { padding:12px 0; border-bottom:1px solid var(--line); }
-  #web-top { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  #web-url { flex:1; min-width:180px; padding:7px 10px; border-radius:8px;
-             border:1px solid var(--line); background:var(--panel);
-             color:var(--text); font-size:.85rem; }
-  #web-status { color:var(--muted); font-size:.82rem; margin-top:4px; }
-  #web-perms { margin-top:8px; }
-  .perm-row { display:flex; justify-content:space-between; align-items:center;
-              padding:4px 8px; background:var(--panel); border:1px solid var(--line);
-              border-radius:6px; margin-top:4px; font-size:.82rem; }
-  .perm-row button { background:none; border:none; color:#f85149; cursor:pointer; }
-  #perm-add { display:flex; gap:6px; margin-top:6px; }
-  #perm-input { flex:1; padding:6px 10px; border-radius:8px; border:1px solid var(--line);
-                background:var(--panel); color:var(--text); font-size:.82rem; }
-  #email { padding:12px 0; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-  #email-status { color:var(--muted); font-size:.85rem; }
-  .btn-sm { padding:7px 12px; border-radius:8px; border:1px solid var(--line);
-            background:transparent; color:var(--muted); font-size:.85rem; cursor:pointer; }
-  .btn-sm:hover { border-color:var(--accent); color:var(--accent); }
-  .btn-sm.danger:hover { border-color:#f85149; color:#f85149; }
-  #docs { padding:12px 0; border-bottom:1px solid var(--line); }
-  .doc { display:flex; justify-content:space-between; align-items:center;
-         padding:6px 10px; background:var(--panel); border:1px solid var(--line);
-         border-radius:8px; margin-top:6px; font-size:.9rem; }
-  .doc button { background:none; border:none; color:#f85149; cursor:pointer; font-size:1rem; }
-  #chat { flex:1; overflow-y:auto; padding:16px 0; }
-  .msg { max-width:85%; padding:10px 14px; border-radius:12px; margin-bottom:10px;
-         white-space:pre-wrap; word-wrap:break-word; }
-  .user { background:#1f6feb33; margin-left:auto; }
-  .bot  { background:var(--panel); border:1px solid var(--line); }
-  .src  { color:var(--muted); font-size:.75rem; margin-top:6px; }
-  form { display:flex; gap:8px; padding-top:12px; border-top:1px solid var(--line); flex-wrap:wrap; }
-  .btn-new { padding:12px 16px; border-radius:10px; border:1px solid var(--line);
-             background:transparent; color:var(--muted); font-size:.9rem; cursor:pointer; }
-  .btn-new:hover { border-color:var(--accent); color:var(--accent); }
-  input[type=text] { flex:1; padding:12px; border-radius:10px; border:1px solid var(--line);
-         background:var(--panel); color:var(--text); font-size:1rem; }
-  .btn { padding:12px 16px; border-radius:10px; border:none; background:var(--accent);
-         color:#06251a; font-weight:700; cursor:pointer; }
-  .btn-mic { padding:12px 14px; border-radius:10px; border:1px solid var(--line);
-             background:transparent; color:var(--muted); font-size:1rem; cursor:pointer; }
-  .btn-mic:hover { border-color:var(--accent); color:var(--accent); }
-  .btn-mic.recording { border-color:#f85149; color:#f85149; animation:pulse 1s infinite; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
-  .btn-play { background:none; border:none; color:var(--muted); cursor:pointer;
-              font-size:.85rem; padding:2px 6px; }
-  .btn-play:hover { color:var(--accent); }
-  .upload { display:inline-block; margin-top:8px; color:var(--accent); cursor:pointer;
-            font-size:.9rem; }
-  .upload input { display:none; }
-  /* settings panel */
-  #settings { padding:12px 0; border-bottom:1px solid var(--line); display:none; }
-  .cfg-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:8px; }
-  .cfg-field label { display:block; font-size:.77rem; color:var(--muted); margin-bottom:3px; }
-  .cfg-field input, .cfg-field select {
-    width:100%; padding:6px 9px; border-radius:8px;
-    border:1px solid var(--line); background:var(--panel);
-    color:var(--text); font-size:.83rem; }
-  #cfg-status { font-size:.82rem; color:var(--muted); }
-  #hdr-avatar { width:32px;height:32px;border-radius:50%;object-fit:cover;
-                border:2px solid var(--line);display:none; }
-  #cfg-avatar-preview { width:52px;height:52px;border-radius:50%;object-fit:cover;
-                         border:2px solid var(--line);display:none; }
-  #cfg-avatar-placeholder { width:52px;height:52px;border-radius:50%;
-                              background:var(--panel);border:2px dashed var(--line);
-                              display:flex;align-items:center;justify-content:center;
-                              font-size:1.4rem; }
-  .cfg-avatar-upload { color:var(--accent);font-size:.82rem;cursor:pointer; }
-  .cfg-avatar-upload input { display:none; }
+  :root{
+    --green:#2D6A4F; --green-deep:#245C43; --tint:#E8EFE9; --amber:#E7A23C;
+    --cream:#FBFAF6; --cream2:#F6F4EF; --sand:#E5E1D8; --ink:#171511; --ink-2:#3C3A34;
+    --grey:#6E6B61; --grey2:#9A9689; --faint:#C9C4B8;
+    --serif:'Fraunces',Georgia,serif; --body:'Inter',system-ui,-apple-system,sans-serif; --mono:'JetBrains Mono',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:var(--body);background:var(--sand);color:var(--ink);-webkit-font-smoothing:antialiased;line-height:1.5;overscroll-behavior:none}
+  button{font-family:inherit}
+  #app{position:relative;height:100dvh;width:100%;max-width:480px;margin:0 auto;background:var(--cream);display:flex;flex-direction:column;overflow:hidden}
+  @media(min-width:520px){#app{border-left:1px solid var(--sand);border-right:1px solid var(--sand)}}
+
+  .hdr{flex:0 0 auto;display:flex;align-items:center;gap:11px;padding:calc(15px + env(safe-area-inset-top)) 20px 13px;border-bottom:1px solid var(--sand)}
+  .hdr .mk{width:25px;height:29px;flex:0 0 auto}
+  .hdr .t{flex:1;min-width:0}
+  .hdr .t b{font-family:var(--serif);font-weight:600;font-size:19px;display:block;line-height:1.1}
+  .hdr .t span{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--green)}
+  .icbtn{background:none;border:none;cursor:pointer;padding:6px;border-radius:5px;color:var(--grey);display:grid;place-items:center;transition:background .15s}
+  .icbtn:hover{background:var(--tint)}
+  .icbtn:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+
+  .thread{flex:1 1 auto;overflow-y:auto;min-height:0;scroll-behavior:smooth}
+  .msgs{display:flex;flex-direction:column;gap:10px;padding:18px 16px}
+  .b{max-width:82%;padding:11px 15px;font-size:14.5px;line-height:1.55;word-wrap:break-word;animation:rise .26s ease both}
+  .b.me{align-self:flex-end;background:var(--green);color:var(--cream);border-radius:9px 9px 2px 9px;line-height:1.45}
+  .b.them{align-self:flex-start;background:var(--cream2);color:var(--ink);border:1px solid var(--sand);border-radius:9px 9px 9px 2px}
+  .b.file{align-self:flex-end;display:flex;align-items:center;gap:9px;background:var(--cream);border:1px solid var(--sand);border-radius:6px;padding:9px 12px;max-width:82%}
+  .b.file .fn{font-size:13px;font-weight:600;line-height:1.2}
+  .b.file .fs{font-family:var(--mono);font-size:10.5px;color:var(--grey2);margin-top:2px}
+  .them .sources{margin-top:8px;display:flex;flex-wrap:wrap;gap:5px}
+  .them .src{font-family:var(--mono);font-size:10.5px;color:var(--green);background:var(--cream);border:1px solid var(--sand);border-radius:3px;padding:3px 7px}
+  .them .say{margin-top:8px;background:none;border:none;cursor:pointer;color:var(--grey);display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10.5px;padding:0;letter-spacing:.04em}
+  .them .say:hover{color:var(--green)}
+  .typing{display:inline-flex;gap:4px;align-items:center}
+  .typing i{width:6px;height:6px;border-radius:50%;background:var(--faint);animation:blink 1.3s infinite}
+  .typing i:nth-child(2){animation-delay:.18s}.typing i:nth-child(3){animation-delay:.36s}
+  @keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+  @keyframes blink{0%,60%,100%{opacity:.3}30%{opacity:1}}
+
+  .empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px 34px}
+  .empty .badge{width:72px;height:72px;border-radius:8px;background:var(--tint);display:grid;place-items:center;margin-bottom:24px}
+  .empty h1{font-family:var(--serif);font-size:27px;font-weight:600;margin-bottom:10px;letter-spacing:-.01em}
+  .empty p{color:var(--grey);font-size:14.5px;line-height:1.55;max-width:28ch}
+  .chips{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:24px}
+  .chip{cursor:pointer;background:var(--cream);border:1px solid var(--sand);border-radius:3px;padding:10px 16px;font-size:13.5px;color:var(--ink);font-weight:500;transition:border-color .15s}
+  .chip:hover{border-color:var(--green)}
+  .chip:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+
+  .composer{flex:0 0 auto;padding:8px 14px calc(16px + env(safe-area-inset-bottom))}
+  .inrow{display:flex;align-items:center;gap:8px;background:var(--cream2);border:1px solid var(--sand);border-radius:6px;padding:7px 7px 7px 14px}
+  .inrow:focus-within{border-color:var(--green)}
+  .inrow input[type=text]{flex:1;border:none;background:none;outline:none;font-family:inherit;font-size:15px;color:var(--ink);min-width:0}
+  .inrow input::placeholder{color:var(--grey2)}
+  .rnd{cursor:pointer;border:none;display:grid;place-items:center;flex:0 0 auto}
+  .rnd.mic{width:36px;height:36px;border-radius:4px;background:var(--tint)}
+  .rnd.send{width:40px;height:40px;border-radius:4px;background:var(--green)}
+  .rnd.plain{background:none;padding:2px}
+  .rnd:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+
+  .view{position:absolute;inset:0;display:none;flex-direction:column;z-index:10}
+  .view.on{display:flex}
+
+  #voiceView{background:var(--green)}
+  .vtop{display:flex;justify-content:flex-end;padding:calc(15px + env(safe-area-inset-top)) 22px 4px}
+  .vmid{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 40px}
+  .vhalo{position:relative;width:150px;height:150px;display:grid;place-items:center;margin-bottom:38px}
+  .vhalo .ring{position:absolute;inset:0;border-radius:50%;background:rgba(251,250,246,.16);animation:halo 2.4s infinite}
+  .vwave{width:104px;height:104px;border-radius:6px;background:var(--cream);display:flex;align-items:center;justify-content:center;gap:5px}
+  .vwave span{width:6px;height:38px;background:var(--green);border-radius:3px;animation:bar .9s infinite}
+  .vwave span:nth-child(3){background:var(--amber)}
+  .vwave span:nth-child(2){animation-delay:.15s}.vwave span:nth-child(3){animation-delay:.3s}
+  .vwave span:nth-child(4){animation-delay:.45s}.vwave span:nth-child(5){animation-delay:.6s}
+  #voiceView h2{font-family:var(--serif);font-size:27px;font-weight:600;color:var(--cream);margin-bottom:10px}
+  #voiceView p{color:rgba(251,250,246,.75);font-size:15px;line-height:1.55;max-width:26ch}
+  .vbtns{display:flex;justify-content:center;gap:22px;align-items:center;padding:0 40px calc(46px + env(safe-area-inset-bottom))}
+  .vbtn{cursor:pointer;border:none;border-radius:6px;display:grid;place-items:center}
+  .vbtn.cancel{width:58px;height:58px;background:rgba(251,250,246,.14)}
+  .vbtn.done{width:72px;height:72px;background:var(--cream)}
+  @keyframes halo{0%{transform:scale(.7);opacity:.7}100%{transform:scale(1.35);opacity:0}}
+  @keyframes bar{0%,100%{transform:scaleY(.4)}50%{transform:scaleY(1)}}
+
+  #settingsView{background:var(--cream)}
+  .stop{display:flex;align-items:center;gap:12px;padding:calc(15px + env(safe-area-inset-top)) 18px 16px 14px}
+  .stop h2{font-family:var(--serif);font-weight:600;font-size:24px}
+  .slist{flex:1;overflow-y:auto;padding:0 16px calc(16px + env(safe-area-inset-bottom))}
+  .note{background:var(--tint);border-radius:6px;padding:13px 15px;font-size:13px;line-height:1.5;margin-bottom:10px}
+  .srow{display:flex;align-items:center;gap:12px;padding:13px 4px;border-bottom:1px solid var(--sand);cursor:pointer;width:100%;background:none;border-left:none;border-right:none;border-top:none;text-align:left}
+  .srow .ic{width:34px;height:34px;border-radius:4px;background:var(--tint);flex:0 0 auto;display:grid;place-items:center;color:var(--green)}
+  .srow .lb{flex:1;font-weight:600;font-size:14.5px}
+  .srow .rt{font-family:var(--mono);color:var(--grey2);font-size:11.5px}
+  .srow.soon{opacity:.55;cursor:default}
+  .srow.soon .ic{background:var(--cream2);color:var(--grey2)}
+  .srow.soon .lb{color:var(--ink-2)}
+  .srow .badge{font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--grey2);background:var(--cream2);padding:4px 8px;border-radius:3px}
+  .srow:focus-visible{outline:2px solid var(--green);outline-offset:-2px;border-radius:4px}
+  .subwrap{padding:6px 2px}
+  .subwrap .drow{display:flex;align-items:center;gap:10px;padding:12px 4px;border-bottom:1px solid var(--sand)}
+  .subwrap .drow .dn{flex:1;font-size:14px;font-weight:500}
+  .subwrap .drow .dc{font-family:var(--mono);font-size:11px;color:var(--grey2)}
+  .subwrap .drow .del{background:none;border:none;cursor:pointer;color:var(--grey);padding:4px 6px;border-radius:4px;font-size:15px}
+  .subwrap .drow .del:hover{background:var(--tint);color:var(--green)}
+  .subwrap .placeholder{color:var(--grey);font-size:14px;line-height:1.6;padding:14px 4px}
+  .langrow{display:flex;align-items:center;gap:12px;padding:14px 6px;border-bottom:1px solid var(--sand);cursor:pointer;width:100%;background:none;border-left:none;border-right:none;border-top:none;text-align:left;font-size:15px;font-weight:500}
+  .langrow .tick{margin-left:auto;color:var(--green)}
+  .langrow:focus-visible{outline:2px solid var(--green);outline-offset:-2px;border-radius:4px}
+
+  /* Settings sub-view form controls — shared by the Email/Web/Tasks/Model panels */
+  .subwrap .sfield{display:flex;flex-direction:column;gap:6px;margin:12px 0}
+  .subwrap .sfield label{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--grey)}
+  .subwrap .sin{width:100%;font-family:inherit;font-size:14.5px;color:var(--ink);background:var(--cream2);border:1px solid var(--sand);border-radius:6px;padding:10px 12px;outline:none}
+  .subwrap select.sin{appearance:none;-webkit-appearance:none;cursor:pointer}
+  .subwrap .sin:focus{border-color:var(--green)}
+  .subwrap .sin:focus-visible{outline:2px solid var(--green);outline-offset:1px}
+  .subwrap .sbtn{cursor:pointer;font-family:inherit;font-size:13.5px;font-weight:600;border-radius:5px;padding:10px 16px;border:1px solid var(--green);background:var(--green);color:var(--cream);transition:background .15s}
+  .subwrap .sbtn:hover{background:var(--green-deep)}
+  .subwrap .sbtn.ghost{background:none;color:var(--green)}
+  .subwrap .sbtn.ghost:hover{background:var(--tint)}
+  .subwrap .sbtn.mini{padding:5px 11px;font-size:11.5px;border-radius:4px}
+  .subwrap .sbtn:disabled{opacity:.5;cursor:default}
+  .subwrap .sbtn:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+  .subwrap .sactions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .subwrap .saddrow{display:flex;gap:8px;margin:12px 0}
+  .subwrap .saddrow .sin{flex:1}
+  .subwrap .smeta{font-family:var(--mono);font-size:11.5px;color:var(--grey2);line-height:1.6;padding:6px 4px}
+  .subwrap .drow .dc.on{color:var(--green)}
+  .subwrap .drow .acts{display:flex;gap:6px;align-items:center;margin-left:auto}
+
+  .toast{position:absolute;left:50%;bottom:98px;transform:translate(-50%,10px);background:var(--ink);color:var(--tint);font-size:13px;padding:9px 15px;border-radius:5px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:30;max-width:80%;text-align:center}
+  .toast.on{opacity:1;transform:translate(-50%,0)}
+
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 </style>
 </head>
 <body>
-<header>
-  <div style="display:flex;align-items:center;gap:10px">
-    <img id="hdr-avatar" alt="avatar">
-    <h1>🛡️ <span id="hdr-agent-name">Vokter</span> <span style="color:var(--muted);font-size:.8rem">v0.7</span></h1>
-    <button class="btn-sm" id="btn-settings" style="font-size:.78rem;padding:4px 9px">⚙ Settings</button>
-  </div>
-  <div class="tag">Everything runs on your machine. Not a single byte leaves here.</div>
-  <label class="upload">＋ Teach it a document (PDF, TXT, MD)
-    <input type="file" id="file" accept=".pdf,.txt,.md">
-  </label>
-</header>
+<div id="app">
 
-<div id="settings">
-  <div class="cfg-grid">
-    <div class="cfg-field">
-      <label>Agent name</label>
-      <input type="text" id="cfg-agent-name" placeholder="Vokter">
-    </div>
-    <div class="cfg-field">
-      <label>Tone</label>
-      <select id="cfg-tone">
-        <option value="formal">Formal</option>
-        <option value="neutral" selected>Neutral</option>
-        <option value="friendly">Friendly</option>
-      </select>
-    </div>
-    <div class="cfg-field">
-      <label>Mode</label>
-      <select id="cfg-mode">
-        <option value="productive">Productive (concise)</option>
-        <option value="conversational" selected>Conversational</option>
-      </select>
-    </div>
-    <div class="cfg-field">
-      <label>Language</label>
-      <select id="cfg-language">
-        <option value="auto" selected>Auto-detect</option>
-        <option value="en">English</option>
-        <option value="es">Spanish</option>
-        <option value="fr">French</option>
-        <option value="de">German</option>
-        <option value="it">Italian</option>
-        <option value="pt">Portuguese</option>
-        <option value="nl">Dutch</option>
-        <option value="pl">Polish</option>
-      </select>
-    </div>
-    <div class="cfg-field">
-      <label>Chat model override</label>
-      <input type="text" id="cfg-chat-model" placeholder="e.g. llama3.2:3b">
-    </div>
-    <div class="cfg-field">
-      <label>Embed model override</label>
-      <input type="text" id="cfg-embed-model" placeholder="e.g. nomic-embed-text">
-    </div>
-    <div class="cfg-field">
-      <label>Max conversation history (2–200)</label>
-      <input type="number" id="cfg-max-history" min="2" max="200">
-    </div>
-    <div class="cfg-field">
-      <label>RAG chunks per answer (1–20)</label>
-      <input type="number" id="cfg-rag-chunks" min="1" max="20">
-    </div>
-    <div class="cfg-field" style="grid-column:1/-1">
-      <label>Avatar</label>
-      <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
-        <img id="cfg-avatar-preview" alt="avatar">
-        <div id="cfg-avatar-placeholder">🛡️</div>
-        <div style="display:flex;flex-direction:column;gap:6px">
-          <label class="cfg-avatar-upload">Upload image (jpg, png, webp)
-            <input type="file" id="cfg-avatar-file" accept=".jpg,.jpeg,.png,.webp,.gif">
-          </label>
-          <button class="btn-sm danger" id="btn-cfg-avatar-remove" style="font-size:.78rem;display:none">Remove avatar</button>
-        </div>
+  <div class="hdr">
+    <svg class="mk" viewBox="0 0 48 56" fill="none"><path d="M24 2.5 41.5 9.2V26.5C41.5 39.5 33.7 48.7 24 53.5 14.3 48.7 6.5 39.5 6.5 26.5V9.2Z" fill="none" stroke="#2D6A4F" stroke-width="2.6" stroke-linejoin="round"/><circle cx="24" cy="27" r="4.2" fill="#2D6A4F"/></svg>
+    <div class="t"><b>Vokter</b><span data-i18n="onDevice">On your device</span></div>
+    <button class="icbtn" id="openSettings" data-i18n-aria="settings" aria-label="Settings">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+
+  <div class="thread" id="thread">
+    <div class="empty" id="empty">
+      <div class="badge"><svg width="36" height="42" viewBox="0 0 48 56" fill="none"><path d="M24 2.5 41.5 9.2V26.5C41.5 39.5 33.7 48.7 24 53.5 14.3 48.7 6.5 39.5 6.5 26.5V9.2Z" fill="none" stroke="#2D6A4F" stroke-width="2.6" stroke-linejoin="round"/><circle cx="24" cy="27" r="4.2" fill="#2D6A4F"/></svg></div>
+      <h1 data-i18n="emptyTitle">Hello. I'm yours.</h1>
+      <p data-i18n="emptyBody">Only you and your agent are here. Nothing leaves this machine.</p>
+      <div class="chips">
+        <button class="chip" id="chipDoc" data-i18n="chipDoc">Read a document with me</button>
+        <button class="chip" id="chipWhat" data-i18n="chipWhat">What can you do?</button>
       </div>
     </div>
-  </div>
-  <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
-    <button class="btn" id="btn-cfg-save" style="font-size:.85rem;padding:8px 18px">Save</button>
-    <span id="cfg-status"></span>
-  </div>
-</div>
-
-<div id="task">
-  <div id="task-top">
-    <input type="text" id="task-goal" placeholder="Give me a task… e.g. Compare prices of X on these sites">
-    <button class="btn-sm" id="btn-plan">Run task</button>
-  </div>
-  <div id="task-log"></div>
-</div>
-<div id="wallet">
-  <div id="wallet-top">
-    <span id="wallet-balance">Balance: <strong>—</strong></span>
-    <span id="wallet-badge">cashu</span>
-    <button class="btn-sm" id="btn-wallet-refresh">⟳</button>
-    <button class="btn-sm" id="btn-wallet-history-toggle">History</button>
-    <button class="btn-sm" id="btn-wallet-adapters-toggle">Adapters</button>
+    <div class="msgs" id="msgs" style="display:none"></div>
   </div>
 
-  <div id="wallet-sections">
-    <div style="flex:1;min-width:200px">
-      <input type="text" class="wallet-input" id="wallet-token" placeholder="Paste cashuA… token to receive">
-      <div style="margin-top:4px">
-        <button class="btn-sm" id="btn-wallet-receive">Receive</button>
-      </div>
-    </div>
-    <div style="flex:1;min-width:200px">
-      <div id="wallet-send-row">
-        <input type="number" class="wallet-input" id="wallet-send-amount" placeholder="Amount" min="1">
-        <input type="text" class="wallet-input" id="wallet-send-memo" placeholder="Memo (optional)">
-      </div>
-      <div style="margin-top:4px">
-        <button class="btn-sm" id="btn-wallet-send">Send</button>
-      </div>
+  <div class="composer">
+    <div class="inrow">
+      <button class="rnd plain" id="attachBtn" data-i18n-aria="addDoc" aria-label="Add a document">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="m8 13 4 4a5 5 0 0 0 7-7l-7-7a3.5 3.5 0 0 0-5 5l7 7a2 2 0 0 0 3-3l-6-6" stroke="#6E6B61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <input type="file" id="fileInput" style="display:none" accept=".pdf,.txt,.md,.docx,.csv">
+      <input type="text" id="q" data-i18n-ph="placeholder" placeholder="Message your agent…" autocomplete="off">
+      <button class="rnd mic" id="micBtn" data-i18n-aria="speak" aria-label="Speak">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="9" y="3" width="6" height="12" rx="3" stroke="#2D6A4F" stroke-width="1.8"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="#2D6A4F" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+      <button class="rnd send" id="sendBtn" data-i18n-aria="send" aria-label="Send">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 12h15M13 6l6 6-6 6" stroke="#F6F4EF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
     </div>
   </div>
 
-  <div id="wallet-output" style="display:none">
-    <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px">Token to share with recipient:</div>
-    <div id="wallet-output-token"></div>
-    <button class="btn-sm" id="btn-wallet-copy" style="margin-top:4px">Copy token</button>
-  </div>
-
-  <div id="wallet-history"></div>
-  <div id="wallet-adapters-panel"></div>
-</div>
-
-<!-- payment confirmation modal -->
-<div id="wallet-modal">
-  <div id="wallet-modal-box">
-    <h3>Confirm payment</h3>
-    <p id="wallet-modal-text"></p>
-    <div id="wallet-modal-btns">
-      <button class="btn" id="btn-wallet-confirm">Confirm</button>
-      <button class="btn-sm" id="btn-wallet-cancel">Cancel</button>
+  <div class="view" id="voiceView">
+    <div class="vtop"><button class="icbtn" style="color:#FBFAF6" id="voiceX" aria-label="Cancel"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M6 18 18 6" stroke="#FBFAF6" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+    <div class="vmid">
+      <div class="vhalo"><span class="ring"></span><div class="vwave"><span></span><span></span><span></span><span></span><span></span></div></div>
+      <h2 data-i18n="listening">Listening…</h2>
+      <p data-i18n="listeningBody">Take your time. I'm hearing you on this device only.</p>
+    </div>
+    <div class="vbtns">
+      <button class="vbtn cancel" id="voiceCancel" aria-label="Cancel"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M6 18 18 6" stroke="#FBFAF6" stroke-width="2" stroke-linecap="round"/></svg></button>
+      <button class="vbtn done" id="voiceDone" aria-label="Done"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#2D6A4F" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
   </div>
-</div>
 
-<div id="schedule">
-  <div id="schedule-top">
-    <strong style="font-size:.9rem">Scheduled tasks</strong>
-    <span id="schedule-badge-el" style="font-size:.72rem;background:#f851491a;color:#f85149;border:1px solid #f8514966;border-radius:4px;padding:1px 6px;display:none"></span>
-    <button class="btn-sm" id="btn-sched-new">＋ New task</button>
-    <button class="btn-sm" id="btn-sched-refresh">⟳</button>
-  </div>
-  <div id="schedule-form" style="display:none;flex-wrap:wrap;gap:6px;margin-bottom:8px">
-    <input type="text" class="wallet-input" id="sched-name" placeholder="Name (e.g. Daily digest)" style="width:160px">
-    <input type="text" class="wallet-input" id="sched-goal" placeholder="Goal (e.g. Summarise my emails)" style="flex:1;min-width:200px">
-    <input type="text" class="wallet-input" id="sched-interval" placeholder="1h / 30m / 1d" style="width:80px">
-    <button class="btn-sm" id="btn-sched-create">Create</button>
-    <button class="btn-sm" id="btn-sched-cancel">Cancel</button>
-  </div>
-  <div id="schedule-list"><div class="tag" style="font-size:.82rem">No scheduled tasks yet.</div></div>
-</div>
-
-<div id="web">
-  <div id="web-top">
-    <input type="url" id="web-url" placeholder="https://…">
-    <button class="btn-sm" id="btn-browse">Browse</button>
-    <button class="btn-sm" id="btn-perms-toggle">Permissions (<span id="perms-count">0</span>)</button>
-  </div>
-  <div id="web-status"></div>
-  <div id="web-perms" style="display:none">
-    <div id="perms-list"></div>
-    <div id="perm-add">
-      <input type="url" id="perm-input" placeholder="https://example.com">
-      <button class="btn-sm" id="btn-add-perm">Allow</button>
+  <div class="view" id="settingsView">
+    <div class="stop">
+      <button class="icbtn" id="settingsBack" aria-label="Back"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M15 6l-6 6 6 6" stroke="#171511" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <h2 id="settingsTitle">Settings</h2>
     </div>
+    <div class="slist" id="slist"></div>
   </div>
-</div>
-<div id="email">
-  <span id="email-status">checking email…</span>
-  <button class="btn-sm" id="btn-sync">⟳ Sync emails</button>
-  <button class="btn-sm danger" id="btn-del-emails" style="display:none">✕ Delete all emails</button>
-</div>
-<div id="docs"></div>
-<div id="chat">
-  <div class="msg bot">I'm Vokter, your guardian. Upload a document and ask me anything about it. What I learn stays between you and me — literally: it lives on your disk.</div>
+
+  <div class="toast" id="toast"></div>
 </div>
 
-<form id="ask">
-  <input type="text" id="q" placeholder="Ask your documents…" autocomplete="off">
-  <button class="btn">→</button>
-  <button type="button" class="btn-mic" id="btn-mic" title="Hold to record, click again to stop">🎤</button>
-  <button type="button" class="btn-new" id="new-chat">New chat</button>
-</form>
-
-<script>
-const chat = document.getElementById('chat');
-const docsEl = document.getElementById('docs');
-let conversationId = null;
-
-function add(role, text, sources){
-  const d = document.createElement('div');
-  d.className = 'msg ' + role;
-  d.textContent = text;
-  if (role === 'bot') {
-    const play = document.createElement('button');
-    play.className = 'btn-play';
-    play.title = 'Read aloud';
-    play.textContent = '▶';
-    play.onclick = () => speakText(text, play);
-    d.appendChild(play);
-  }
-  if (sources && sources.length){
-    const s = document.createElement('div');
-    s.className = 'src';
-    s.textContent = 'Sources: ' + sources.join(', ');
-    d.appendChild(s);
-  }
-  chat.appendChild(d);
-  chat.scrollTop = chat.scrollHeight;
-  return d;
-}
-
-async function speakText(text, btn) {
-  if (btn) { btn.disabled = true; btn.textContent = '…'; }
-  try {
-    const r = await fetch('/api/voice/speak', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({text})
-    });
-    if (!r.ok) { if (btn) { btn.disabled = false; btn.textContent = '▶'; } return; }
-    const blob = await r.blob();
-    const url = URL.createObjectURL(blob);
-    const audio = new Audio(url);
-    audio.onended = () => { URL.revokeObjectURL(url); if (btn) { btn.disabled = false; btn.textContent = '▶'; } };
-    audio.play();
-  } catch {
-    if (btn) { btn.disabled = false; btn.textContent = '▶'; }
-  }
-}
-
-let _mediaRecorder = null;
-let _audioChunks = [];
-
-document.getElementById('btn-mic').onclick = async () => {
-  const btn = document.getElementById('btn-mic');
-  if (_mediaRecorder && _mediaRecorder.state === 'recording') {
-    _mediaRecorder.stop();
-    return;
-  }
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({audio: true});
-    _mediaRecorder = new MediaRecorder(stream);
-    _audioChunks = [];
-    _mediaRecorder.ondataavailable = e => _audioChunks.push(e.data);
-    _mediaRecorder.onstop = async () => {
-      stream.getTracks().forEach(t => t.stop());
-      btn.classList.remove('recording');
-      btn.textContent = '🎤';
-      btn.disabled = true;
-      const blob = new Blob(_audioChunks, {type: 'audio/webm'});
-      const fd = new FormData();
-      fd.append('audio', blob, 'recording.webm');
-      try {
-        const r = await fetch('/api/voice/transcribe', {method: 'POST', body: fd});
-        const j = await r.json();
-        if (r.ok && j.text) document.getElementById('q').value = j.text;
-      } catch {}
-      btn.disabled = false;
-    };
-    _mediaRecorder.start();
-    btn.classList.add('recording');
-    btn.textContent = '⏹';
-  } catch {
-    alert('Could not access microphone. Check browser permissions.');
-  }
-};
-
-async function loadDocs(){
-  const r = await fetch('/api/docs');
-  const docs = await r.json();
-  docsEl.innerHTML = docs.length ? '' :
-    '<div class="tag">Vokter knows nothing yet. That\'s its most private state 😉</div>';
-  for (const d of docs){
-    const row = document.createElement('div');
-    row.className = 'doc';
-    row.innerHTML = `<span>📄 ${d.doc} <span class="tag">(${d.chunks} chunks)</span></span>`;
-    const del = document.createElement('button');
-    del.textContent = '✕';
-    del.title = 'Real deletion: document and embeddings';
-    del.onclick = async () => {
-      await fetch('/api/docs/' + encodeURIComponent(d.doc), {method:'DELETE'});
-      loadDocs();
-    };
-    row.appendChild(del);
-    docsEl.appendChild(row);
-  }
-}
-
-document.getElementById('file').onchange = async (e) => {
-  const f = e.target.files[0];
-  if (!f) return;
-  const note = add('bot', `Reading and memorizing "${f.name}" locally…`);
-  const fd = new FormData();
-  fd.append('file', f);
-  const r = await fetch('/api/docs', {method:'POST', body:fd});
-  const j = await r.json();
-  note.textContent = r.ok
-    ? `Done. I've memorized "${j.doc}" in ${j.chunks} chunks, all on your disk.`
-    : `I couldn't read that file: ${j.detail || 'error'}`;
-  loadDocs();
-  e.target.value = '';
-};
-
-document.getElementById('ask').onsubmit = async (e) => {
-  e.preventDefault();
-  const input = document.getElementById('q');
-  const q = input.value.trim();
-  if (!q) return;
-  add('user', q);
-  input.value = '';
-  const thinking = add('bot', 'Thinking locally…');
-  try {
-    const r = await fetch('/api/ask', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({question: q, conversation_id: conversationId})
-    });
-    let j;
-    try { j = await r.json(); } catch {
-      thinking.textContent = `Server error ${r.status} — unexpected response format.`;
-      return;
-    }
-    thinking.remove();
-    if (r.ok) {
-      conversationId = j.conversation_id;
-      add('bot', j.answer, j.sources);
-    } else {
-      add('bot', j.detail || 'Error');
-    }
-  } catch (err){
-    thinking.textContent = 'Can\'t reach Ollama. Is the container running?';
-  }
-};
-
-document.getElementById('new-chat').onclick = () => {
-  conversationId = null;
-  chat.innerHTML = '';
-  add('bot', 'New conversation started. Ask me anything about your documents.');
-};
-
-async function loadEmailStatus() {
-  const r = await fetch('/api/email/status');
-  const j = await r.json();
-  const el = document.getElementById('email-status');
-  const delBtn = document.getElementById('btn-del-emails');
-  if (!j.configured) {
-    el.textContent = 'Email not configured (set VOKTER_EMAIL_* in docker-compose.yml)';
-  } else {
-    el.textContent = j.synced_emails > 0
-      ? `${j.synced_emails} emails in memory`
-      : 'No emails synced yet';
-    delBtn.style.display = j.synced_emails > 0 ? '' : 'none';
-  }
-}
-
-document.getElementById('btn-sync').onclick = async () => {
-  const btn = document.getElementById('btn-sync');
-  const el  = document.getElementById('email-status');
-  btn.disabled = true;
-  el.textContent = 'Syncing… (this may take a while)';
-  try {
-    const r = await fetch('/api/email/sync', {method: 'POST'});
-    const j = await r.json();
-    if (r.ok) {
-      el.textContent = `Done — ${j.synced} new emails added (${j.errors} errors)`;
-      loadEmailStatus();
-    } else {
-      el.textContent = `Error: ${j.detail}`;
-    }
-  } catch {
-    el.textContent = 'Could not reach server.';
-  }
-  btn.disabled = false;
-};
-
-document.getElementById('btn-del-emails').onclick = async () => {
-  if (!confirm('Delete all synced emails from Vokter\'s memory?')) return;
-  const r = await fetch('/api/email/all', {method: 'DELETE'});
-  const j = await r.json();
-  add('bot', `Deleted ${j.emails_removed} emails (${j.chunks_removed} chunks removed).`);
-  loadEmailStatus();
-};
-
-async function loadPerms() {
-  const r = await fetch('/api/browse/permissions');
-  const perms = await r.json();
-  document.getElementById('perms-count').textContent = perms.length;
-  const list = document.getElementById('perms-list');
-  list.innerHTML = perms.length
-    ? ''
-    : '<div class="tag" style="font-size:.82rem">No patterns allowed yet.</div>';
-  for (const p of perms) {
-    const row = document.createElement('div');
-    row.className = 'perm-row';
-    const span = document.createElement('span');
-    span.textContent = p.pattern;
-    row.appendChild(span);
-    const del = document.createElement('button');
-    del.textContent = '✕';
-    del.onclick = async () => {
-      await fetch('/api/browse/permissions/' + encodeURIComponent(p.pattern), {method:'DELETE'});
-      loadPerms();
-    };
-    row.appendChild(del);
-    list.appendChild(row);
-  }
-}
-
-document.getElementById('btn-perms-toggle').onclick = () => {
-  const el = document.getElementById('web-perms');
-  el.style.display = el.style.display === 'none' ? '' : 'none';
-};
-
-document.getElementById('btn-add-perm').onclick = async () => {
-  const input = document.getElementById('perm-input');
-  const pattern = input.value.trim();
-  if (!pattern) return;
-  const r = await fetch('/api/browse/permissions', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({pattern}),
-  });
-  if (r.ok) { input.value = ''; loadPerms(); }
-  else { const j = await r.json(); alert(j.detail); }
-};
-
-document.getElementById('btn-browse').onclick = async () => {
-  const url = document.getElementById('web-url').value.trim();
-  const status = document.getElementById('web-status');
-  if (!url) return;
-  const btn = document.getElementById('btn-browse');
-  btn.disabled = true;
-  status.textContent = 'Fetching and memorizing…';
-  try {
-    const r = await fetch('/api/browse', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({url}),
-    });
-    const j = await r.json();
-    if (r.ok) {
-      status.textContent = `Done — ${j.chunks} chunks stored. Ask me about it.`;
-      add('bot', `I've read and memorized ${url} (${j.chunks} chunks). Ask me anything about it.`);
-      loadDocs();
-    } else {
-      status.textContent = `Error: ${j.detail}`;
-    }
-  } catch {
-    status.textContent = 'Could not reach server.';
-  }
-  btn.disabled = false;
-};
-
-document.getElementById('btn-plan').onclick = async () => {
-  const goal = document.getElementById('task-goal').value.trim();
-  if (!goal) return;
-  const btn = document.getElementById('btn-plan');
-  const log  = document.getElementById('task-log');
-  btn.disabled = true;
-  log.innerHTML = '';
-
-  const stepEls = [];
-
-  function logLine(text, cls) {
-    const d = document.createElement('div');
-    d.className = 'tlog-step' + (cls ? ' ' + cls : '');
-    d.textContent = text;
-    log.appendChild(d);
-    return d;
-  }
-
-  try {
-    const r = await fetch('/api/plan', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({goal}),
-    });
-    if (!r.ok) { logLine('Server error: ' + r.status, 'tlog-error'); btn.disabled = false; return; }
-
-    const reader = r.body.getReader();
-    const dec = new TextDecoder();
-    let buf = '';
-
-    while (true) {
-      const {done, value} = await reader.read();
-      if (done) break;
-      buf += dec.decode(value, {stream: true});
-      const lines = buf.split('\n');
-      buf = lines.pop();
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        let ev;
-        try { ev = JSON.parse(line.slice(6)); } catch { continue; }
-
-        if (ev.type === 'status') {
-          logLine('⋯ ' + ev.text);
-        } else if (ev.type === 'plan') {
-          ev.steps.forEach((s, i) => {
-            stepEls[i] = logLine(`${i + 1}. [${s.tool}] ${s.reason}`);
-          });
-        } else if (ev.type === 'step_start') {
-          if (stepEls[ev.index]) stepEls[ev.index].textContent += ' …';
-        } else if (ev.type === 'step_done') {
-          if (stepEls[ev.index]) {
-            stepEls[ev.index].textContent = `✓ ${ev.text}`;
-            stepEls[ev.index].className = 'tlog-step tlog-done';
-          }
-        } else if (ev.type === 'step_error') {
-          if (stepEls[ev.index]) {
-            stepEls[ev.index].textContent = `✗ ${ev.text}`;
-            stepEls[ev.index].className = 'tlog-step tlog-error';
-          }
-        } else if (ev.type === 'error') {
-          logLine('✗ ' + ev.text, 'tlog-error');
-        } else if (ev.type === 'done') {
-          const ans = document.createElement('div');
-          ans.className = 'tlog-answer';
-          ans.textContent = ev.answer;
-          log.appendChild(ans);
-          add('bot', ev.answer);
-          loadDocs();
-        }
-      }
-    }
-  } catch (err) {
-    logLine('Connection error: ' + err, 'tlog-error');
-  }
-  btn.disabled = false;
-};
-
-// ── Wallet ────────────────────────────────────────────────────────────────────
-
-async function loadWalletBalance() {
-  try {
-    const r = await fetch('/api/wallet/balance');
-    if (!r.ok) return;
-    const d = await r.json();
-    document.getElementById('wallet-balance').innerHTML =
-      `Balance: <strong>${d.balance.toLocaleString()} ${d.unit}</strong>`;
-    document.getElementById('wallet-badge').textContent = d.adapter;
-  } catch {}
-}
-
-document.getElementById('btn-wallet-refresh').onclick = loadWalletBalance;
-
-document.getElementById('btn-wallet-receive').onclick = async () => {
-  const token = document.getElementById('wallet-token').value.trim();
-  if (!token) return;
-  const btn = document.getElementById('btn-wallet-receive');
-  btn.disabled = true;
-  try {
-    const r = await fetch('/api/wallet/receive', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({token}),
-    });
-    const d = await r.json();
-    if (!r.ok) { alert(d.detail || 'Receive failed'); return; }
-    document.getElementById('wallet-token').value = '';
-    alert(`Received ${d.received.toLocaleString()} ${d.unit}`);
-    loadWalletBalance();
-  } catch (e) { alert('Error: ' + e); }
-  btn.disabled = false;
-};
-
-let _pendingSend = null;
-
-document.getElementById('btn-wallet-send').onclick = () => {
-  const amount = parseInt(document.getElementById('wallet-send-amount').value, 10);
-  const memo   = document.getElementById('wallet-send-memo').value.trim();
-  if (!amount || amount <= 0) { alert('Enter a valid amount'); return; }
-  _pendingSend = {amount, memo};
-  document.getElementById('wallet-modal-text').textContent =
-    `Send ${amount.toLocaleString()} tokens${memo ? ' — ' + memo : ''}. This cannot be undone.`;
-  document.getElementById('wallet-modal').classList.add('open');
-};
-
-document.getElementById('btn-wallet-cancel').onclick = () => {
-  document.getElementById('wallet-modal').classList.remove('open');
-  _pendingSend = null;
-};
-
-document.getElementById('btn-wallet-confirm').onclick = async () => {
-  if (!_pendingSend) return;
-  document.getElementById('wallet-modal').classList.remove('open');
-  const {amount, memo} = _pendingSend;
-  _pendingSend = null;
-  const btn = document.getElementById('btn-wallet-send');
-  btn.disabled = true;
-  try {
-    const r = await fetch('/api/wallet/send', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({amount, memo, confirmed: true}),
-    });
-    const d = await r.json();
-    if (!r.ok) { alert(d.detail || 'Send failed'); btn.disabled = false; return; }
-    document.getElementById('wallet-send-amount').value = '';
-    document.getElementById('wallet-send-memo').value   = '';
-    if (d.output) {
-      const out = document.getElementById('wallet-output');
-      document.getElementById('wallet-output-token').textContent = d.output;
-      out.style.display = '';
-    }
-    loadWalletBalance();
-  } catch (e) { alert('Error: ' + e); }
-  btn.disabled = false;
-};
-
-function _copyText(text, btn) {
-  const ok = () => {
-    const orig = btn.textContent;
-    btn.textContent = 'Copied!';
-    setTimeout(() => { btn.textContent = orig; }, 1500);
-  };
-  const fail = () => {
-    const orig = btn.textContent;
-    btn.textContent = 'Copy failed — select manually';
-    setTimeout(() => { btn.textContent = orig; }, 2500);
-  };
-  if (navigator.clipboard && window.isSecureContext) {
-    navigator.clipboard.writeText(text).then(ok, fail);
-  } else {
-    // Fallback for non-HTTPS / IP access
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
-    document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
-    try { document.execCommand('copy') ? ok() : fail(); }
-    catch { fail(); }
-    finally { document.body.removeChild(ta); }
-  }
-}
-
-document.getElementById('btn-wallet-copy').onclick = () => {
-  const text = document.getElementById('wallet-output-token').textContent;
-  _copyText(text, document.getElementById('btn-wallet-copy'));
-};
-
-document.getElementById('btn-wallet-history-toggle').onclick = async () => {
-  const el = document.getElementById('wallet-history');
-  if (el.style.display !== 'none') { el.style.display = 'none'; return; }
-  el.style.display = '';
-  try {
-    const r = await fetch('/api/wallet/history');
-    const txs = await r.json();
-    if (!txs.length) { el.textContent = 'No transactions yet.'; return; }
-    el.innerHTML = '';
-    txs.forEach(t => {
-      const d = document.createElement('div');
-      d.className = 'wtx';
-      const sign = t.direction === 'in' ? '+' : '−';
-      const cls  = t.direction === 'in' ? 'wtx-in' : 'wtx-out';
-      d.innerHTML = `<span class="${cls}">${sign}${t.amount.toLocaleString()} ${t.unit}</span>` +
-                    `<span style="color:var(--muted);font-size:.75rem">${t.memo || ''}</span>` +
-                    `<span style="color:var(--muted);font-size:.72rem">${new Date(t.ts*1000).toLocaleDateString()}</span>`;
-      el.appendChild(d);
-    });
-  } catch {}
-};
-
-document.getElementById('btn-wallet-adapters-toggle').onclick = async () => {
-  const el = document.getElementById('wallet-adapters-panel');
-  if (el.style.display !== 'none') { el.style.display = 'none'; return; }
-  el.style.display = '';
-  try {
-    const r = await fetch('/api/wallet/adapters');
-    const d = await r.json();
-    el.innerHTML = '';
-    d.adapters.forEach(a => {
-      const div = document.createElement('div');
-      div.className = 'wadapter' + (a.name === d.active ? ' active' : '');
-      div.innerHTML =
-        `<div><span class="wadapter-name">${a.label}</span>` +
-        `<span class="wadapter-tier">[${a.tier}]</span></div>` +
-        `<div class="wadapter-status">${a.status}</div>`;
-      el.appendChild(div);
-    });
-  } catch {}
-};
-
-loadWalletBalance();
-loadDocs();
-loadEmailStatus();
-loadPerms();
-loadSchedule();
-
-// ── Scheduled tasks ───────────────────────────────────────────────────────────
-
-const SCHED_SEEN_KEY = 'vokter_sched_seen';
-
-function _esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function _fmtInterval(s) {
-  if (s >= 86400 && s % 86400 === 0) return (s / 86400) + 'd';
-  if (s >= 3600  && s % 3600  === 0) return (s / 3600)  + 'h';
-  return Math.round(s / 60) + 'm';
-}
-
-function _fmtTs(ts) {
-  if (!ts) return '—';
-  return new Date(ts * 1000).toLocaleString(undefined, {dateStyle:'short', timeStyle:'short'});
-}
-
-function renderTask(task) {
-  const wrap = document.createElement('div');
-  wrap.className = 'stask';
-  wrap.dataset.id = task.id;
-
-  const hdr = document.createElement('div');
-  hdr.className = 'stask-header';
-  hdr.innerHTML =
-    `<span class="stask-name">${_esc(task.name)}</span>` +
-    `<span class="stask-interval">${_fmtInterval(task.interval_seconds)}</span>` +
-    `<span class="stask-status ${task.enabled ? 'on' : 'off'}">${task.enabled ? 'on' : 'paused'}</span>` +
-    `<button class="btn-sm" style="font-size:.72rem;padding:3px 7px" data-toggle>` +
-      `${task.enabled ? 'Pause' : 'Resume'}` +
-    `</button>` +
-    `<button class="btn-sm danger" style="font-size:.72rem;padding:3px 7px" data-del>✕</button>`;
-  wrap.appendChild(hdr);
-
-  const runs = document.createElement('div');
-  runs.className = 'stask-runs';
-  runs.innerHTML = '<div class="tag" style="font-size:.78rem">Click to load runs…</div>';
-  wrap.appendChild(runs);
-
-  let runsLoaded = false;
-  hdr.addEventListener('click', async (e) => {
-    if (e.target.dataset.toggle !== undefined || e.target.dataset.del !== undefined) return;
-    const open = runs.style.display === '';
-    runs.style.display = open ? 'none' : '';
-    if (!open && !runsLoaded) {
-      try {
-        const r = await fetch(`/api/schedule/${task.id}/runs`);
-        const list = await r.json();
-        runsLoaded = true;
-        if (!list.length) { runs.innerHTML = '<div class="tag" style="font-size:.78rem">No runs yet.</div>'; return; }
-        runs.innerHTML = '';
-        list.forEach(run => {
-          const d = document.createElement('div');
-          d.className = 'srun';
-          d.innerHTML =
-            `<div>` +
-              `<span class="srun-status ${_esc(run.status)}">${_esc(run.status)}</span>` +
-              `<span style="color:var(--muted)">${_fmtTs(run.finished_at || run.started_at)}</span>` +
-            `</div>` +
-            (run.output ? `<div class="srun-output">${_esc(run.output.slice(0, 300))}</div>` : '');
-          runs.appendChild(d);
-        });
-      } catch {}
-    }
-  });
-
-  hdr.querySelector('[data-toggle]').onclick = async (e) => {
-    e.stopPropagation();
-    const btn = e.currentTarget;
-    btn.disabled = true;
-    await fetch(`/api/schedule/${task.id}`, {
-      method: 'PATCH',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({enabled: !task.enabled}),
-    });
-    loadSchedule();
-  };
-
-  hdr.querySelector('[data-del]').onclick = async (e) => {
-    e.stopPropagation();
-    if (!confirm(`Delete task "${task.name}"?`)) return;
-    await fetch(`/api/schedule/${task.id}`, {method: 'DELETE'});
-    loadSchedule();
-  };
-
-  return wrap;
-}
-
-async function loadSchedule() {
-  try {
-    const r = await fetch('/api/schedule');
-    const tasks = await r.json();
-    const el = document.getElementById('schedule-list');
-    if (!tasks.length) {
-      el.innerHTML = '<div class="tag" style="font-size:.82rem">No scheduled tasks yet.</div>';
-    } else {
-      el.innerHTML = '';
-      tasks.forEach(t => el.appendChild(renderTask(t)));
-    }
-    await checkNewRuns();
-  } catch {}
-}
-
-async function checkNewRuns() {
-  const seenRaw = localStorage.getItem(SCHED_SEEN_KEY);
-  const seen = seenRaw ? parseFloat(seenRaw) : null;
-  try {
-    const url = seen !== null
-      ? `/api/schedule/runs/recent?since=${seen}&limit=20`
-      : '/api/schedule/runs/recent?limit=20';
-    const r = await fetch(url);
-    const runs = await r.json();
-    const badge = document.getElementById('schedule-badge-el');
-    const newDone = runs.filter(r => r.finished_at && (seen === null || r.finished_at > seen));
-    if (newDone.length) {
-      badge.textContent = newDone.length + ' new';
-      badge.style.display = '';
-    } else {
-      badge.style.display = 'none';
-    }
-  } catch {}
-}
-
-document.getElementById('btn-sched-new').onclick = () => {
-  const form = document.getElementById('schedule-form');
-  form.style.display = form.style.display === 'none' ? '' : 'none';
-};
-
-document.getElementById('btn-sched-cancel').onclick = () => {
-  document.getElementById('schedule-form').style.display = 'none';
-};
-
-document.getElementById('btn-sched-refresh').onclick = () => {
-  // Mark badge as seen when user refreshes
-  localStorage.setItem(SCHED_SEEN_KEY, Date.now() / 1000);
-  document.getElementById('schedule-badge-el').style.display = 'none';
-  loadSchedule();
-};
-
-document.getElementById('btn-sched-create').onclick = async () => {
-  const name     = document.getElementById('sched-name').value.trim();
-  const goal     = document.getElementById('sched-goal').value.trim();
-  const interval = document.getElementById('sched-interval').value.trim();
-  if (!name || !goal || !interval) { alert('Fill in name, goal, and interval (e.g. 1h)'); return; }
-  const btn = document.getElementById('btn-sched-create');
-  btn.disabled = true;
-  try {
-    const r = await fetch('/api/schedule', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({name, goal, interval}),
-    });
-    const d = await r.json();
-    if (!r.ok) { alert(d.detail || 'Error creating task'); btn.disabled = false; return; }
-    document.getElementById('sched-name').value = '';
-    document.getElementById('sched-goal').value = '';
-    document.getElementById('sched-interval').value = '';
-    document.getElementById('schedule-form').style.display = 'none';
-    loadSchedule();
-  } catch (e) { alert('Error: ' + e); }
-  btn.disabled = false;
-};
-
-// Poll for new completed runs every 5 minutes (passive — badge only)
-setInterval(checkNewRuns, 300_000);
-
-// ── Settings ────────────────────────────────────────────────────────────────
-async function loadConfig() {
-  try {
-    const cfg = await (await fetch('/api/config')).json();
-    document.getElementById('cfg-agent-name').value  = cfg.agent_name  || 'Vokter';
-    document.getElementById('cfg-tone').value        = cfg.tone        || 'neutral';
-    document.getElementById('cfg-mode').value        = cfg.mode        || 'conversational';
-    document.getElementById('cfg-language').value    = cfg.language    || 'auto';
-    document.getElementById('cfg-chat-model').value  = cfg.chat_model  || '';
-    document.getElementById('cfg-embed-model').value = cfg.embed_model || '';
-    document.getElementById('cfg-max-history').value = cfg.max_history || 20;
-    document.getElementById('cfg-rag-chunks').value  = cfg.rag_chunks  || 4;
-    document.getElementById('hdr-agent-name').textContent = cfg.agent_name || 'Vokter';
-  } catch {}
-}
-
-async function loadAvatar() {
-  const hdr     = document.getElementById('hdr-avatar');
-  const preview = document.getElementById('cfg-avatar-preview');
-  const placeholder = document.getElementById('cfg-avatar-placeholder');
-  const removeBtn   = document.getElementById('btn-cfg-avatar-remove');
-  try {
-    const r = await fetch('/api/config/avatar', {method: 'HEAD'});
-    if (r.ok) {
-      const url = '/api/config/avatar?t=' + Date.now();
-      hdr.src     = url;  hdr.style.display = '';
-      preview.src = url;  preview.style.display = '';
-      placeholder.style.display = 'none';
-      removeBtn.style.display   = '';
-    } else {
-      hdr.style.display     = 'none';
-      preview.style.display = 'none';
-      placeholder.style.display = '';
-      removeBtn.style.display   = 'none';
-    }
-  } catch {
-    hdr.style.display = 'none';
-  }
-}
-
-document.getElementById('cfg-avatar-file').onchange = async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const fd = new FormData();
-  fd.append('file', file);
-  try {
-    const r = await fetch('/api/config/avatar', {method: 'POST', body: fd});
-    if (r.ok) { await loadAvatar(); }
-    else { const j = await r.json(); alert(j.detail || 'Upload failed'); }
-  } catch (err) { alert('Error: ' + err); }
-  e.target.value = '';
-};
-
-document.getElementById('btn-cfg-avatar-remove').onclick = async () => {
-  if (!confirm('Remove avatar?')) return;
-  await fetch('/api/config/avatar', {method: 'DELETE'});
-  loadAvatar();
-};
-
-document.getElementById('btn-settings').onclick = () => {
-  const p = document.getElementById('settings');
-  const open = p.style.display !== 'none';
-  p.style.display = open ? 'none' : '';
-  if (!open) { loadConfig(); loadAvatar(); }
-};
-
-document.getElementById('btn-cfg-save').onclick = async () => {
-  const btn    = document.getElementById('btn-cfg-save');
-  const status = document.getElementById('cfg-status');
-  btn.disabled = true;
-  status.textContent = 'Saving…';
-  const maxH = parseInt(document.getElementById('cfg-max-history').value);
-  const ragC = parseInt(document.getElementById('cfg-rag-chunks').value);
-  try {
-    const r = await fetch('/api/config', {
-      method: 'PATCH',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        agent_name:  document.getElementById('cfg-agent-name').value.trim() || null,
-        tone:        document.getElementById('cfg-tone').value,
-        mode:        document.getElementById('cfg-mode').value,
-        language:    document.getElementById('cfg-language').value,
-        chat_model:  document.getElementById('cfg-chat-model').value.trim()  || null,
-        embed_model: document.getElementById('cfg-embed-model').value.trim() || null,
-        max_history: isNaN(maxH) ? null : maxH,
-        rag_chunks:  isNaN(ragC) ? null : ragC,
-      }),
-    });
-    const d = await r.json();
-    if (r.ok) {
-      document.getElementById('hdr-agent-name').textContent = d.agent_name || 'Vokter';
-      status.textContent = 'Saved ✓';
-      setTimeout(() => { status.textContent = ''; }, 2000);
-    } else {
-      status.textContent = d.detail || 'Error';
-    }
-  } catch (e) { status.textContent = 'Error: ' + e; }
-  btn.disabled = false;
-};
-
-loadConfig();
-loadAvatar();
-</script>
+<script src="/static/app.js"></script>
 </body>
 </html>

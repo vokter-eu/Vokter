@@ -14,3 +14,9 @@ venv/
 *.db-wal
 *.db-shm
 data/
+desktop/runtime/
+
+# Graphify — external repo-indexing tool (token reduction for AI assistants).
+# NOT product code; its graph/cache artifacts must never enter the public repo.
+graphify-out/
+.graphify/

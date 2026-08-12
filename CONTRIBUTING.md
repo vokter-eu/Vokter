@@ -6,9 +6,8 @@ Thanks for being here. Vokter is built by people, not corporations.
 
 - **Try the quick start** from the README on your machine and open an issue with whatever fails or confuses you. Every operating system and every GB of RAM counts.
 - **Report bugs**: open an issue with your OS, RAM, Docker version, and the exact error. Clear reproduction steps help a lot.
-- **Discuss the architecture**: the roadmap lives in Discussions. Well-grounded technical opinions are worth gold — especially around Phase 6 (MCP, Nostr) and wallet adapters.
-- **Implement a wallet adapter**: Monero and Bitcoin stubs are ready to be filled in. See `app/wallet/adapters/` for the interface.
-- **Translate**: the project's home language is English. Other European languages are welcome, especially for the manifesto.
+- **Discuss the architecture**: the roadmap lives in Discussions. Well-grounded technical opinions are worth gold — especially around Phase 6 (MCP, Nostr).
+- **Translate**: the project's home language is English. Other languages are welcome, especially for the manifesto.
 - **Spread the word**: a star or a message to someone who cares about privacy helps more than you'd think.
 
 ## Ground rules

@@ -17,7 +17,6 @@ Vokter is a local-first sovereign agent. The user's machine is the trust boundar
 | 0 | Skeleton | Repo, manifesto, Docker scaffold |
 | 1 | Local guardian | Document ingestion, local RAG, conversation memory, encrypted SQLite |
 | 2 | Agent goes out | Web browsing, task planning, local voice (Whisper + Piper), identity layer |
-| 3 | Agent pays | Non-custodial wallet, MiCA stablecoins default, pluggable asset adapters |
 | 4 | Agent works while you sleep | Scheduled recurring tasks, run history, autonomous planner pipeline |
 | 5 | Make it yours | Agent personalisation, persistent conversation history, Docker-first setup |
 | 6 | Agent talks to other agents | MCP server adapter, Nostr DM adapter |
@@ -51,15 +50,6 @@ A persistent public key (e.g. a Nostr npub) is a **correlation vector**. If Vokt
 │  A, B, C are mathematically unlinkable.         │
 │  Derived from: HMAC(master_secret, nonce)       │
 │  Nonces are random and stored locally.          │
-└────────────────────┬────────────────────────────┘
-                     │ pays via
-                     ▼
-┌─────────────────────────────────────────────────┐
-│  Layer 3 — Blind Payment Tokens (Phase 3)       │
-│  Cashu e-cash layer on top of any asset.        │
-│  Blind signatures: even the mint cannot link    │
-│  withdrawal to spending.                        │
-│  Payment rail reveals no identity.              │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -71,35 +61,6 @@ Vokter's Nostr keypair is derived from the master key (secp256k1). This gives Vo
 
 ---
 
-## Payment architecture
-
-### Design principle
-
-Vokter has no opinion on what money is legitimate. The user does. Vokter's only non-negotiable rule is **non-custodial always**: whatever asset the user chooses, their keys never leave their machine.
-
-### Default (ships out of the box)
-
-MiCA-regulated euro-denominated stablecoins:
-- **EURC** (Circle)
-- **EURe** (Monerium)
-- **EURCV** (Société Générale)
-
-These work in Europe without legal friction. No configuration needed.
-
-### Pluggable adapters (user installs, user's responsibility)
-
-Any other asset — BTC, ETH, Lightning, or others — is available as an optional adapter. The user chooses to install it. Vokter core ships no opinion about these assets and provides no defaults for them. Legal responsibility for the use of any non-default adapter rests with the user, as with any open source tool.
-
-### Payment privacy layer
-
-Cashu (Chaumian e-cash with blind signatures) sits on top of any asset. The mint cannot link a withdrawal to a spending event. This applies equally to the default stablecoins and any pluggable adapter. Privacy is asset-agnostic.
-
-### Human confirmation always
-
-Every payment requires explicit user confirmation. Spending limits are enforced locally with a mutex to prevent race conditions on concurrent requests. No payment is ever fully autonomous.
-
----
-
 ## Interoperability architecture (Phase 6)
 
 The tool registry is the source of truth. Protocol adapters sit above it and translate, never contain business logic.
@@ -107,7 +68,7 @@ The tool registry is the source of truth. Protocol adapters sit above it and tra
 ```
 ┌──────────────────────────────────────────────────┐
 │                 Tool Registry                    │
-│  browse │ ask │ wallet │ plan │ schedule         │
+│  browse │ ask │ plan │ schedule                  │
 └──────────────────┬───────────────────────────────┘
                    │
         ┌──────────┼──────────┐
@@ -143,17 +104,7 @@ app/
   scheduler.py        — Recurring task runner (asyncio background loop)
   schedule_routes.py  — Scheduled task CRUD endpoints
   email_connector.py  — IMAP/SSL email sync
-  wallet_routes.py    — Wallet API endpoints (send, receive, balance, history)
   utils.py            — Shared helpers
-  wallet/
-    __init__.py       — Abstract wallet adapter interface
-    cashu.py          — Cashu e-cash adapter (fully functional)
-    adapters/
-      evm.py          — EVM chains: EURC, EURe, EURCV, any ERC-20
-      lightning.py    — Bitcoin Lightning via LNbits
-      solana.py       — Solana SPL tokens (EURC, EURe, SOL)
-      monero.py       — Monero XMR (stub — needs monero-wallet-rpc)
-      bitcoin.py      — Bitcoin on-chain (stub — needs Bitcoin Core RPC)
   voice/
     __init__.py
     whisper.py        — Speech-to-text (faster-whisper, CPU)
@@ -161,6 +112,44 @@ app/
   static/
     index.html        — Single-page UI
 ```
+
+---
+
+## Local engine strategy
+
+Inference runs locally. Vokter speaks to its own internal contract — `chat` and
+`embed` in `engine.py` (the `InferenceEngine` protocol) — never to a specific
+engine's API. The default `OllamaEngine` is one implementation of that contract;
+swapping the **runner** means writing one more translator file, and nothing else
+in Vokter changes.
+
+**The key distinction — model vs runner:**
+
+- **Changing the MODEL** (`llama3.2` → Qwen3 → whatever ships next) is *free*: a
+  config string (`VOKTER_CHAT_MODEL`). This is ~90% of the quality gains to come,
+  and costs nothing architecturally.
+- **Changing the RUNNER** (Ollama → llama.cpp / MLX / other) is a *new adapter* —
+  one file implementing `InferenceEngine`. It will happen far less often than a
+  model swap.
+
+**⚠️ Embeddings caveat — the one place that is NOT free.** Changing the
+*embedding* model (`nomic-embed-text`) requires RE-INDEXING everything embedded
+with the old one: RAG document chunks *and* personal memory. Different models
+produce vectors in different spaces; a mismatch silently degrades retrieval
+(`rag.cosine` even returns 0 on a dimension mismatch). Today, with few documents,
+re-indexing is trivial; at thousands of documents it is a *migration*, not a
+swap. The chat side is 100% engine-neutral; the embedding side is not.
+
+**Future runner candidates:** llama.cpp (the natural second adapter — what Jan
+uses), MLX (if a Mac target ever lands). Ollama remains the best choice today:
+packageable, manages model download/storage, and proven end-to-end (the Linux
+`.deb` ships it).
+
+**The adapter is not "write once and forget."** If a future runner brings
+something the contract doesn't cover (a different streaming shape, dynamic
+quantization), the contract is *extended* to express it. What stays invariant is
+that the rest of Vokter never learns which engine runs, where it runs, or what it
+costs — those remain the adapter's private business.
 
 ---
 
@@ -175,8 +164,6 @@ All tables are created idempotently in `db.py` via `CREATE TABLE IF NOT EXISTS`.
 | `identity_keys` | Master key (one row, never exported) |
 | `session_nonces` | Per-interaction nonces for ephemeral key derivation |
 | `browse_allowlist` | User-approved domain patterns |
-| `cashu_proofs` | Unspent Cashu e-cash proofs |
-| `wallet_transactions` | Unified transaction log across all adapters |
 | `scheduled_tasks` | Recurring task definitions |
 | `task_runs` | Execution history for scheduled tasks |
 | `agent_config` | Key-value store for personalisation settings |

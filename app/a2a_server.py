@@ -11,7 +11,7 @@ JSON-RPC endpoint that card points to.
 
 Trust: unauthenticated callers may only use the public 'introduce' handshake.
 A caller presenting the bearer token from VOKTER_A2A_TOKEN is trusted for the
-private tools (ask/wallet/plan/browse). The trust *enforcement* lives in
+private tools (ask/plan/browse). The trust *enforcement* lives in
 agent_dispatch and fails closed; this adapter only reads the Authorization
 header to decide trust and translates JSON-RPC ↔ dispatch_message.
 

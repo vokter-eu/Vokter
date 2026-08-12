@@ -2,31 +2,18 @@ import json
 import math
 from contextlib import closing
 
-import httpx
-from fastapi import HTTPException
-
-from config import OLLAMA_URL, EMBED_MODEL, TOP_K
+from config import TOP_K
 from db import get_db
+from engine import ENGINE
 
 _SCAN_LIMIT = 10_000  # safety cap — prevents OOM on very large corpora
 
 
 async def embed(text: str) -> list[float]:
-    async with httpx.AsyncClient(timeout=120) as client:
-        r = await client.post(
-            f"{OLLAMA_URL}/api/embeddings",
-            json={"model": EMBED_MODEL, "prompt": text},
-        )
-    if r.status_code != 200:
-        raise HTTPException(502, f"Ollama (embeddings) returned {r.status_code}. "
-                                 f"Did you run 'ollama pull {EMBED_MODEL}'?")
-    try:
-        vec = r.json()["embedding"]
-    except (json.JSONDecodeError, KeyError):
-        raise HTTPException(502, "Ollama returned an unexpected embedding response")
-    if not vec:
-        raise HTTPException(502, "Ollama returned an empty embedding — is the model loaded?")
-    return vec
+    # Thin wrapper kept for its callers (retrieve, ingestion). The actual
+    # engine call lives behind the adapter — Vokter no longer talks to any
+    # specific engine here.
+    return await ENGINE.embed(text)
 
 
 def cosine(a: list[float], b: list[float]) -> float:

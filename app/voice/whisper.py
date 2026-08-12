@@ -3,7 +3,9 @@ import tempfile
 
 from fastapi import APIRouter, HTTPException, UploadFile
 
+from agent_config import get_config
 from config import VOICE_MODELS_DIR, WHISPER_DEVICE, WHISPER_MODEL
+from languages import whisper_lang
 
 router = APIRouter()
 
@@ -20,9 +22,14 @@ def _get_model():
         raise HTTPException(503, "faster-whisper not installed — add it to requirements.txt")
     download_root = os.path.join(VOICE_MODELS_DIR, "whisper")
     os.makedirs(download_root, exist_ok=True)
-    print(f"voice: loading Whisper model '{WHISPER_MODEL}' on {WHISPER_DEVICE}…")
+    # Prefer the model bundled + seeded by the desktop package (offline, no
+    # download). Fall back to the model NAME, which faster-whisper downloads into
+    # download_root on demand — the behaviour when there is no seeded copy.
+    seeded = os.path.join(download_root, "base-int8")
+    model_ref = seeded if os.path.exists(os.path.join(seeded, "model.bin")) else WHISPER_MODEL
+    print(f"voice: loading Whisper model '{model_ref}' on {WHISPER_DEVICE}…")
     _model = WhisperModel(
-        WHISPER_MODEL,
+        model_ref,
         device=WHISPER_DEVICE,
         compute_type="int8",
         download_root=download_root,
@@ -39,7 +46,10 @@ async def transcribe(audio: UploadFile):
         tmp_path = tmp.name
     try:
         model = _get_model()
-        segments, _ = model.transcribe(tmp_path, beam_size=5)
+        # Pass the selected language to Whisper when it's concrete (more accurate); None for
+        # 'auto'/unknown → Whisper auto-detects, today's behaviour.
+        lang = whisper_lang(get_config().get("language", "auto"))
+        segments, _ = model.transcribe(tmp_path, beam_size=5, language=lang)
         text = " ".join(s.text.strip() for s in segments).strip()
         return {"text": text}
     except HTTPException:

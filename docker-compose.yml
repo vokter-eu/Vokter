@@ -61,39 +61,6 @@ services:
       - VOKTER_WHISPER_DEVICE=${VOKTER_WHISPER_DEVICE:-cpu}
       # Piper voice — see https://huggingface.co/rhasspy/piper-voices
       - VOKTER_PIPER_VOICE=${VOKTER_PIPER_VOICE:-en_US-lessac-medium}
-      # Wallet adapter:
-      #   cashu       — Cashu e-cash, privacy layer (default)
-      #   lightning   — Bitcoin Lightning via LNbits
-      #   eurc|eure|eurcv|evm — MiCA stablecoins on EVM (Ethereum, Polygon, Base…)
-      #   eurc-solana|eure-solana|sol — Solana tokens
-      #   monero      — Monero (XMR)
-      #   bitcoin     — Bitcoin on-chain
-      - VOKTER_WALLET_ADAPTER=${VOKTER_WALLET_ADAPTER:-cashu}
-      - VOKTER_WALLET_SPEND_LIMIT=${VOKTER_WALLET_SPEND_LIMIT:-0}
-      # Cashu — point to any Cashu mint (self-hosted: github.com/cashubtc/nutshell)
-      - VOKTER_CASHU_MINT_URL=${VOKTER_CASHU_MINT_URL:-}
-      # Lightning (LNbits — self-hosted only)
-      - VOKTER_LNBITS_URL=${VOKTER_LNBITS_URL:-}
-      - VOKTER_LNBITS_INVOICE_KEY=${VOKTER_LNBITS_INVOICE_KEY:-}
-      - VOKTER_LNBITS_ADMIN_KEY=${VOKTER_LNBITS_ADMIN_KEY:-}
-      # EVM (any chain: Ethereum, Polygon, Base, Gnosis, Avalanche…)
-      - VOKTER_EVM_RPC_URL=${VOKTER_EVM_RPC_URL:-}
-      - VOKTER_EVM_PRIVATE_KEY=${VOKTER_EVM_PRIVATE_KEY:-}
-      - VOKTER_EVM_TOKEN_CONTRACT=${VOKTER_EVM_TOKEN_CONTRACT:-}
-      - VOKTER_EVM_TOKEN_SYMBOL=${VOKTER_EVM_TOKEN_SYMBOL:-}
-      - VOKTER_EVM_TOKEN_DECIMALS=${VOKTER_EVM_TOKEN_DECIMALS:-18}
-      - VOKTER_EVM_CHAIN=${VOKTER_EVM_CHAIN:-ethereum}
-      # Solana
-      - VOKTER_SOLANA_RPC_URL=${VOKTER_SOLANA_RPC_URL:-}
-      - VOKTER_SOLANA_PRIVATE_KEY=${VOKTER_SOLANA_PRIVATE_KEY:-}
-      - VOKTER_SOLANA_TOKEN_MINT=${VOKTER_SOLANA_TOKEN_MINT:-}
-      - VOKTER_SOLANA_TOKEN_SYMBOL=${VOKTER_SOLANA_TOKEN_SYMBOL:-}
-      # Monero (requires monero-wallet-rpc running alongside)
-      - VOKTER_MONERO_RPC_URL=${VOKTER_MONERO_RPC_URL:-}
-      # Bitcoin (requires Bitcoin Core or Electrum daemon)
-      - VOKTER_BTC_RPC_URL=${VOKTER_BTC_RPC_URL:-}
-      - VOKTER_BTC_RPC_USER=${VOKTER_BTC_RPC_USER:-}
-      - VOKTER_BTC_RPC_PASS=${VOKTER_BTC_RPC_PASS:-}
       # Nostr — leave empty to disable the DM listener
       # Format: comma-separated WSS relay URLs
       - VOKTER_NOSTR_RELAYS=${VOKTER_NOSTR_RELAYS:-}

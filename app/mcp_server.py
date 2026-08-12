@@ -42,10 +42,8 @@ mcp = FastMCP(
     instructions=(
         "Vokter is a sovereign local AI agent running on the user's machine. "
         "It stores and queries the user's private documents and emails locally. "
-        "Use 'ask' to query knowledge, 'browse' to learn from a web page, "
-        "'plan' for multi-step research goals, and the wallet tools for payments. "
-        "IMPORTANT: for wallet_send, always describe the payment and ask the user "
-        "to confirm before calling the tool — payments are irreversible."
+        "Use 'ask' to query knowledge, 'browse' to learn from a web page, and "
+        "'plan' for multi-step research goals."
     ),
 )
 
@@ -87,32 +85,6 @@ async def ask(question: str, conversation_id: str = "") -> str:
     if sources:
         answer += f"\n\nSources: {sources}"
     return answer
-
-
-@mcp.tool()
-async def wallet_balance() -> str:
-    """Return the current wallet balance and active adapter."""
-    d = await _get("/api/wallet/balance")
-    return f"{d['balance']:,} {d['unit']} (adapter: {d['adapter']})"
-
-
-@mcp.tool()
-async def wallet_send(amount: int, memo: str = "") -> str:
-    """Send tokens from the wallet.
-
-    IMPORTANT: this executes a real, irreversible payment.
-    You MUST describe the transaction to the user and ask for explicit
-    confirmation before calling this tool. Never call it speculatively."""
-    d = await _post("/api/wallet/send", {"amount": amount, "memo": memo, "confirmed": True})
-    out = d.get("output", "")
-    return f"Sent {d['amount']:,} {d['unit']}.{' Token: ' + out if out else ''}"
-
-
-@mcp.tool()
-async def wallet_receive(token: str) -> str:
-    """Receive a Cashu token into the wallet."""
-    d = await _post("/api/wallet/receive", {"token": token})
-    return f"Received {d['received']:,} {d['unit']}."
 
 
 @mcp.tool()

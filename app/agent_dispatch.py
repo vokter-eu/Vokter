@@ -14,8 +14,8 @@ Verbs split into two sets:
   * PUBLIC ('introduce'/'hello'/'whoami') — return only Vokter's public agent
     card. Safe for any caller, authenticated or not.
 
-  * Everything else ('ask', 'browse', 'wallet_balance', 'plan') touches the
-    human's private data or money. These require trusted=True.
+  * Everything else ('ask', 'browse', 'plan') touches the
+    human's private data. These require trusted=True.
 
 An adapter passes trusted=True ONLY when it has established that the human
 authorised the caller (Nostr: the authenticated sender passed the allowlist
@@ -48,7 +48,7 @@ _conversations: dict[str, str] = {}
 
 _UNTRUSTED_REPLY = (
     "I only share my public identity card with unauthenticated callers. "
-    "Querying my human's data, wallet, or running tasks requires authorisation. "
+    "Querying my human's data or running tasks requires authorisation. "
     'Send {"tool": "introduce"} to read my agent card.'
 )
 
@@ -95,7 +95,7 @@ async def dispatch_message(text: str, context_key: str, *, trusted: bool = False
             r.raise_for_status()
             return json.dumps(r.json())
 
-        # Past this point every verb touches private data or money.
+        # Past this point every verb touches private data.
         if not trusted:
             log.info("Untrusted caller requested %r — refused", tool)
             return _UNTRUSTED_REPLY
@@ -123,12 +123,6 @@ async def dispatch_message(text: str, context_key: str, *, trusted: bool = False
             d = r.json()
             return f"Stored {d['chunks']} chunks from {d['doc']}."
 
-        if tool == "wallet_balance":
-            r = await _http.get(f"{_BASE}/api/wallet/balance")
-            r.raise_for_status()
-            d = r.json()
-            return f"{d['balance']:,} {d['unit']} ({d['adapter']})"
-
         if tool == "plan":
             answer = "[no answer returned]"
             async with _http.stream(
@@ -153,7 +147,7 @@ async def dispatch_message(text: str, context_key: str, *, trusted: bool = False
 
         return (
             f"Unknown tool: {tool!r}. "
-            "Available: introduce, ask, browse, wallet_balance, plan"
+            "Available: introduce, ask, browse, plan, negotiate"
         )
 
     except httpx.HTTPStatusError as exc:

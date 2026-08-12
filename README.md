@@ -1,6 +1,6 @@
 # Vokter
 
-**Your agent. Your data. Your money. By right.**
+**Your agent. Your data. By right.**
 
 🌐 **[vokterai.com](https://vokterai.com)** — [Manifesto](https://vokterai.com/MANIFESTO.html) — [GitHub](https://github.com/vokter-eu/Vokter)
 
@@ -20,7 +20,6 @@ Vokter (Norwegian: *guardian*) is a personal, sovereign AI agent that runs on **
 | **Local voice** | Talk to Vokter: Whisper STT (faster-whisper) + Piper TTS. Your voice never leaves the machine. |
 | **Web browsing** | Fetch and memorize web pages. Granular allowlist — you decide which domains Vokter can visit. |
 | **Task planner** | Give Vokter a goal; it breaks it into steps (browse, ask), executes them, and streams the result back. |
-| **Wallet** | Cashu e-cash (fully functional). Pluggable adapters for Lightning, EURC/EURe/EURCV, Solana, Monero, Bitcoin. Human confirmation and daily spend limits always enforced. |
 | **Scheduled tasks** | Set recurring goals (every 5 m / 2 h / 1 d). Vokter runs them autonomously and stores the output. |
 | **Agent personalisation** | Name, tone (formal/neutral/friendly), mode, language, model — all configurable at runtime without restarting Docker. |
 | **Identity layer** | Master key + ephemeral session keys (HMAC-SHA256). Each external interaction gets a fresh, unlinkable key. |
@@ -68,7 +67,6 @@ All settings live in `.env` (copy from `.env.example`). The most important ones:
 | `VOKTER_DB_KEY` | *(must change)* | Database encryption passphrase |
 | `VOKTER_CHAT_MODEL` | `llama3.2:3b` | Ollama model for chat and planning |
 | `VOKTER_EMBED_MODEL` | `nomic-embed-text` | Ollama model for embeddings |
-| `VOKTER_WALLET_ADAPTER` | `cashu` | Payment adapter |
 
 See `.env.example` for the full list with comments.
 
@@ -76,18 +74,17 @@ See `.env.example` for the full list with comments.
 
 - [x] **Phase 1 — Your agent on your machine**: local LLM via Ollama, AES-256 encrypted memory, RAG chat, email connector.
 - [x] **Phase 2 — Your agent goes out into the world**: 100% local voice (Whisper STT + Piper TTS), web browsing with allowlist permissions, multi-step task planner with SSE streaming, identity layer.
-- [x] **Phase 3 — Your agent pays**: non-custodial wallet, Cashu e-cash, pluggable adapter architecture (Lightning, MiCA stablecoins, Monero, Bitcoin). Human confirmation and spend limits always.
 - [x] **Phase 4 — Your agent works while you sleep**: scheduled background tasks with configurable intervals, run history, autonomous execution via the planner pipeline.
 - [x] **Phase 5 — Make it yours**: agent personalisation (name, tone, language, model selection, conversation history). Docker-first setup with `.env.example`. SQLCipher encryption active in Docker.
 - [x] **Phase 6 — Your agent talks to other agents**: MCP server adapter (connect to Claude Desktop and other MCP hosts), Nostr adapter (DMs as tool calls, identity derived from master key).
-- [ ] **Phase 7 — Sovereign cloud compute (optional)**: for users without local hardware (mobile, old machines), opt-in confidential compute via TEE (Intel TDX / AMD SEV-SNP). Pay per use with Cashu/Lightning — no account, no identity. Remote attestation gives users cryptographic proof of privacy before sending anything. No trust required: the hardware itself signs the guarantee.
+- [ ] **Phase 7 — Sovereign cloud compute (optional)**: for users without local hardware (mobile, old machines), opt-in confidential compute via TEE (Intel TDX / AMD SEV-SNP) — used without an account or identity. Remote attestation gives users cryptographic proof of privacy before sending anything. No trust required: the hardware itself signs the guarantee.
 - [ ] **Phase 8 — Vokter Infrastructure**: own European datacenter with confidential compute hardware. Third-party security audits published openly. Operator (Vokter) is architecturally unable to access user data — verifiable, not promised.
 
 ## Non-negotiable principles
 
 1. **Local first.** By default, everything is processed on your hardware.
 2. **Zero hidden calls.** No requests to third-party AI APIs. Check the code — that's the point.
-3. **Your keys, your money.** Non-custodial or nothing.
+3. **Your keys, yours alone.** They never leave your device — what is yours cannot be taken.
 4. **Real deletion.** Delete means delete, embeddings included.
 5. **Open source.** We don't ask for trust; we give proof.
 6. **For your life, not to retain you.** Vokter gives you back time and pushes you toward your real life. No engagement mechanics, ever.
@@ -97,8 +94,7 @@ See `.env.example` for the full list with comments.
 - Database encrypted at rest with AES-256 (SQLCipher). Set `VOKTER_DB_KEY` — required, no fallback.
 - Runs as a non-root user inside Docker.
 - Web browsing is allowlist-only — Vokter cannot visit a domain you haven't explicitly permitted, and redirects to private/internal addresses are blocked.
-- All payments require explicit user confirmation (`confirmed: true`). Daily spend limits enforced in the route layer with a mutex to prevent race conditions.
-- No data is ever sent to a third-party service unless you configure an external adapter (e.g. an LNbits instance you run yourself).
+- No data is ever sent to a third-party service unless you configure an external connector (e.g. an IMAP mailbox you own).
 
 ## License
 

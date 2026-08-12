@@ -1,0 +1,49 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Vokter</title>
+<style>
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: #0f1115;
+    color: #e6e6e6;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.4rem;
+  }
+  .shield { font-size: 3.2rem; line-height: 1; }
+  .title  { font-size: 1.15rem; font-weight: 600; letter-spacing: .01em; }
+  .status { color: #8b909a; font-size: .9rem; min-height: 1.2em; }
+  .spinner {
+    width: 34px; height: 34px;
+    border: 3px solid #2a2e37;
+    border-top-color: #6ea8fe;
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* Determinate download bar — same palette as the spinner (accent on track). */
+  .progress {
+    display: none;              /* JS shows it only during the downloading phase */
+    width: 320px;
+    height: 8px;
+    background: #2a2e37;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .fill {
+    width: 0%;
+    height: 100%;
+    background: #6ea8fe;
+    border-radius: 999px;
+    transition: width .3s ease;
+  }
+</style>
+<div class="shield">🛡️</div>
+<div class="title">Starting Vokter…</div>
+<div class="spinner"></div>
+<div class="progress"><div class="fill"></div></div>
+<div class="status">Bringing up your local agent. First run downloads models — this can take a few minutes.</div>
+<script src="loading.js"></script>
