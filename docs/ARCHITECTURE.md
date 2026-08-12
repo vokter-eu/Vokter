@@ -17,7 +17,6 @@ Vokter is a local-first sovereign agent. The user's machine is the trust boundar
 | 0 | Skeleton | Repo, manifesto, Docker scaffold |
 | 1 | Local guardian | Document ingestion, local RAG, conversation memory, encrypted SQLite |
 | 2 | Agent goes out | Web browsing, task planning, local voice (Whisper + Piper), identity layer |
-| 3 | Agent pays | Non-custodial wallet, MiCA stablecoins default, pluggable asset adapters |
 | 4 | Agent works while you sleep | Scheduled recurring tasks, run history, autonomous planner pipeline |
 | 5 | Make it yours | Agent personalisation, persistent conversation history, Docker-first setup |
 | 6 | Agent talks to other agents | MCP server adapter, Nostr DM adapter |
@@ -51,15 +50,6 @@ A persistent public key (e.g. a Nostr npub) is a **correlation vector**. If Vokt
 │  A, B, C are mathematically unlinkable.         │
 │  Derived from: HMAC(master_secret, nonce)       │
 │  Nonces are random and stored locally.          │
-└────────────────────┬────────────────────────────┘
-                     │ pays via
-                     ▼
-┌─────────────────────────────────────────────────┐
-│  Layer 3 — Blind Payment Tokens (Phase 3)       │
-│  Cashu e-cash layer on top of any asset.        │
-│  Blind signatures: even the mint cannot link    │
-│  withdrawal to spending.                        │
-│  Payment rail reveals no identity.              │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -71,35 +61,6 @@ Vokter's Nostr keypair is derived from the master key (secp256k1). This gives Vo
 
 ---
 
-## Payment architecture
-
-### Design principle
-
-Vokter has no opinion on what money is legitimate. The user does. Vokter's only non-negotiable rule is **non-custodial always**: whatever asset the user chooses, their keys never leave their machine.
-
-### Default (ships out of the box)
-
-MiCA-regulated euro-denominated stablecoins:
-- **EURC** (Circle)
-- **EURe** (Monerium)
-- **EURCV** (Société Générale)
-
-These work in Europe without legal friction. No configuration needed.
-
-### Pluggable adapters (user installs, user's responsibility)
-
-Any other asset — BTC, ETH, Lightning, or others — is available as an optional adapter. The user chooses to install it. Vokter core ships no opinion about these assets and provides no defaults for them. Legal responsibility for the use of any non-default adapter rests with the user, as with any open source tool.
-
-### Payment privacy layer
-
-Cashu (Chaumian e-cash with blind signatures) sits on top of any asset. The mint cannot link a withdrawal to a spending event. This applies equally to the default stablecoins and any pluggable adapter. Privacy is asset-agnostic.
-
-### Human confirmation always
-
-Every payment requires explicit user confirmation. Spending limits are enforced locally with a mutex to prevent race conditions on concurrent requests. No payment is ever fully autonomous.
-
----
-
 ## Interoperability architecture (Phase 6)
 
 The tool registry is the source of truth. Protocol adapters sit above it and translate, never contain business logic.
@@ -107,7 +68,7 @@ The tool registry is the source of truth. Protocol adapters sit above it and tra
 ```
 ┌──────────────────────────────────────────────────┐
 │                 Tool Registry                    │
-│  browse │ ask │ wallet │ plan │ schedule         │
+│  browse │ ask │ plan │ schedule                  │
 └──────────────────┬───────────────────────────────┘
                    │
         ┌──────────┼──────────┐
@@ -143,17 +104,7 @@ app/
   scheduler.py        — Recurring task runner (asyncio background loop)
   schedule_routes.py  — Scheduled task CRUD endpoints
   email_connector.py  — IMAP/SSL email sync
-  wallet_routes.py    — Wallet API endpoints (send, receive, balance, history)
   utils.py            — Shared helpers
-  wallet/
-    __init__.py       — Abstract wallet adapter interface
-    cashu.py          — Cashu e-cash adapter (fully functional)
-    adapters/
-      evm.py          — EVM chains: EURC, EURe, EURCV, any ERC-20
-      lightning.py    — Bitcoin Lightning via LNbits
-      solana.py       — Solana SPL tokens (EURC, EURe, SOL)
-      monero.py       — Monero XMR (stub — needs monero-wallet-rpc)
-      bitcoin.py      — Bitcoin on-chain (stub — needs Bitcoin Core RPC)
   voice/
     __init__.py
     whisper.py        — Speech-to-text (faster-whisper, CPU)
@@ -213,8 +164,6 @@ All tables are created idempotently in `db.py` via `CREATE TABLE IF NOT EXISTS`.
 | `identity_keys` | Master key (one row, never exported) |
 | `session_nonces` | Per-interaction nonces for ephemeral key derivation |
 | `browse_allowlist` | User-approved domain patterns |
-| `cashu_proofs` | Unspent Cashu e-cash proofs |
-| `wallet_transactions` | Unified transaction log across all adapters |
 | `scheduled_tasks` | Recurring task definitions |
 | `task_runs` | Execution history for scheduled tasks |
 | `agent_config` | Key-value store for personalisation settings |

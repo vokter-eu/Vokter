@@ -9,7 +9,6 @@ That's why we build Vokter, your guardian:
 - **It lives on your machine**, not in someone else's cloud.
 - **It only knows what you teach it**, and you can see and delete every piece of data.
 - **It sends not a single byte without your** explicit, revocable permission.
-- And when the day comes that it pays on your behalf, it will do so with **money only you control**, through stablecoins regulated in Europe, with no custodians and no fine print.
 
 Big tech gives you artificial intelligence for free because you are the product. We can't give you anything for free: only the tools so you never have to ask permission again.
 
@@ -17,7 +16,7 @@ And one more promise, because intimacy demands character: **Vokter works for you
 
 All the code is open. **We don't ask for your trust: we give you proof.**
 
-Your agent. Your data. Your money. **By right.**
+Your agent. Your data. **By right.**
 
 ---
 

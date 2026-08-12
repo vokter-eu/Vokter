@@ -2,436 +2,188 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Vokter — your guardian</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Vokter</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 56'%3E%3Cpath d='M24 2.5 41.5 9.2V26.5C41.5 39.5 33.7 48.7 24 53.5 14.3 48.7 6.5 39.5 6.5 26.5V9.2Z' fill='none' stroke='%232D6A4F' stroke-width='2.6' stroke-linejoin='round'/%3E%3Ccircle cx='24' cy='27' r='4.2' fill='%232D6A4F'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/fonts/fonts.css">
 <style>
-  :root { --bg:#0e1116; --panel:#161b22; --line:#2d333b; --text:#e6edf3;
-          --muted:#8b949e; --accent:#4cc38a; }
-  * { box-sizing:border-box; margin:0; }
-  body { background:var(--bg); color:var(--text); font:16px/1.5 system-ui,sans-serif;
-         max-width:760px; margin:0 auto; padding:16px; min-height:100vh;
-         display:flex; flex-direction:column; }
-  header { padding:8px 0 16px; border-bottom:1px solid var(--line); }
-  h1 { font-size:1.3rem; } h1 span{ color:var(--accent); }
-  .tag { color:var(--muted); font-size:.85rem; }
-  #task { padding:12px 0; border-bottom:1px solid var(--line); }
-  #task-top { display:flex; gap:8px; flex-wrap:wrap; }
-  #task-goal { flex:1; min-width:180px; padding:7px 10px; border-radius:8px;
-               border:1px solid var(--line); background:var(--panel);
-               color:var(--text); font-size:.85rem; }
-  #task-log { margin-top:8px; font-size:.82rem; }
-  .tlog-step  { color:var(--muted); padding:2px 0; }
-  .tlog-done  { color:var(--accent); }
-  .tlog-error { color:#f85149; }
-  .tlog-answer { margin-top:8px; background:var(--panel); border:1px solid var(--line);
-                 border-radius:8px; padding:10px 12px; white-space:pre-wrap; }
-  #wallet { padding:12px 0; border-bottom:1px solid var(--line); }
-  #wallet-top { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-  #wallet-balance { font-size:.95rem; }
-  #wallet-balance strong { color:var(--accent); }
-  #wallet-badge { font-size:.75rem; color:var(--muted); background:var(--panel);
-                  border:1px solid var(--line); border-radius:4px; padding:2px 6px; }
-  #wallet-sections { margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; }
-  .wallet-input { padding:7px 10px; border-radius:8px; border:1px solid var(--line);
-                  background:var(--panel); color:var(--text); font-size:.85rem; }
-  #wallet-token { width:100%; margin-top:8px; font-family:monospace; font-size:.78rem; }
-  #wallet-send-row { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
-  #wallet-send-amount { width:90px; }
-  #wallet-send-memo { flex:1; min-width:120px; }
-  #wallet-output { margin-top:8px; }
-  #wallet-output-token { width:100%; font-family:monospace; font-size:.75rem;
-                          background:var(--panel); border:1px solid var(--line);
-                          border-radius:6px; padding:8px; color:var(--accent);
-                          word-break:break-all; white-space:pre-wrap; }
-  #wallet-history { margin-top:8px; font-size:.82rem; display:none; }
-  .wtx { display:flex; justify-content:space-between; align-items:center;
-          padding:4px 8px; background:var(--panel); border:1px solid var(--line);
-          border-radius:6px; margin-top:3px; }
-  .wtx-in  { color:var(--accent); }
-  .wtx-out { color:#f85149; }
-  #wallet-adapters-panel { margin-top:8px; display:none; }
-  .wadapter { padding:5px 8px; border:1px solid var(--line); border-radius:6px;
-               margin-top:4px; font-size:.8rem; }
-  .wadapter-name { font-weight:600; }
-  .wadapter-tier { font-size:.72rem; color:var(--muted); margin-left:6px; }
-  .wadapter-status { color:var(--muted); font-size:.75rem; margin-top:2px; }
-  .wadapter.active { border-color:var(--accent); }
-  /* confirmation modal */
-  #wallet-modal { display:none; position:fixed; inset:0; background:#0009;
-                   z-index:100; align-items:center; justify-content:center; }
-  #wallet-modal.open { display:flex; }
-  #wallet-modal-box { background:var(--panel); border:1px solid var(--line);
-                       border-radius:12px; padding:20px 24px; max-width:380px; width:90%; }
-  #wallet-modal-box h3 { margin-bottom:8px; font-size:1rem; }
-  #wallet-modal-box p { color:var(--muted); font-size:.88rem; margin-bottom:16px; }
-  #wallet-modal-btns { display:flex; gap:8px; }
-  /* scheduled tasks */
-  #schedule { padding:12px 0; border-bottom:1px solid var(--line); }
-  #schedule-top { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px; }
-  #schedule-form { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; display:none; }
-  #sched-name { width:140px; }
-  #sched-goal { flex:1; min-width:180px; }
-  #sched-interval { width:72px; }
-  #schedule-list { font-size:.82rem; }
-  .stask { background:var(--panel); border:1px solid var(--line); border-radius:8px;
-           margin-top:4px; overflow:hidden; }
-  .stask-header { display:flex; align-items:center; gap:8px; padding:7px 10px; cursor:pointer; }
-  .stask-name { font-weight:600; flex:1; }
-  .stask-interval { color:var(--muted); font-size:.75rem; }
-  .stask-status { font-size:.72rem; padding:1px 5px; border-radius:3px; }
-  .stask-status.on  { background:#4cc38a22; color:var(--accent); border:1px solid #4cc38a44; }
-  .stask-status.off { background:#8b949e22; color:var(--muted);  border:1px solid var(--line); }
-  .stask-runs { display:none; border-top:1px solid var(--line); padding:6px 10px; }
-  .srun { display:flex; justify-content:space-between; align-items:flex-start;
-          padding:3px 0; border-bottom:1px solid var(--line); font-size:.78rem; }
-  .srun:last-child { border-bottom:none; }
-  .srun-status { font-size:.72rem; padding:1px 5px; border-radius:3px; margin-right:6px; }
-  .srun-status.done    { color:var(--accent); }
-  .srun-status.error   { color:#f85149; }
-  .srun-status.running { color:#e3b341; }
-  .srun-output { color:var(--muted); margin-top:2px; font-size:.75rem; white-space:pre-wrap; word-break:break-word; }
-  #web { padding:12px 0; border-bottom:1px solid var(--line); }
-  #web-top { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  #web-url { flex:1; min-width:180px; padding:7px 10px; border-radius:8px;
-             border:1px solid var(--line); background:var(--panel);
-             color:var(--text); font-size:.85rem; }
-  #web-status { color:var(--muted); font-size:.82rem; margin-top:4px; }
-  #web-perms { margin-top:8px; }
-  .perm-row { display:flex; justify-content:space-between; align-items:center;
-              padding:4px 8px; background:var(--panel); border:1px solid var(--line);
-              border-radius:6px; margin-top:4px; font-size:.82rem; }
-  .perm-row button { background:none; border:none; color:#f85149; cursor:pointer; }
-  #perm-add { display:flex; gap:6px; margin-top:6px; }
-  #perm-input { flex:1; padding:6px 10px; border-radius:8px; border:1px solid var(--line);
-                background:var(--panel); color:var(--text); font-size:.82rem; }
-  #email { padding:12px 0; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-  #email-status { color:var(--muted); font-size:.85rem; }
-  .btn-sm { padding:7px 12px; border-radius:8px; border:1px solid var(--line);
-            background:transparent; color:var(--muted); font-size:.85rem; cursor:pointer; }
-  .btn-sm:hover { border-color:var(--accent); color:var(--accent); }
-  .btn-sm.danger:hover { border-color:#f85149; color:#f85149; }
-  #docs { padding:12px 0; border-bottom:1px solid var(--line); }
-  .doc { display:flex; justify-content:space-between; align-items:center;
-         padding:6px 10px; background:var(--panel); border:1px solid var(--line);
-         border-radius:8px; margin-top:6px; font-size:.9rem; }
-  .doc button { background:none; border:none; color:#f85149; cursor:pointer; font-size:1rem; }
-  #chat { flex:1; overflow-y:auto; padding:16px 0; }
-  .msg { max-width:85%; padding:10px 14px; border-radius:12px; margin-bottom:10px;
-         white-space:pre-wrap; word-wrap:break-word; }
-  .user { background:#1f6feb33; margin-left:auto; }
-  .bot  { background:var(--panel); border:1px solid var(--line); }
-  .src  { color:var(--muted); font-size:.75rem; margin-top:6px; }
-  /* Phase 2c — "want me to remember this?" confirm chip. Vokter PROPOSES; nothing
-     is stored until the user clicks Remember. */
-  .mem-chip { max-width:85%; margin:0 0 10px 0; padding:9px 12px; border-radius:12px;
-              background:#4cc38a14; border:1px solid #4cc38a55; }
-  .mem-chip-q    { font-size:.82rem; color:var(--muted); }
-  .mem-chip-fact { font-size:.9rem; margin:3px 0 8px; font-style:italic; }
-  .mem-chip-actions { display:flex; gap:6px; }
-  .mem-chip.done { color:var(--accent); font-size:.85rem; }
-  .mem-badge { font-size:.68rem; text-transform:uppercase; letter-spacing:.04em;
-               color:var(--accent); border:1px solid #4cc38a66; border-radius:5px;
-               padding:1px 5px; align-self:center; }
-  form { display:flex; gap:8px; padding-top:12px; border-top:1px solid var(--line); flex-wrap:wrap; }
-  .btn-new { padding:12px 16px; border-radius:10px; border:1px solid var(--line);
-             background:transparent; color:var(--muted); font-size:.9rem; cursor:pointer; }
-  .btn-new:hover { border-color:var(--accent); color:var(--accent); }
-  input[type=text] { flex:1; padding:12px; border-radius:10px; border:1px solid var(--line);
-         background:var(--panel); color:var(--text); font-size:1rem; }
-  .btn { padding:12px 16px; border-radius:10px; border:none; background:var(--accent);
-         color:#06251a; font-weight:700; cursor:pointer; }
-  .btn-mic { padding:12px 14px; border-radius:10px; border:1px solid var(--line);
-             background:transparent; color:var(--muted); font-size:1rem; cursor:pointer; }
-  .btn-mic:hover { border-color:var(--accent); color:var(--accent); }
-  .btn-mic.recording { border-color:#f85149; color:#f85149; animation:pulse 1s infinite; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
-  .btn-play { background:none; border:none; color:var(--muted); cursor:pointer;
-              font-size:.85rem; padding:2px 6px; }
-  .btn-play:hover { color:var(--accent); }
-  .upload { display:inline-block; margin-top:8px; color:var(--accent); cursor:pointer;
-            font-size:.9rem; }
-  .upload input { display:none; }
-  /* settings panel */
-  #settings { padding:12px 0; border-bottom:1px solid var(--line); display:none; }
-  .cfg-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:8px; }
-  .cfg-field label { display:block; font-size:.77rem; color:var(--muted); margin-bottom:3px; }
-  .cfg-field input, .cfg-field select {
-    width:100%; padding:6px 9px; border-radius:8px;
-    border:1px solid var(--line); background:var(--panel);
-    color:var(--text); font-size:.83rem; }
-  #cfg-status { font-size:.82rem; color:var(--muted); }
-  .voice-pill { font-size:.72rem; padding:3px 9px; border-radius:10px; border:1px solid var(--line); color:var(--muted); }
-  .voice-pill.downloading { border-color:var(--accent); color:var(--accent); }
-  .voice-pill.error { border-color:#f0a020; color:#f0a020; cursor:pointer; }
-  #hdr-avatar { width:32px;height:32px;border-radius:50%;object-fit:cover;
-                border:2px solid var(--line);display:none; }
-  #cfg-avatar-preview { width:52px;height:52px;border-radius:50%;object-fit:cover;
-                         border:2px solid var(--line);display:none; }
-  #cfg-avatar-placeholder { width:52px;height:52px;border-radius:50%;
-                              background:var(--panel);border:2px dashed var(--line);
-                              display:flex;align-items:center;justify-content:center;
-                              font-size:1.4rem; }
-  .cfg-avatar-upload { color:var(--accent);font-size:.82rem;cursor:pointer; }
-  .cfg-avatar-upload input { display:none; }
-  /* first-run onboarding wizard */
-  #onboarding { display:none; position:fixed; inset:0; z-index:200; overflow:auto;
-                background:var(--bg); padding:24px 16px;
-                align-items:center; justify-content:center; }
-  #onboarding.open { display:flex; }
-  #onb-card { background:var(--panel); border:1px solid var(--line); border-radius:16px;
-              padding:26px 28px; max-width:460px; width:100%; }
-  .onb-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
-  .onb-dots { display:flex; gap:6px; }
-  .onb-dot { width:8px; height:8px; border-radius:50%; background:var(--line); }
-  .onb-dot.on { background:var(--accent); }
-  #onb-skip { background:none; border:none; color:var(--muted); font-size:.82rem;
-              cursor:pointer; padding:2px 4px; }
-  #onb-skip:hover { color:var(--text); }
-  .onb-h { font-size:1.35rem; margin-bottom:8px; }
-  .onb-sub { color:var(--muted); font-size:.9rem; margin-bottom:18px; }
-  .onb-note { color:var(--muted); font-size:.78rem; margin-top:10px; }
-  .onb-field-label { font-size:.8rem; color:var(--muted); margin:14px 0 6px; }
-  #onb-name { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line);
-              background:var(--bg); color:var(--text); font-size:1rem; }
-  .onb-opt { display:block; width:100%; text-align:left; padding:10px 14px; margin-top:8px;
-             border-radius:10px; border:1px solid var(--line); background:var(--bg);
-             color:var(--text); cursor:pointer; font-size:.9rem; }
-  .onb-opt:hover { border-color:var(--muted); }
-  .onb-opt.sel { border-color:var(--accent); background:#4cc38a12; }
-  .onb-opt .onb-opt-d { display:block; color:var(--muted); font-size:.78rem; margin-top:2px; }
-  .onb-avatar-row { display:flex; align-items:center; gap:14px; margin-top:6px; }
-  #onb-avatar-preview { width:56px; height:56px; border-radius:50%; object-fit:cover;
-                        border:2px solid var(--line); display:none; }
-  #onb-avatar-placeholder { width:56px; height:56px; border-radius:50%; background:var(--bg);
-                            border:2px dashed var(--line); display:flex; align-items:center;
-                            justify-content:center; font-size:1.5rem; }
-  .onb-avatar-upload { color:var(--accent); font-size:.85rem; cursor:pointer; }
-  .onb-avatar-upload input { display:none; }
-  .onb-nav { display:flex; gap:10px; margin-top:24px; }
-  .onb-nav .btn { flex:1; }
-  #onb-back { flex:0 0 auto; }
+  :root{
+    --green:#2D6A4F; --green-deep:#245C43; --tint:#E8EFE9; --amber:#E7A23C;
+    --cream:#FBFAF6; --cream2:#F6F4EF; --sand:#E5E1D8; --ink:#171511; --ink-2:#3C3A34;
+    --grey:#6E6B61; --grey2:#9A9689; --faint:#C9C4B8;
+    --serif:'Fraunces',Georgia,serif; --body:'Inter',system-ui,-apple-system,sans-serif; --mono:'JetBrains Mono',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:var(--body);background:var(--sand);color:var(--ink);-webkit-font-smoothing:antialiased;line-height:1.5;overscroll-behavior:none}
+  button{font-family:inherit}
+  #app{position:relative;height:100dvh;width:100%;max-width:480px;margin:0 auto;background:var(--cream);display:flex;flex-direction:column;overflow:hidden}
+  @media(min-width:520px){#app{border-left:1px solid var(--sand);border-right:1px solid var(--sand)}}
+
+  .hdr{flex:0 0 auto;display:flex;align-items:center;gap:11px;padding:calc(15px + env(safe-area-inset-top)) 20px 13px;border-bottom:1px solid var(--sand)}
+  .hdr .mk{width:25px;height:29px;flex:0 0 auto}
+  .hdr .t{flex:1;min-width:0}
+  .hdr .t b{font-family:var(--serif);font-weight:600;font-size:19px;display:block;line-height:1.1}
+  .hdr .t span{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--green)}
+  .icbtn{background:none;border:none;cursor:pointer;padding:6px;border-radius:5px;color:var(--grey);display:grid;place-items:center;transition:background .15s}
+  .icbtn:hover{background:var(--tint)}
+  .icbtn:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+
+  .thread{flex:1 1 auto;overflow-y:auto;min-height:0;scroll-behavior:smooth}
+  .msgs{display:flex;flex-direction:column;gap:10px;padding:18px 16px}
+  .b{max-width:82%;padding:11px 15px;font-size:14.5px;line-height:1.55;word-wrap:break-word;animation:rise .26s ease both}
+  .b.me{align-self:flex-end;background:var(--green);color:var(--cream);border-radius:9px 9px 2px 9px;line-height:1.45}
+  .b.them{align-self:flex-start;background:var(--cream2);color:var(--ink);border:1px solid var(--sand);border-radius:9px 9px 9px 2px}
+  .b.file{align-self:flex-end;display:flex;align-items:center;gap:9px;background:var(--cream);border:1px solid var(--sand);border-radius:6px;padding:9px 12px;max-width:82%}
+  .b.file .fn{font-size:13px;font-weight:600;line-height:1.2}
+  .b.file .fs{font-family:var(--mono);font-size:10.5px;color:var(--grey2);margin-top:2px}
+  .them .sources{margin-top:8px;display:flex;flex-wrap:wrap;gap:5px}
+  .them .src{font-family:var(--mono);font-size:10.5px;color:var(--green);background:var(--cream);border:1px solid var(--sand);border-radius:3px;padding:3px 7px}
+  .them .say{margin-top:8px;background:none;border:none;cursor:pointer;color:var(--grey);display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10.5px;padding:0;letter-spacing:.04em}
+  .them .say:hover{color:var(--green)}
+  .typing{display:inline-flex;gap:4px;align-items:center}
+  .typing i{width:6px;height:6px;border-radius:50%;background:var(--faint);animation:blink 1.3s infinite}
+  .typing i:nth-child(2){animation-delay:.18s}.typing i:nth-child(3){animation-delay:.36s}
+  @keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+  @keyframes blink{0%,60%,100%{opacity:.3}30%{opacity:1}}
+
+  .empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px 34px}
+  .empty .badge{width:72px;height:72px;border-radius:8px;background:var(--tint);display:grid;place-items:center;margin-bottom:24px}
+  .empty h1{font-family:var(--serif);font-size:27px;font-weight:600;margin-bottom:10px;letter-spacing:-.01em}
+  .empty p{color:var(--grey);font-size:14.5px;line-height:1.55;max-width:28ch}
+  .chips{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:24px}
+  .chip{cursor:pointer;background:var(--cream);border:1px solid var(--sand);border-radius:3px;padding:10px 16px;font-size:13.5px;color:var(--ink);font-weight:500;transition:border-color .15s}
+  .chip:hover{border-color:var(--green)}
+  .chip:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+
+  .composer{flex:0 0 auto;padding:8px 14px calc(16px + env(safe-area-inset-bottom))}
+  .inrow{display:flex;align-items:center;gap:8px;background:var(--cream2);border:1px solid var(--sand);border-radius:6px;padding:7px 7px 7px 14px}
+  .inrow:focus-within{border-color:var(--green)}
+  .inrow input[type=text]{flex:1;border:none;background:none;outline:none;font-family:inherit;font-size:15px;color:var(--ink);min-width:0}
+  .inrow input::placeholder{color:var(--grey2)}
+  .rnd{cursor:pointer;border:none;display:grid;place-items:center;flex:0 0 auto}
+  .rnd.mic{width:36px;height:36px;border-radius:4px;background:var(--tint)}
+  .rnd.send{width:40px;height:40px;border-radius:4px;background:var(--green)}
+  .rnd.plain{background:none;padding:2px}
+  .rnd:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+
+  .view{position:absolute;inset:0;display:none;flex-direction:column;z-index:10}
+  .view.on{display:flex}
+
+  #voiceView{background:var(--green)}
+  .vtop{display:flex;justify-content:flex-end;padding:calc(15px + env(safe-area-inset-top)) 22px 4px}
+  .vmid{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 40px}
+  .vhalo{position:relative;width:150px;height:150px;display:grid;place-items:center;margin-bottom:38px}
+  .vhalo .ring{position:absolute;inset:0;border-radius:50%;background:rgba(251,250,246,.16);animation:halo 2.4s infinite}
+  .vwave{width:104px;height:104px;border-radius:6px;background:var(--cream);display:flex;align-items:center;justify-content:center;gap:5px}
+  .vwave span{width:6px;height:38px;background:var(--green);border-radius:3px;animation:bar .9s infinite}
+  .vwave span:nth-child(3){background:var(--amber)}
+  .vwave span:nth-child(2){animation-delay:.15s}.vwave span:nth-child(3){animation-delay:.3s}
+  .vwave span:nth-child(4){animation-delay:.45s}.vwave span:nth-child(5){animation-delay:.6s}
+  #voiceView h2{font-family:var(--serif);font-size:27px;font-weight:600;color:var(--cream);margin-bottom:10px}
+  #voiceView p{color:rgba(251,250,246,.75);font-size:15px;line-height:1.55;max-width:26ch}
+  .vbtns{display:flex;justify-content:center;gap:22px;align-items:center;padding:0 40px calc(46px + env(safe-area-inset-bottom))}
+  .vbtn{cursor:pointer;border:none;border-radius:6px;display:grid;place-items:center}
+  .vbtn.cancel{width:58px;height:58px;background:rgba(251,250,246,.14)}
+  .vbtn.done{width:72px;height:72px;background:var(--cream)}
+  @keyframes halo{0%{transform:scale(.7);opacity:.7}100%{transform:scale(1.35);opacity:0}}
+  @keyframes bar{0%,100%{transform:scaleY(.4)}50%{transform:scaleY(1)}}
+
+  #settingsView{background:var(--cream)}
+  .stop{display:flex;align-items:center;gap:12px;padding:calc(15px + env(safe-area-inset-top)) 18px 16px 14px}
+  .stop h2{font-family:var(--serif);font-weight:600;font-size:24px}
+  .slist{flex:1;overflow-y:auto;padding:0 16px calc(16px + env(safe-area-inset-bottom))}
+  .note{background:var(--tint);border-radius:6px;padding:13px 15px;font-size:13px;line-height:1.5;margin-bottom:10px}
+  .srow{display:flex;align-items:center;gap:12px;padding:13px 4px;border-bottom:1px solid var(--sand);cursor:pointer;width:100%;background:none;border-left:none;border-right:none;border-top:none;text-align:left}
+  .srow .ic{width:34px;height:34px;border-radius:4px;background:var(--tint);flex:0 0 auto;display:grid;place-items:center;color:var(--green)}
+  .srow .lb{flex:1;font-weight:600;font-size:14.5px}
+  .srow .rt{font-family:var(--mono);color:var(--grey2);font-size:11.5px}
+  .srow.soon{opacity:.55;cursor:default}
+  .srow.soon .ic{background:var(--cream2);color:var(--grey2)}
+  .srow.soon .lb{color:var(--ink-2)}
+  .srow .badge{font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--grey2);background:var(--cream2);padding:4px 8px;border-radius:3px}
+  .srow:focus-visible{outline:2px solid var(--green);outline-offset:-2px;border-radius:4px}
+  .subwrap{padding:6px 2px}
+  .subwrap .drow{display:flex;align-items:center;gap:10px;padding:12px 4px;border-bottom:1px solid var(--sand)}
+  .subwrap .drow .dn{flex:1;font-size:14px;font-weight:500}
+  .subwrap .drow .dc{font-family:var(--mono);font-size:11px;color:var(--grey2)}
+  .subwrap .drow .del{background:none;border:none;cursor:pointer;color:var(--grey);padding:4px 6px;border-radius:4px;font-size:15px}
+  .subwrap .drow .del:hover{background:var(--tint);color:var(--green)}
+  .subwrap .placeholder{color:var(--grey);font-size:14px;line-height:1.6;padding:14px 4px}
+  .langrow{display:flex;align-items:center;gap:12px;padding:14px 6px;border-bottom:1px solid var(--sand);cursor:pointer;width:100%;background:none;border-left:none;border-right:none;border-top:none;text-align:left;font-size:15px;font-weight:500}
+  .langrow .tick{margin-left:auto;color:var(--green)}
+  .langrow:focus-visible{outline:2px solid var(--green);outline-offset:-2px;border-radius:4px}
+
+  .toast{position:absolute;left:50%;bottom:98px;transform:translate(-50%,10px);background:var(--ink);color:var(--tint);font-size:13px;padding:9px 15px;border-radius:5px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:30;max-width:80%;text-align:center}
+  .toast.on{opacity:1;transform:translate(-50%,0)}
+
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 </style>
 </head>
 <body>
-<!-- first-run welcome wizard (shown only when config.onboarded !== "1") -->
-<div id="onboarding">
-  <div id="onb-card">
-    <div class="onb-top">
-      <div class="onb-dots" id="onb-dots"></div>
-      <button id="onb-skip"></button>
-    </div>
-    <div id="onb-body"></div>
-    <div class="onb-nav" id="onb-nav"></div>
-  </div>
-</div>
+<div id="app">
 
-<header>
-  <div style="display:flex;align-items:center;gap:10px">
-    <img id="hdr-avatar" alt="avatar">
-    <h1>🛡️ <span id="hdr-agent-name">Vokter</span> <span style="color:var(--muted);font-size:.8rem">v0.7</span></h1>
-    <button class="btn-sm" id="btn-settings" style="font-size:.78rem;padding:4px 9px">⚙ Settings</button>
-    <span id="voice-status" class="voice-pill" style="display:none"></span>
+  <div class="hdr">
+    <svg class="mk" viewBox="0 0 48 56" fill="none"><path d="M24 2.5 41.5 9.2V26.5C41.5 39.5 33.7 48.7 24 53.5 14.3 48.7 6.5 39.5 6.5 26.5V9.2Z" fill="none" stroke="#2D6A4F" stroke-width="2.6" stroke-linejoin="round"/><circle cx="24" cy="27" r="4.2" fill="#2D6A4F"/></svg>
+    <div class="t"><b>Vokter</b><span data-i18n="onDevice">On your device</span></div>
+    <button class="icbtn" id="openSettings" data-i18n-aria="settings" aria-label="Settings">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    </button>
   </div>
-  <div class="tag">Everything runs on your machine. Not a single byte leaves here.</div>
-  <label class="upload">＋ Teach it a document (PDF, TXT, MD)
-    <input type="file" id="file" accept=".pdf,.txt,.md">
-  </label>
-</header>
 
-<div id="settings">
-  <div class="cfg-grid">
-    <div class="cfg-field">
-      <label>Agent name</label>
-      <input type="text" id="cfg-agent-name" placeholder="Vokter">
-    </div>
-    <div class="cfg-field">
-      <label>Tone</label>
-      <select id="cfg-tone">
-        <option value="formal">Formal</option>
-        <option value="neutral" selected>Neutral</option>
-        <option value="friendly">Friendly</option>
-      </select>
-    </div>
-    <div class="cfg-field">
-      <label>Mode</label>
-      <select id="cfg-mode">
-        <option value="productive">Productive (concise)</option>
-        <option value="conversational" selected>Conversational</option>
-      </select>
-    </div>
-    <div class="cfg-field">
-      <label>Language</label>
-      <select id="cfg-language">
-        <option value="auto" selected>Auto-detect</option>
-        <option value="en">English</option>
-        <option value="es">Spanish</option>
-        <option value="fr">French</option>
-        <option value="de">German</option>
-        <option value="it">Italian</option>
-        <option value="pt">Portuguese</option>
-        <option value="nl">Dutch</option>
-      </select>
-    </div>
-    <div class="cfg-field">
-      <label>Chat model override</label>
-      <input type="text" id="cfg-chat-model" placeholder="e.g. llama3.2:3b">
-    </div>
-    <div class="cfg-field">
-      <label>Embed model override</label>
-      <input type="text" id="cfg-embed-model" placeholder="e.g. nomic-embed-text">
-    </div>
-    <div class="cfg-field">
-      <label>Max conversation history (2–200)</label>
-      <input type="number" id="cfg-max-history" min="2" max="200">
-    </div>
-    <div class="cfg-field">
-      <label>RAG chunks per answer (1–20)</label>
-      <input type="number" id="cfg-rag-chunks" min="1" max="20">
-    </div>
-    <div class="cfg-field" style="grid-column:1/-1">
-      <label>Avatar</label>
-      <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
-        <img id="cfg-avatar-preview" alt="avatar">
-        <div id="cfg-avatar-placeholder">🛡️</div>
-        <div style="display:flex;flex-direction:column;gap:6px">
-          <label class="cfg-avatar-upload">Upload image (jpg, png, webp)
-            <input type="file" id="cfg-avatar-file" accept=".jpg,.jpeg,.png,.webp,.gif">
-          </label>
-          <button class="btn-sm danger" id="btn-cfg-avatar-remove" style="font-size:.78rem;display:none">Remove avatar</button>
-        </div>
+  <div class="thread" id="thread">
+    <div class="empty" id="empty">
+      <div class="badge"><svg width="36" height="42" viewBox="0 0 48 56" fill="none"><path d="M24 2.5 41.5 9.2V26.5C41.5 39.5 33.7 48.7 24 53.5 14.3 48.7 6.5 39.5 6.5 26.5V9.2Z" fill="none" stroke="#2D6A4F" stroke-width="2.6" stroke-linejoin="round"/><circle cx="24" cy="27" r="4.2" fill="#2D6A4F"/></svg></div>
+      <h1 data-i18n="emptyTitle">Hello. I'm yours.</h1>
+      <p data-i18n="emptyBody">Only you and your agent are here. Nothing leaves this machine.</p>
+      <div class="chips">
+        <button class="chip" id="chipDoc" data-i18n="chipDoc">Read a document with me</button>
+        <button class="chip" id="chipWhat" data-i18n="chipWhat">What can you do?</button>
       </div>
     </div>
-  </div>
-  <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
-    <button class="btn" id="btn-cfg-save" style="font-size:.85rem;padding:8px 18px">Save</button>
-    <span id="cfg-status"></span>
+    <div class="msgs" id="msgs" style="display:none"></div>
   </div>
 
-  <!-- Personal memory (Phase 1): full transparency — see, edit, and delete everything. -->
-  <div id="memory-section" style="margin-top:22px;border-top:1px solid var(--line);padding-top:14px">
-    <label style="font-weight:600">What Vokter knows about you</label>
-    <p style="color:var(--muted);font-size:.8rem;margin:4px 0 10px">
-      Only what you asked it to remember (say “remember that…” in chat). It stays on this
-      device, encrypted. You can edit or delete anything, any time.
-    </p>
-    <div id="memory-list" style="display:flex;flex-direction:column;gap:6px"></div>
-    <div style="margin-top:8px;display:flex;gap:6px">
-      <input type="text" id="memory-add-input" placeholder="Add something Vokter should remember…"
-             style="flex:1;padding:6px 10px;background:var(--panel);border:1px solid var(--line);border-radius:6px;color:var(--text)">
-      <button class="btn-sm" id="btn-memory-add">Add</button>
-    </div>
-    <div style="margin-top:10px">
-      <button class="btn-sm danger" id="btn-memory-forget-all" style="font-size:.78rem">Forget everything about me</button>
-    </div>
-  </div>
-</div>
-
-<div id="task">
-  <div id="task-top">
-    <input type="text" id="task-goal" placeholder="Give me a task… e.g. Compare prices of X on these sites">
-    <button class="btn-sm" id="btn-plan">Run task</button>
-  </div>
-  <div id="task-log"></div>
-</div>
-<div id="wallet">
-  <div id="wallet-top">
-    <span id="wallet-balance">Balance: <strong>—</strong></span>
-    <span id="wallet-badge">cashu</span>
-    <button class="btn-sm" id="btn-wallet-refresh">⟳</button>
-    <button class="btn-sm" id="btn-wallet-history-toggle">History</button>
-    <button class="btn-sm" id="btn-wallet-adapters-toggle">Adapters</button>
-  </div>
-
-  <div id="wallet-sections">
-    <div style="flex:1;min-width:200px">
-      <input type="text" class="wallet-input" id="wallet-token" placeholder="Paste cashuA… token to receive">
-      <div style="margin-top:4px">
-        <button class="btn-sm" id="btn-wallet-receive">Receive</button>
-      </div>
-    </div>
-    <div style="flex:1;min-width:200px">
-      <div id="wallet-send-row">
-        <input type="number" class="wallet-input" id="wallet-send-amount" placeholder="Amount" min="1">
-        <input type="text" class="wallet-input" id="wallet-send-memo" placeholder="Memo (optional)">
-      </div>
-      <div style="margin-top:4px">
-        <button class="btn-sm" id="btn-wallet-send">Send</button>
-      </div>
+  <div class="composer">
+    <div class="inrow">
+      <button class="rnd plain" id="attachBtn" data-i18n-aria="addDoc" aria-label="Add a document">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="m8 13 4 4a5 5 0 0 0 7-7l-7-7a3.5 3.5 0 0 0-5 5l7 7a2 2 0 0 0 3-3l-6-6" stroke="#6E6B61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <input type="file" id="fileInput" style="display:none" accept=".pdf,.txt,.md,.docx,.csv">
+      <input type="text" id="q" data-i18n-ph="placeholder" placeholder="Message your agent…" autocomplete="off">
+      <button class="rnd mic" id="micBtn" data-i18n-aria="speak" aria-label="Speak">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="9" y="3" width="6" height="12" rx="3" stroke="#2D6A4F" stroke-width="1.8"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="#2D6A4F" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+      <button class="rnd send" id="sendBtn" data-i18n-aria="send" aria-label="Send">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 12h15M13 6l6 6-6 6" stroke="#F6F4EF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
     </div>
   </div>
 
-  <div id="wallet-output" style="display:none">
-    <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px">Token to share with recipient:</div>
-    <div id="wallet-output-token"></div>
-    <button class="btn-sm" id="btn-wallet-copy" style="margin-top:4px">Copy token</button>
-  </div>
-
-  <div id="wallet-history"></div>
-  <div id="wallet-adapters-panel"></div>
-</div>
-
-<!-- payment confirmation modal -->
-<div id="wallet-modal">
-  <div id="wallet-modal-box">
-    <h3>Confirm payment</h3>
-    <p id="wallet-modal-text"></p>
-    <div id="wallet-modal-btns">
-      <button class="btn" id="btn-wallet-confirm">Confirm</button>
-      <button class="btn-sm" id="btn-wallet-cancel">Cancel</button>
+  <div class="view" id="voiceView">
+    <div class="vtop"><button class="icbtn" style="color:#FBFAF6" id="voiceX" aria-label="Cancel"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M6 18 18 6" stroke="#FBFAF6" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+    <div class="vmid">
+      <div class="vhalo"><span class="ring"></span><div class="vwave"><span></span><span></span><span></span><span></span><span></span></div></div>
+      <h2 data-i18n="listening">Listening…</h2>
+      <p data-i18n="listeningBody">Take your time. I'm hearing you on this device only.</p>
+    </div>
+    <div class="vbtns">
+      <button class="vbtn cancel" id="voiceCancel" aria-label="Cancel"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M6 18 18 6" stroke="#FBFAF6" stroke-width="2" stroke-linecap="round"/></svg></button>
+      <button class="vbtn done" id="voiceDone" aria-label="Done"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#2D6A4F" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
   </div>
-</div>
 
-<div id="schedule">
-  <div id="schedule-top">
-    <strong style="font-size:.9rem">Scheduled tasks</strong>
-    <span id="schedule-badge-el" style="font-size:.72rem;background:#f851491a;color:#f85149;border:1px solid #f8514966;border-radius:4px;padding:1px 6px;display:none"></span>
-    <button class="btn-sm" id="btn-sched-new">＋ New task</button>
-    <button class="btn-sm" id="btn-sched-refresh">⟳</button>
-  </div>
-  <div id="schedule-form" style="display:none;flex-wrap:wrap;gap:6px;margin-bottom:8px">
-    <input type="text" class="wallet-input" id="sched-name" placeholder="Name (e.g. Daily digest)" style="width:160px">
-    <input type="text" class="wallet-input" id="sched-goal" placeholder="Goal (e.g. Summarise my emails)" style="flex:1;min-width:200px">
-    <input type="text" class="wallet-input" id="sched-interval" placeholder="1h / 30m / 1d" style="width:80px">
-    <button class="btn-sm" id="btn-sched-create">Create</button>
-    <button class="btn-sm" id="btn-sched-cancel">Cancel</button>
-  </div>
-  <div id="schedule-list"><div class="tag" style="font-size:.82rem">No scheduled tasks yet.</div></div>
-</div>
-
-<div id="web">
-  <div id="web-top">
-    <input type="url" id="web-url" placeholder="https://…">
-    <button class="btn-sm" id="btn-browse">Browse</button>
-    <button class="btn-sm" id="btn-perms-toggle">Permissions (<span id="perms-count">0</span>)</button>
-  </div>
-  <div id="web-status"></div>
-  <div id="web-perms" style="display:none">
-    <div id="perms-list"></div>
-    <div id="perm-add">
-      <input type="url" id="perm-input" placeholder="https://example.com">
-      <button class="btn-sm" id="btn-add-perm">Allow</button>
+  <div class="view" id="settingsView">
+    <div class="stop">
+      <button class="icbtn" id="settingsBack" aria-label="Back"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M15 6l-6 6 6 6" stroke="#171511" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <h2 id="settingsTitle">Settings</h2>
     </div>
+    <div class="slist" id="slist"></div>
   </div>
-</div>
-<div id="email">
-  <span id="email-status">checking email…</span>
-  <button class="btn-sm" id="btn-sync">⟳ Sync emails</button>
-  <button class="btn-sm danger" id="btn-del-emails" style="display:none">✕ Delete all emails</button>
-</div>
-<div id="docs"></div>
-<div id="chat">
-  <div class="msg bot">I'm Vokter, your guardian. Upload a document and ask me anything about it. What I learn stays between you and me — literally: it lives on your disk.</div>
-</div>
 
-<form id="ask">
-  <input type="text" id="q" placeholder="Ask your documents…" autocomplete="off">
-  <button class="btn">→</button>
-  <button type="button" class="btn-mic" id="btn-mic" title="Hold to record, click again to stop">🎤</button>
-  <button type="button" class="btn-new" id="new-chat">New chat</button>
-</form>
+  <div class="toast" id="toast"></div>
+</div>
 
 <script src="/static/app.js"></script>
-<script src="/static/app.memory.js"></script>
 </body>
 </html>

@@ -12,7 +12,7 @@ by the inner seal signature.
 
 DM format accepted:
   Plain text   → treated as a question for the 'ask' tool
-  JSON         → {"tool": "hello|browse|ask|wallet_balance|plan", "args": {...}}
+  JSON         → {"tool": "hello|browse|ask|plan", "args": {...}}
   'hello'      → returns Vokter's A2A agent card (public identity + capabilities)
 
 Start: disabled unless VOKTER_NOSTR_RELAYS is set.

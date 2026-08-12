@@ -42,10 +42,8 @@ mcp = FastMCP(
     instructions=(
         "Vokter is a sovereign local AI agent running on the user's machine. "
         "It stores and queries the user's private documents and emails locally. "
-        "Use 'ask' to query knowledge, 'browse' to learn from a web page, "
-        "'plan' for multi-step research goals, and the wallet tools for payments. "
-        "IMPORTANT: for wallet_send, always describe the payment and ask the user "
-        "to confirm before calling the tool — payments are irreversible."
+        "Use 'ask' to query knowledge, 'browse' to learn from a web page, and "
+        "'plan' for multi-step research goals."
     ),
 )
 
@@ -87,42 +85,6 @@ async def ask(question: str, conversation_id: str = "") -> str:
     if sources:
         answer += f"\n\nSources: {sources}"
     return answer
-
-
-@mcp.tool()
-async def wallet_balance() -> str:
-    """Return the current wallet balance and active adapter."""
-    d = await _get("/api/wallet/balance")
-    return f"{d['balance']:,} {d['unit']} (adapter: {d['adapter']})"
-
-
-@mcp.tool()
-async def wallet_send(amount: int, memo: str = "") -> str:
-    """Request a wallet payment.
-
-    NOTE: this tool cannot authorise a payment on its own. Vokter gates payments on the
-    local human-session token, which only the Vokter app holds — an external host (this
-    MCP client) does not. The backend will refuse (403) and this returns a message asking
-    the user to confirm the payment inside the Vokter app itself."""
-    try:
-        d = await _post("/api/wallet/send", {"amount": amount, "memo": memo, "confirmed": True})
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 403:
-            return (
-                f"Payment of {amount:,} was NOT sent. Vokter requires the human to confirm "
-                "payments in the Vokter app — an external assistant cannot authorise a "
-                "payment. Please open Vokter and confirm the transaction there."
-            )
-        raise
-    out = d.get("output", "")
-    return f"Sent {d['amount']:,} {d['unit']}.{' Token: ' + out if out else ''}"
-
-
-@mcp.tool()
-async def wallet_receive(token: str) -> str:
-    """Receive a Cashu token into the wallet."""
-    d = await _post("/api/wallet/receive", {"token": token})
-    return f"Received {d['received']:,} {d['unit']}."
 
 
 @mcp.tool()

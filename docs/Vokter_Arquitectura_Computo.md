@@ -90,7 +90,7 @@ Google, voz y búsqueda cloud, licencia no libre. NO adoptar ni depender.
 
 **Único aprovechable (concepto, no código):** el paradigma "Eyes & Hands" — actuar sobre
 apps que NO exponen API leyendo el árbol de accesibilidad + simulando input. Vokter hoy
-actúa solo por canales estructurados (A2A / MCP / browse / wallet). Referencia para el día
+actúa solo por canales estructurados (A2A / MCP / browse). Referencia para el día
 (lejano) en que Vokter quiera operar UIs de escritorio legadas sin API. Equivalente Linux:
 AT-SPI (árbol de accesibilidad GNOME) o xdotool/ydotool. NO construir ahora — precedente
 anotado.

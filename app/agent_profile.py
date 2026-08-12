@@ -16,7 +16,7 @@ explicit human approval, and is non-custodial.
 Deliberately minimal outward surface: the card advertises exactly ONE honest
 skill ('introduce') — identity/capability exchange, which is what is actually
 implemented today. It does NOT expose the human's local tools (ask over private
-documents, wallet_send, scheduling); those are driven by the human locally, and
+documents, email, scheduling); those are driven by the human locally, and
 advertising them to strangers' agents would be over-disclosure and attack
 surface. New outward skills are added here only when they are real.
 
@@ -64,7 +64,7 @@ def build_agent_card() -> dict:
             f"{name} is a sovereign personal AI agent that runs entirely on its "
             "human's own machine. It acts solely on behalf of that human, makes "
             "no commitment and discloses no personal data without explicit, "
-            "revocable approval, and holds funds non-custodially."
+            "revocable approval."
         ),
         "version": VOKTER_VERSION,
         "url": primary_url,
@@ -91,9 +91,7 @@ def build_agent_card() -> dict:
                     ),
                     "params": {
                         "actsFor": "human",
-                        "payments": "require-human-approval",
                         "dataSharing": "none-without-explicit-permission",
-                        "custody": "non-custodial",
                         "localFirst": True,
                     },
                 }

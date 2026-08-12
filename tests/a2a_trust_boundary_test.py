@@ -3,14 +3,13 @@
 Fija, con test, la invariante que el docstring afirmaba sin imponer ("dataSharing:
 none-without-permission") — la 2ª instancia del patrón del bug A2A original. Es SOLO un
 test: no cambia comportamiento; la frontera ya está bien impuesta (fail-closed presente,
-wallet_send no enrutado, dispatcher sin token humano).
+dispatcher sin token humano).
 
 Invariante:
   Un par A2A NO-trusted solo obtiene la tarjeta de identidad PÚBLICA (introduce/hello/whoami);
   cualquier otro verbo se rechaza con _UNTRUSTED_REPLY sin alcanzar herramienta ni dato.
-  Un par TRUSTED (bearer == A2A_TOKEN) puede además usar ask/browse/wallet_balance/plan/
-  negotiate — pero NO wallet_send (no enrutado → "Unknown tool", cero pago) — y ni su `ask`
-  recibe memoria personal, porque el dispatcher autentica con admin_headers() (sin
+  Un par TRUSTED (bearer == A2A_TOKEN) puede además usar ask/browse/plan/negotiate — y ni su
+  `ask` recibe memoria personal, porque el dispatcher autentica con admin_headers() (sin
   X-Vokter-Human-Session).
 
 Doble tripwire (pensado para la regresión futura, no solo hoy):
@@ -68,8 +67,6 @@ class _SpyHTTP:
 
     async def get(self, url, **kw):
         self.calls.append(("GET", url))
-        if url.endswith("/api/wallet/balance"):
-            return _Resp({"balance": 0, "unit": "sat", "adapter": "stub"})
         return _Resp({"name": "Vokter", "kind": "public-card"})     # /api/agent/card
 
     async def post(self, url, **kw):
@@ -107,19 +104,12 @@ def test_untrusted_gets_only_public_card():
 def test_untrusted_private_verbs_refused_zero_http():
     # CONDUCTUAL tripwire: refused with the untrusted reply AND no backend call whatsoever.
     spy = _fresh_spy()
-    private = ["ask", "browse", "wallet_balance", "plan", "negotiate",
-               "wallet_send", "delete_everything", "memory", "config"]
+    private = ["ask", "browse", "plan", "negotiate",
+               "delete_everything", "memory", "config"]
     for v in private:
         out = _dispatch(v, trusted=False)
         assert out == _UNTRUSTED_REPLY, f"untrusted {v!r} must be refused, got {out!r}"
     assert spy.calls == [], f"untrusted private verbs must make ZERO backend calls, got {spy.calls}"
-
-
-def test_trusted_wallet_send_not_routed_no_payment():
-    spy = _fresh_spy()
-    out = _dispatch("wallet_send", trusted=True, args={"amount": 100, "destination": "x"})
-    assert "Unknown tool" in out, f"wallet_send must NOT be routed via A2A, got {out!r}"
-    assert spy.calls == [], f"wallet_send must reach no tool (no payment), got {spy.calls}"
 
 
 def test_trusted_allowed_verbs_are_routed():
@@ -130,7 +120,6 @@ def test_trusted_allowed_verbs_are_routed():
         cases = {
             "ask":            ("POST", "/api/ask"),
             "browse":         ("POST", "/api/browse"),
-            "wallet_balance": ("GET",  "/api/wallet/balance"),
             "plan":           ("POST", "/api/plan"),
         }
         for i, (verb, (meth, path)) in enumerate(cases.items()):
@@ -190,16 +179,14 @@ def test_source_tripwire_gate_precedes_private_handlers():
 def main():
     test_untrusted_gets_only_public_card()
     test_untrusted_private_verbs_refused_zero_http()
-    test_trusted_wallet_send_not_routed_no_payment()
     test_trusted_allowed_verbs_are_routed()
     test_dispatcher_never_carries_human_session_token()
     test_is_trusted_is_the_single_shared_token()
     test_source_tripwire_gate_precedes_private_handlers()
     print("OK — A2A trust boundary: untrusted gets only the public card (zero private HTTP), "
-          "trusted gets ask/browse/wallet_balance/plan/negotiate but NOT wallet_send "
-          "('Unknown tool', no payment), dispatcher never carries the human token (memory "
-          "stays off A2A), 'trusted' is the single shared bearer, and the fail-closed gate "
-          "precedes every private handler (source tripwire).")
+          "trusted gets ask/browse/plan/negotiate, dispatcher never carries the human token "
+          "(memory stays off A2A), 'trusted' is the single shared bearer, and the fail-closed "
+          "gate precedes every private handler (source tripwire).")
 
 
 if __name__ == "__main__":

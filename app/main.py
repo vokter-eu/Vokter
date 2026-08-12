@@ -27,7 +27,6 @@ from voice.fetch import router as voice_fetch_router
 from voice.fetch import opportunistic_startup_fetch
 from browser import router as browser_router
 from planner import router as planner_router
-from wallet_routes import router as wallet_router
 from schedule_routes import router as schedule_router
 from config_routes import router as config_router
 from memory_routes import router as memory_router
@@ -42,14 +41,14 @@ import nostr_listener
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     # Fail closed: refuse to start when exposed without an admin token. A2A_URL
-    # set signals intent to expose; without ADMIN_TOKEN the admin API (wallet,
-    # config, documents, email) would be reachable by anyone who can reach the
+    # set signals intent to expose; without ADMIN_TOKEN the admin API (config,
+    # documents, email) would be reachable by anyone who can reach the
     # port. (Heuristic, not proof of exposure — pair with a reverse proxy that
     # publishes only /a2a and /.well-known.)
     if A2A_URL and not ADMIN_TOKEN:
         raise RuntimeError(
             "Refusing to start: VOKTER_A2A_URL is set (Vokter is being exposed) "
-            "but VOKTER_ADMIN_TOKEN is empty — the admin API (wallet, config, "
+            "but VOKTER_ADMIN_TOKEN is empty — the admin API (config, "
             "documents, email) would be UNPROTECTED. Set VOKTER_ADMIN_TOKEN, and "
             "reverse-proxy only /a2a and /.well-known."
         )
@@ -100,7 +99,6 @@ app.include_router(piper_router)
 app.include_router(voice_fetch_router)
 app.include_router(browser_router)
 app.include_router(planner_router)
-app.include_router(wallet_router)
 app.include_router(schedule_router)
 app.include_router(config_router)
 app.include_router(memory_router)

@@ -316,43 +316,7 @@ ipcMain.handle('vokter:ask', (_event, body) => new Promise((resolve) => {
   req.end();
 }));
 
-// The renderer's SECOND privileged request: proxy /api/wallet/send through MAIN so the
-// human-session token never touches page JS — identical discipline to 'vokter:ask'. The
-// page sends only {amount, memo, confirmed}; main attaches X-Vokter-Human-Session. The
-// backend gates wallet_send on that token (deny-by-default, C3), so MCP hosts, peer agents
-// and a plain browser cannot pay. Returns {status, body} so the renderer keeps ok/error
-// handling. (A renderer XSS could invoke this — hardening that with a native main-process
-// confirm dialog is a separate, deferred decision; this lote matches the proven 'ask'
-// threat posture and does not weaken it.)
-ipcMain.handle('vokter:wallet-send', (_event, body) => new Promise((resolve) => {
-  if (!ready || backendPort == null) { resolve({ status: 0, body: null }); return; }
-  const payload = JSON.stringify(body && typeof body === 'object' ? body : {});
-  const req = http.request({
-    host: '127.0.0.1', port: backendPort, path: '/api/wallet/send', method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Content-Length': Buffer.byteLength(payload),
-      'X-Vokter-Human-Session': HUMAN_SESSION_TOKEN,
-    },
-  }, (res) => {
-    let data = '';
-    res.setEncoding('utf8');
-    res.on('data', (c) => { data += c; });
-    res.on('end', () => {
-      let parsed = null;
-      try { parsed = JSON.parse(data); } catch { /* leave null → renderer shows error */ }
-      resolve({ status: res.statusCode || 0, body: parsed });
-    });
-  });
-  req.on('error', () => resolve({ status: 0, body: null }));
-  // Adapter settlement (EVM/Lightning/on-chain broadcast) can take a while; be generous but
-  // resolve explicitly on timeout so the renderer's `await walletSend()` never hangs.
-  req.setTimeout(120000, () => { req.destroy(); resolve({ status: 0, body: null }); });
-  req.write(payload);
-  req.end();
-}));
-
-// The renderer's THIRD privileged request: proxy /api/memory/suggest through MAIN so the
+// The renderer's SECOND privileged request: proxy /api/memory/suggest through MAIN so the
 // human-session token never touches page JS — same discipline as 'vokter:ask'. This endpoint
 // reads the human's own conversation turns to propose personal facts (C2a), so the backend
 // gates it on the token: without it the shell-less path (a plain browser / peer / MCP) gets
