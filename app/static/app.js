@@ -86,6 +86,46 @@
 
   let tT; function toast(m){const el=$('toast');el.textContent=m;el.classList.add('on');clearTimeout(tT);tT=setTimeout(()=>el.classList.remove('on'),2000);}
 
+  // ── Markdown for the agent's replies. Escape-first + a strict link-scheme allowlist,
+  //    so no raw HTML from the model/RAG ever reaches the DOM (only <strong>/<em>/<a>/
+  //    <code>/<pre>/lists/quotes we emit ourselves). User messages stay plain textContent.
+  function _esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function _safeHref(url){ const u=String(url).trim().replace(/[\u0000-\u0020]/g,''); return /^(https?:|mailto:)/i.test(u)?u:null; }
+  function _inline(t){
+    const codes=[];
+    t=t.replace(/`([^`]+)`/g,(m,c)=>{ codes.push('<code class="md-ic">'+_esc(c)+'</code>'); return '@@C'+(codes.length-1)+'@@'; });
+    t=_esc(t);
+    t=t.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g,(m,txt,url)=>{ const h=_safeHref(url); return h?'<a href="'+_esc(h)+'" target="_blank" rel="noopener noreferrer">'+txt+'</a>':txt; });
+    t=t.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/__([^_]+)__/g,'<strong>$1</strong>');
+    t=t.replace(/(^|[^*])\*(?!\s)([^*\n]+?)\*/g,'$1<em>$2</em>').replace(/(^|[^\w_])_(?!\s)([^_\n]+?)_/g,'$1<em>$2</em>');
+    return t.replace(/@@C(\d+)@@/g,(m,k)=>codes[+k]);
+  }
+  function mdToHtml(src){
+    src=String(src).replace(/\r\n?/g,'\n');
+    const blocks=[];
+    src=src.replace(/```([^\n`]*)\n([\s\S]*?)```/g,(m,info,code)=>{
+      const lang=(String(info).trim().match(/^[\w+.-]+/)||[''])[0], cls=lang?' class="lang-'+_esc(lang)+'"':'';
+      blocks.push('<pre class="md-pre"><code'+cls+'>'+_esc(code.replace(/\n$/,''))+'</code></pre>');
+      return '\n@@B'+(blocks.length-1)+'@@\n';
+    });
+    const lines=src.split('\n'), out=[]; let i=0, para=[];
+    const flushP=()=>{ if(para.length){ out.push('<p>'+_inline(para.join('\n')).replace(/\n/g,'<br>')+'</p>'); para=[]; } };
+    while(i<lines.length){
+      const ln=lines[i], mb=ln.match(/^@@B(\d+)@@$/);
+      if(mb){ flushP(); out.push(blocks[+mb[1]]); i++; continue; }
+      if(/^\s*$/.test(ln)){ flushP(); i++; continue; }
+      const mh=ln.match(/^(#{1,6})\s+(.*)$/);
+      if(mh){ flushP(); const n=mh[1].length; out.push('<h'+n+' class="md-h">'+_inline(mh[2].trim())+'</h'+n+'>'); i++; continue; }
+      if(/^\s*>\s?/.test(ln)){ flushP(); const qq=[]; while(i<lines.length&&/^\s*>\s?/.test(lines[i])){ qq.push(lines[i].replace(/^\s*>\s?/,'')); i++; } out.push('<blockquote class="md-bq">'+_inline(qq.join('\n')).replace(/\n/g,'<br>')+'</blockquote>'); continue; }
+      if(/^\s*[-*+]\s+/.test(ln)){ flushP(); const it=[]; while(i<lines.length&&/^\s*[-*+]\s+/.test(lines[i])){ it.push('<li>'+_inline(lines[i].replace(/^\s*[-*+]\s+/,''))+'</li>'); i++; } out.push('<ul class="md-ul">'+it.join('')+'</ul>'); continue; }
+      if(/^\s*\d+\.\s+/.test(ln)){ flushP(); const it=[]; while(i<lines.length&&/^\s*\d+\.\s+/.test(lines[i])){ it.push('<li>'+_inline(lines[i].replace(/^\s*\d+\.\s+/,''))+'</li>'); i++; } out.push('<ol class="md-ol">'+it.join('')+'</ol>'); continue; }
+      para.push(ln); i++;
+    }
+    flushP();
+    return out.join('');
+  }
+  const SHIELD='<svg viewBox="0 0 48 56" fill="none"><path d="M24 2.5 41.5 9.2V26.5C41.5 39.5 33.7 48.7 24 53.5 14.3 48.7 6.5 39.5 6.5 26.5V9.2Z" fill="none" stroke="#2D6A4F" stroke-width="2.6" stroke-linejoin="round"/><circle cx="24" cy="27" r="4.2" fill="#2D6A4F"/></svg>';
+
   const thread=$('thread'), empty=$('empty'), msgs=$('msgs'), q=$('q');
   let conversationId=null;
   function activate(){ if(empty.style.display!=='none'){empty.style.display='none';msgs.style.display='flex';} }
@@ -101,19 +141,22 @@
   function addAgent(text,sources){
     activate();
     const d=document.createElement('div');d.className='b them';
-    const p=document.createElement('div');p.textContent=text;d.appendChild(p);
+    const av=document.createElement('span');av.className='av';av.innerHTML=SHIELD;
+    const mc=document.createElement('div');mc.className='mc';
+    const p=document.createElement('div');p.className='md';p.innerHTML=mdToHtml(text);mc.appendChild(p);
     if(sources&&sources.length){
       const s=document.createElement('div');s.className='sources';
       sources.slice(0,4).forEach(src=>{const c=document.createElement('span');c.className='src';c.textContent=(typeof src==='string')?src:(src.doc||src.source||'source');s.appendChild(c);});
-      d.appendChild(s);
+      mc.appendChild(s);
     }
     const say=document.createElement('button');say.className='say';
     say.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M11 5 6 9H3v6h3l5 4V5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M16 9a3.5 3.5 0 0 1 0 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span>'+t('readAloud')+'</span>';
     say.onclick=()=>speak(text,say);
-    d.appendChild(say);
+    mc.appendChild(say);
+    d.appendChild(av);d.appendChild(mc);
     msgs.appendChild(d);scroll();return d;
   }
-  function addThinking(){ activate(); const d=document.createElement('div');d.className='b them';d.innerHTML='<span class="typing"><i></i><i></i><i></i></span>';msgs.appendChild(d);scroll();return d; }
+  function addThinking(){ activate(); const d=document.createElement('div');d.className='b them thinking';const av=document.createElement('span');av.className='av';av.innerHTML=SHIELD;const mc=document.createElement('div');mc.className='mc';mc.innerHTML='<span class="typing"><i></i><i></i><i></i></span>';d.appendChild(av);d.appendChild(mc);msgs.appendChild(d);scroll();return d; }
 
   // Route /api/ask through the Electron bridge (window.vokter.ask) when present: main
   // attaches the human-session token so it never lives in page JS — that token is what lets
