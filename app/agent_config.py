@@ -70,14 +70,19 @@ def build_system_prompt(cfg: dict[str, str]) -> str:
     if lang != "auto":
         # Use the language's human name (and the European-Portuguese nuance) from the shared
         # table; fall back to the raw code for any parked/unknown value (backward-compat).
-        parts.append(f"Always respond in {chat_name(lang) or lang}.")
-    else:
-        # Default: mirror the user, like a bilingual person. Anchor on the
-        # QUESTION's language, not the documents' — a Spanish question about an
-        # English document must be answered in Spanish (citing the English source).
         parts.append(
-            "Always respond in the same language as the user's question, "
-            "even when the documents are written in another language."
+            f"Always reply in {chat_name(lang) or lang}. Reply in ONE language only — "
+            "never include translations or parenthetical restatements in another language."
+        )
+    else:
+        # Default: mirror the user, like a bilingual person, but in ONE language. Anchor on
+        # the QUESTION's language, not the documents' — a Spanish question about an English
+        # document must be answered in Spanish (citing the English source).
+        parts.append(
+            "Always reply in the SAME language as the user's most recent message. "
+            "Reply in ONE language only — never include translations or parenthetical "
+            "restatements in another language. If the user's language is ambiguous, "
+            "reply in Spanish."
         )
 
     return " ".join(parts)
