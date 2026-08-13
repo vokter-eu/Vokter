@@ -34,7 +34,9 @@
       modelName:"Agent name", modelTone:"Tone", modelMode:"Mode", modelModel:"Chat model", modelModelPh:"e.g. llama3.2:3b",
       modelModelHint:"Leave blank to use this machine's default model.",
       toneFormal:"Formal", toneNeutral:"Neutral", toneFriendly:"Friendly", modeConversational:"Conversational", modeProductive:"Productive",
-      modelSave:"Save", modelSaving:"Saving…", modelSaved:"Saved ✓"
+      modelSave:"Save", modelSaving:"Saving…", modelSaved:"Saved ✓",
+      newChat:"New chat", theme:"Theme", themeAria:"Toggle light or dark theme", menu:"Menu", themeLight:"Light", themeDark:"Dark",
+      chatsLabel:"Chats", noChats:"No conversations yet"
     },
     es:{
       onDevice:"En tu dispositivo", settings:"Ajustes", send:"Enviar", speak:"Hablar", addDoc:"Añadir un documento",
@@ -68,7 +70,9 @@
       modelName:"Nombre del agente", modelTone:"Tono", modelMode:"Modo", modelModel:"Modelo de chat", modelModelPh:"p. ej. llama3.2:3b",
       modelModelHint:"Déjalo en blanco para usar el modelo por defecto de esta máquina.",
       toneFormal:"Formal", toneNeutral:"Neutral", toneFriendly:"Cercano", modeConversational:"Conversacional", modeProductive:"Productivo",
-      modelSave:"Guardar", modelSaving:"Guardando…", modelSaved:"Guardado ✓"
+      modelSave:"Guardar", modelSaving:"Guardando…", modelSaved:"Guardado ✓",
+      newChat:"Nuevo chat", theme:"Tema", themeAria:"Cambiar tema claro u oscuro", menu:"Menú", themeLight:"Claro", themeDark:"Oscuro",
+      chatsLabel:"Chats", noChats:"Aún no hay conversaciones"
     }
   };
   const LANGS=[{code:'en',name:'English'},{code:'es',name:'Español'}];
@@ -82,9 +86,49 @@
     document.querySelectorAll('[data-i18n-ph]').forEach(el=>el.setAttribute('placeholder',t(el.getAttribute('data-i18n-ph'))));
     document.querySelectorAll('[data-i18n-aria]').forEach(el=>el.setAttribute('aria-label',t(el.getAttribute('data-i18n-aria'))));
   }
-  function setLang(l){ lang=l; saveLang(l); applyStatic(); renderHome(); }
+  function setLang(l){ lang=l; saveLang(l); applyStatic(); renderHome(); refreshShell(); }
 
   let tT; function toast(m){const el=$('toast');el.textContent=m;el.classList.add('on');clearTimeout(tT);tT=setTimeout(()=>el.classList.remove('on'),2000);}
+
+  // ── Markdown for the agent's replies. Escape-first + a strict link-scheme allowlist,
+  //    so no raw HTML from the model/RAG ever reaches the DOM (only <strong>/<em>/<a>/
+  //    <code>/<pre>/lists/quotes we emit ourselves). User messages stay plain textContent.
+  function _esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function _safeHref(url){ const u=String(url).trim().replace(/[\u0000-\u0020]/g,''); return /^(https?:|mailto:)/i.test(u)?u:null; }
+  function _inline(t){
+    const codes=[];
+    t=t.replace(/`([^`]+)`/g,(m,c)=>{ codes.push('<code class="md-ic">'+_esc(c)+'</code>'); return '@@C'+(codes.length-1)+'@@'; });
+    t=_esc(t);
+    t=t.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g,(m,txt,url)=>{ const h=_safeHref(url); return h?'<a href="'+_esc(h)+'" target="_blank" rel="noopener noreferrer">'+txt+'</a>':txt; });
+    t=t.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/__([^_]+)__/g,'<strong>$1</strong>');
+    t=t.replace(/(^|[^*])\*(?!\s)([^*\n]+?)\*/g,'$1<em>$2</em>').replace(/(^|[^\w_])_(?!\s)([^_\n]+?)_/g,'$1<em>$2</em>');
+    return t.replace(/@@C(\d+)@@/g,(m,k)=>codes[+k]);
+  }
+  function mdToHtml(src){
+    src=String(src).replace(/\r\n?/g,'\n');
+    const blocks=[];
+    src=src.replace(/```([^\n`]*)\n([\s\S]*?)```/g,(m,info,code)=>{
+      const lang=(String(info).trim().match(/^[\w+.-]+/)||[''])[0], cls=lang?' class="lang-'+_esc(lang)+'"':'';
+      blocks.push('<pre class="md-pre"><code'+cls+'>'+_esc(code.replace(/\n$/,''))+'</code></pre>');
+      return '\n@@B'+(blocks.length-1)+'@@\n';
+    });
+    const lines=src.split('\n'), out=[]; let i=0, para=[];
+    const flushP=()=>{ if(para.length){ out.push('<p>'+_inline(para.join('\n')).replace(/\n/g,'<br>')+'</p>'); para=[]; } };
+    while(i<lines.length){
+      const ln=lines[i], mb=ln.match(/^@@B(\d+)@@$/);
+      if(mb){ flushP(); out.push(blocks[+mb[1]]); i++; continue; }
+      if(/^\s*$/.test(ln)){ flushP(); i++; continue; }
+      const mh=ln.match(/^(#{1,6})\s+(.*)$/);
+      if(mh){ flushP(); const n=mh[1].length; out.push('<h'+n+' class="md-h">'+_inline(mh[2].trim())+'</h'+n+'>'); i++; continue; }
+      if(/^\s*>\s?/.test(ln)){ flushP(); const qq=[]; while(i<lines.length&&/^\s*>\s?/.test(lines[i])){ qq.push(lines[i].replace(/^\s*>\s?/,'')); i++; } out.push('<blockquote class="md-bq">'+_inline(qq.join('\n')).replace(/\n/g,'<br>')+'</blockquote>'); continue; }
+      if(/^\s*[-*+]\s+/.test(ln)){ flushP(); const it=[]; while(i<lines.length&&/^\s*[-*+]\s+/.test(lines[i])){ it.push('<li>'+_inline(lines[i].replace(/^\s*[-*+]\s+/,''))+'</li>'); i++; } out.push('<ul class="md-ul">'+it.join('')+'</ul>'); continue; }
+      if(/^\s*\d+\.\s+/.test(ln)){ flushP(); const it=[]; while(i<lines.length&&/^\s*\d+\.\s+/.test(lines[i])){ it.push('<li>'+_inline(lines[i].replace(/^\s*\d+\.\s+/,''))+'</li>'); i++; } out.push('<ol class="md-ol">'+it.join('')+'</ol>'); continue; }
+      para.push(ln); i++;
+    }
+    flushP();
+    return out.join('');
+  }
+  const SHIELD='<svg viewBox="0 0 48 56" fill="none"><path d="M24 2.5 41.5 9.2V26.5C41.5 39.5 33.7 48.7 24 53.5 14.3 48.7 6.5 39.5 6.5 26.5V9.2Z" fill="none" stroke="#2D6A4F" stroke-width="2.6" stroke-linejoin="round"/><circle cx="24" cy="27" r="4.2" fill="#2D6A4F"/></svg>';
 
   const thread=$('thread'), empty=$('empty'), msgs=$('msgs'), q=$('q');
   let conversationId=null;
@@ -101,19 +145,22 @@
   function addAgent(text,sources){
     activate();
     const d=document.createElement('div');d.className='b them';
-    const p=document.createElement('div');p.textContent=text;d.appendChild(p);
+    const av=document.createElement('span');av.className='av';av.innerHTML=SHIELD;
+    const mc=document.createElement('div');mc.className='mc';
+    const p=document.createElement('div');p.className='md';p.innerHTML=mdToHtml(text);mc.appendChild(p);
     if(sources&&sources.length){
       const s=document.createElement('div');s.className='sources';
       sources.slice(0,4).forEach(src=>{const c=document.createElement('span');c.className='src';c.textContent=(typeof src==='string')?src:(src.doc||src.source||'source');s.appendChild(c);});
-      d.appendChild(s);
+      mc.appendChild(s);
     }
     const say=document.createElement('button');say.className='say';
     say.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M11 5 6 9H3v6h3l5 4V5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M16 9a3.5 3.5 0 0 1 0 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span>'+t('readAloud')+'</span>';
     say.onclick=()=>speak(text,say);
-    d.appendChild(say);
+    mc.appendChild(say);
+    d.appendChild(av);d.appendChild(mc);
     msgs.appendChild(d);scroll();return d;
   }
-  function addThinking(){ activate(); const d=document.createElement('div');d.className='b them';d.innerHTML='<span class="typing"><i></i><i></i><i></i></span>';msgs.appendChild(d);scroll();return d; }
+  function addThinking(){ activate(); const d=document.createElement('div');d.className='b them thinking';const av=document.createElement('span');av.className='av';av.innerHTML=SHIELD;const mc=document.createElement('div');mc.className='mc';mc.innerHTML='<span class="typing"><i></i><i></i><i></i></span>';d.appendChild(av);d.appendChild(mc);msgs.appendChild(d);scroll();return d; }
 
   // Route /api/ask through the Electron bridge (window.vokter.ask) when present: main
   // attaches the human-session token so it never lives in page JS — that token is what lets
@@ -152,6 +199,7 @@
     try{
       const r=await fetch('/api/docs',{method:'POST',body:fd}); const j=await r.json();
       fs.textContent = r.ok ? t('readDone',{n:j.chunks}) : t('readFail')+': '+(j.detail||'error');
+      if(r.ok) loadDocCount();
     }catch{ fs.textContent=t('noReachShort'); }
     e.target.value='';
   };
@@ -190,6 +238,9 @@
   }
 
   const settingsView=$('settingsView'), slist=$('slist'), sTitle=$('settingsTitle');
+  // Was the current sub-view reached via the Settings home (→ Back returns there) or opened
+  // directly from the sidebar, e.g. Documents (→ Back closes straight to the chat)?
+  let settingsFromHome=true;
   const ICONS={
     documents:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
     email:'<rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="m22 7-10 6L2 7" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
@@ -226,8 +277,9 @@
     });
     loadDocCount();
   }
-  async function loadDocCount(){ try{const r=await fetch('/api/docs');const d=await r.json();const el=$('docCount');if(el)el.textContent=d.length;}catch{} }
+  async function loadDocCount(){ try{const r=await fetch('/api/docs');const d=await r.json();const a=$('docCount');if(a)a.textContent=d.length;const b=$('sideDocCount');if(b)b.textContent=d.length;}catch{} }
   function openRow(row){
+    settingsFromHome=true;                 // rows are only reached from the Settings home
     if(row.type==='docs') return renderDocs();
     if(row.type==='lang') return renderLang();
     if(row.type==='email') return renderEmail();
@@ -428,9 +480,43 @@
     };
   }
 
-  $('openSettings').onclick=()=>{ renderHome(); settingsView.classList.add('on'); };
-  $('settingsBack').onclick=()=>{ if(sTitle.textContent!==t('settings')){ renderHome(); } else { settingsView.classList.remove('on'); } };
+  // ── Shell controls: sidebar drawer, new chat, settings/docs, language, theme ──
+  const appEl=$('app');
+  function closeSidebar(){ appEl.classList.remove('side-open'); }
+  $('navToggle').onclick=()=>appEl.classList.toggle('side-open');
+  $('sideBackdrop').onclick=closeSidebar;
+
+  function openSettings(){ renderHome(); settingsView.classList.add('on'); closeSidebar(); }
+  $('sideSettings').onclick=openSettings;
+  $('sideDocs').onclick=()=>{ settingsFromHome=false; settingsView.classList.add('on'); renderDocs(); closeSidebar(); };
+  // Back: from a sub-view opened via the Settings home → return to the home list; otherwise
+  // (Settings home itself, or a sub-view opened straight from the sidebar) → close to the chat.
+  $('settingsBack').onclick=()=>{
+    if(sTitle.textContent!==t('settings') && settingsFromHome){ renderHome(); }
+    else { settingsView.classList.remove('on'); }
+  };
+
+  $('newChat').onclick=()=>{ conversationId=null; msgs.innerHTML=''; msgs.style.display='none'; empty.style.display=''; closeSidebar(); q.focus(); };
+
+  // Language toggle across the two languages — routes through setLang (updates the whole UI).
+  $('langBtn').onclick=()=>{ const other=LANGS.find(l=>l.code!==lang); if(other) setLang(other.code); };
+
+  // Light/dark theme, persisted. refreshShell() keeps the sidebar's dynamic labels in sync
+  // (setLang can't know about them), so it's called from both applyTheme() and setLang().
+  const SUN='<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  const MOON='<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
+  function loadTheme(){ try{ return localStorage.getItem('vokter_theme'); }catch{ return null; } }
+  let theme = loadTheme()==='dark' ? 'dark' : 'light';
+  function refreshShell(){
+    const ln=$('langName'); if(ln) ln.textContent=(LANGS.find(l=>l.code===lang)||{}).name||lang;
+    const ti=$('themeIcon'); if(ti) ti.innerHTML = theme==='dark' ? MOON : SUN;
+    const tn=$('themeName'); if(tn) tn.textContent = t(theme==='dark'?'themeDark':'themeLight');
+  }
+  function applyTheme(){ document.documentElement.setAttribute('data-theme', theme); refreshShell(); }
+  $('themeBtn').onclick=()=>{ theme = theme==='dark'?'light':'dark'; try{ localStorage.setItem('vokter_theme',theme); }catch{} applyTheme(); };
 
   applyStatic();
+  applyTheme();
+  loadDocCount();
   q.focus();
 })();

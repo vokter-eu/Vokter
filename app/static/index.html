@@ -8,134 +8,212 @@
 <link rel="stylesheet" href="/static/fonts/fonts.css">
 <style>
   :root{
-    --green:#2D6A4F; --green-deep:#245C43; --tint:#E8EFE9; --amber:#E7A23C;
-    --cream:#FBFAF6; --cream2:#F6F4EF; --sand:#E5E1D8; --ink:#171511; --ink-2:#3C3A34;
-    --grey:#6E6B61; --grey2:#9A9689; --faint:#C9C4B8;
+    /* Light — warm cream, muted forest green */
+    --green:#2D6A4F; --green-deep:#245C43; --tint:#E7EEE9; --amber:#C98A3A;
+    --cream:#FBFAF6;   /* main bg */   --panel:#F4F2EB;  /* sidebar */   --cream2:#F1EEE6; /* raised surfaces */
+    --sand:#E8E4DA;    /* hairline */
+    --ink:#1A1712; --ink-2:#5B574E; --grey:#726F65; --grey2:#9C988D; --faint:#D0CBBF;
+    --shadow:0 1px 2px rgba(30,24,12,.05);
     --serif:'Fraunces',Georgia,serif; --body:'Inter',system-ui,-apple-system,sans-serif; --mono:'JetBrains Mono',monospace;
+    --col:740px; --r:8px; --r-sm:6px;
+  }
+  html[data-theme="dark"]{
+    /* Dark — warm vault / terminal: near-black warm charcoal, muted desaturated green */
+    --green:#4C7C61; --green-deep:#5C8F73; --tint:#1B241E; --amber:#B9863E;
+    --cream:#12140F;   /* main bg */   --panel:#0F120D;  /* sidebar, recessed */   --cream2:#191C15; /* raised surfaces */
+    --sand:#262A22;    /* hairline, low-contrast */
+    --ink:#E8E6DF; --ink-2:#ABA89E; --grey:#8B8E84; --grey2:#6A6D63; --faint:#333830;
+    --shadow:0 1px 3px rgba(0,0,0,.34);
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
-  body{font-family:var(--body);background:var(--sand);color:var(--ink);-webkit-font-smoothing:antialiased;line-height:1.5;overscroll-behavior:none}
-  button{font-family:inherit}
-  #app{position:relative;height:100dvh;width:100%;max-width:480px;margin:0 auto;background:var(--cream);display:flex;flex-direction:column;overflow:hidden}
-  @media(min-width:520px){#app{border-left:1px solid var(--sand);border-right:1px solid var(--sand)}}
+  body{font-family:var(--body);background:var(--cream);color:var(--ink);-webkit-font-smoothing:antialiased;line-height:1.5;overscroll-behavior:none}
+  button{font-family:inherit;color:inherit}  /* buttons use system 'buttontext' otherwise → invisible in dark */
 
-  .hdr{flex:0 0 auto;display:flex;align-items:center;gap:11px;padding:calc(15px + env(safe-area-inset-top)) 20px 13px;border-bottom:1px solid var(--sand)}
-  .hdr .mk{width:25px;height:29px;flex:0 0 auto}
-  .hdr .t{flex:1;min-width:0}
-  .hdr .t b{font-family:var(--serif);font-weight:600;font-size:19px;display:block;line-height:1.1}
-  .hdr .t span{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--green)}
-  .icbtn{background:none;border:none;cursor:pointer;padding:6px;border-radius:5px;color:var(--grey);display:grid;place-items:center;transition:background .15s}
-  .icbtn:hover{background:var(--tint)}
-  .icbtn:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+  #app{position:relative;height:100dvh;width:100vw;display:flex;flex-direction:row;background:var(--cream);overflow:hidden}
+
+  /* ── Sidebar ──────────────────────────────────────────────────────────── */
+  #sidebar{flex:0 0 264px;display:flex;flex-direction:column;min-height:0;background:var(--panel);border-right:1px solid var(--sand);padding:18px 14px calc(16px + env(safe-area-inset-bottom))}
+  .side-brand{display:flex;align-items:center;gap:11px;padding:4px 8px 18px}
+  .side-brand .mk{width:26px;height:30px;flex:0 0 auto}
+  .side-brand .bt{min-width:0}
+  .side-brand .bt b{font-family:var(--serif);font-weight:600;font-size:19px;display:block;line-height:1.05}
+  .side-brand .bt span{font-family:var(--mono);font-size:10px;letter-spacing:.02em;color:var(--green)}
+  #newChat{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;color:#F6F4EF;background:var(--green);border:none;border-radius:var(--r);padding:11px 14px;box-shadow:var(--shadow);transition:background .15s}
+  #newChat:hover{background:var(--green-deep)}
+  #newChat svg{stroke:#F6F4EF}
+  .side-chats{flex:1 1 auto;min-height:0;overflow-y:auto;padding-top:22px}
+  .side-sec{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--grey2);padding:0 9px 9px}
+  .side-empty{font-size:13px;color:var(--grey2);padding:5px 9px;line-height:1.5}
+  .side-foot{border-top:1px solid var(--sand);padding-top:10px;margin-top:10px;display:flex;flex-direction:column;gap:1px}
+  .navbtn{display:flex;align-items:center;gap:11px;width:100%;cursor:pointer;background:none;border:none;border-radius:var(--r-sm);padding:9px 9px;color:var(--ink);font-family:inherit;font-size:14px;text-align:left;transition:background .12s,color .12s}
+  .navbtn:hover{background:var(--tint)}
+  .navbtn .ni{flex:0 0 auto;width:18px;display:grid;place-items:center;color:var(--grey);transition:color .12s}
+  .navbtn:hover .ni{color:var(--green)}
+  .navbtn .nlb{flex:1 1 auto;min-width:0}
+  .navbtn .nrt{font-size:12px;color:var(--grey2)}
+  #newChat:focus-visible,.navbtn:focus-visible,#navToggle:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+
+  /* Brand marks follow the theme green (muted in dark) */
+  .side-brand .mk path,.topbar .mk path,.empty .badge svg path{stroke:var(--green)}
+  .side-brand .mk circle,.topbar .mk circle,.empty .badge svg circle{fill:var(--green)}
+
+  /* ── Main column ──────────────────────────────────────────────────────── */
+  #main{flex:1 1 auto;display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
+  .topbar{display:none;align-items:center;gap:11px;flex:0 0 auto;padding:calc(11px + env(safe-area-inset-top)) 16px 11px;border-bottom:1px solid var(--sand)}
+  .topbar .mk{width:22px;height:26px}
+  .topbar b{font-family:var(--serif);font-weight:600;font-size:17px}
+  #navToggle{display:grid;place-items:center;background:none;border:none;cursor:pointer;color:var(--grey);padding:5px;border-radius:var(--r-sm)}
+  #navToggle:hover{background:var(--tint)}
 
   .thread{flex:1 1 auto;overflow-y:auto;min-height:0;scroll-behavior:smooth}
-  .msgs{display:flex;flex-direction:column;gap:10px;padding:18px 16px}
-  .b{max-width:82%;padding:11px 15px;font-size:14.5px;line-height:1.55;word-wrap:break-word;animation:rise .26s ease both}
-  .b.me{align-self:flex-end;background:var(--green);color:var(--cream);border-radius:9px 9px 2px 9px;line-height:1.45}
-  .b.them{align-self:flex-start;background:var(--cream2);color:var(--ink);border:1px solid var(--sand);border-radius:9px 9px 9px 2px}
-  .b.file{align-self:flex-end;display:flex;align-items:center;gap:9px;background:var(--cream);border:1px solid var(--sand);border-radius:6px;padding:9px 12px;max-width:82%}
-  .b.file .fn{font-size:13px;font-weight:600;line-height:1.2}
-  .b.file .fs{font-family:var(--mono);font-size:10.5px;color:var(--grey2);margin-top:2px}
-  .them .sources{margin-top:8px;display:flex;flex-wrap:wrap;gap:5px}
-  .them .src{font-family:var(--mono);font-size:10.5px;color:var(--green);background:var(--cream);border:1px solid var(--sand);border-radius:3px;padding:3px 7px}
-  .them .say{margin-top:8px;background:none;border:none;cursor:pointer;color:var(--grey);display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10.5px;padding:0;letter-spacing:.04em}
+  .msgs{display:flex;flex-direction:column;gap:30px;width:100%;max-width:var(--col);margin:0 auto;padding:40px 24px 16px}
+  .b{font-size:15px;line-height:1.65;word-wrap:break-word;overflow-wrap:anywhere;animation:rise .3s cubic-bezier(.22,.61,.36,1) both}
+  /* User: the one bold element — a contained green bubble (light text in both themes). */
+  .b.me{align-self:flex-end;max-width:80%;padding:11px 15px;background:var(--green);color:#FBFAF6;border-radius:14px 14px 4px 14px}
+  /* Agent: calm, borderless typeset text with the shield beside it. */
+  .b.them{align-self:stretch;max-width:100%;display:flex;gap:13px;background:none;border:none;padding:0}
+  .b.them .av{flex:0 0 auto;width:26px;height:30px;margin-top:2px;opacity:.95}
+  .b.them .av svg{width:100%;height:100%}
+  .b.them .av svg path{stroke:var(--green)}
+  .b.them .av svg circle{fill:var(--green);stroke:none}
+  .b.them .mc{flex:1 1 auto;min-width:0}
+  .b.file{align-self:flex-end;display:flex;align-items:center;gap:10px;background:var(--cream2);border:1px solid var(--sand);border-radius:var(--r);padding:10px 13px;max-width:80%;box-shadow:var(--shadow)}
+  .b.file svg path{stroke:var(--green)}
+  .b.file .fn{font-size:13.5px;font-weight:500;line-height:1.2}
+  .b.file .fs{font-size:12px;color:var(--grey2);margin-top:2px}
+  .them .sources{margin-top:12px;display:flex;flex-wrap:wrap;gap:6px}
+  .them .src{font-family:var(--mono);font-size:11px;letter-spacing:-.01em;color:var(--green);background:var(--cream2);border:1px solid var(--sand);border-radius:var(--r-sm);padding:3px 8px}
+  .them .say{margin-top:12px;background:none;border:none;cursor:pointer;color:var(--grey);display:inline-flex;align-items:center;gap:6px;font-family:inherit;font-size:12.5px;font-weight:500;padding:3px 0;transition:color .15s}
   .them .say:hover{color:var(--green)}
-  .typing{display:inline-flex;gap:4px;align-items:center}
-  .typing i{width:6px;height:6px;border-radius:50%;background:var(--faint);animation:blink 1.3s infinite}
-  .typing i:nth-child(2){animation-delay:.18s}.typing i:nth-child(3){animation-delay:.36s}
-  @keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
-  @keyframes blink{0%,60%,100%{opacity:.3}30%{opacity:1}}
+  .them .say:focus-visible{outline:2px solid var(--green);outline-offset:2px;border-radius:3px}
+  /* Markdown in agent replies */
+  .md>*:first-child{margin-top:0}.md>*:last-child{margin-bottom:0}
+  .md p{margin:0 0 11px}
+  .md .md-h{font-family:var(--serif);font-weight:600;line-height:1.28;margin:20px 0 9px;letter-spacing:-.01em}
+  .md h1.md-h{font-size:22px}.md h2.md-h{font-size:19px}.md h3.md-h{font-size:16.5px}
+  .md h4.md-h,.md h5.md-h,.md h6.md-h{font-size:15px}
+  .md .md-ul,.md .md-ol{margin:0 0 11px;padding-left:22px}
+  .md li{margin:4px 0}.md li::marker{color:var(--green)}
+  .md a{color:var(--green);text-decoration:underline;text-underline-offset:2px;text-decoration-thickness:1px}
+  .md .md-bq{margin:0 0 11px;padding:3px 0 3px 15px;border-left:2px solid var(--green);color:var(--ink-2)}
+  .md .md-ic{font-family:var(--mono);font-size:12.5px;background:var(--cream2);border-radius:5px;padding:1px 6px}
+  .md .md-pre{margin:0 0 11px;background:var(--cream2);border:1px solid var(--sand);border-radius:var(--r);padding:13px 15px;overflow-x:auto}
+  .md .md-pre code{font-family:var(--mono);font-size:12.5px;line-height:1.6;color:var(--ink)}
+  .md strong{font-weight:600}
+  .typing{display:inline-flex;gap:5px;align-items:center;padding:5px 0}
+  .typing i{width:6px;height:6px;border-radius:50%;background:var(--faint);animation:blink 1.5s infinite}
+  .typing i:nth-child(2){animation-delay:.22s}.typing i:nth-child(3){animation-delay:.44s}
+  @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  @keyframes blink{0%,65%,100%{opacity:.25}32%{opacity:.9}}
 
-  .empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px 34px}
-  .empty .badge{width:72px;height:72px;border-radius:8px;background:var(--tint);display:grid;place-items:center;margin-bottom:24px}
-  .empty h1{font-family:var(--serif);font-size:27px;font-weight:600;margin-bottom:10px;letter-spacing:-.01em}
-  .empty p{color:var(--grey);font-size:14.5px;line-height:1.55;max-width:28ch}
-  .chips{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:24px}
-  .chip{cursor:pointer;background:var(--cream);border:1px solid var(--sand);border-radius:3px;padding:10px 16px;font-size:13.5px;color:var(--ink);font-weight:500;transition:border-color .15s}
+  .empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px 34px;animation:rise .45s cubic-bezier(.22,.61,.36,1) both}
+  .empty .badge{width:74px;height:74px;border-radius:18px;background:var(--tint);display:grid;place-items:center;margin-bottom:26px;box-shadow:var(--shadow)}
+  .empty h1{font-family:var(--serif);font-size:30px;font-weight:600;margin-bottom:12px;letter-spacing:-.02em}
+  .empty p{color:var(--grey);font-size:15px;line-height:1.6;max-width:32ch}
+  .chips{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:28px}
+  .chip{cursor:pointer;background:var(--cream2);border:1px solid var(--sand);border-radius:var(--r);padding:10px 16px;font-size:13.5px;color:var(--ink);font-weight:500;box-shadow:var(--shadow);transition:border-color .15s,background .15s}
   .chip:hover{border-color:var(--green)}
   .chip:focus-visible{outline:2px solid var(--green);outline-offset:2px}
 
-  .composer{flex:0 0 auto;padding:8px 14px calc(16px + env(safe-area-inset-bottom))}
-  .inrow{display:flex;align-items:center;gap:8px;background:var(--cream2);border:1px solid var(--sand);border-radius:6px;padding:7px 7px 7px 14px}
+  .composer{flex:0 0 auto;padding:16px 24px calc(18px + env(safe-area-inset-bottom))}
+  .inrow{display:flex;align-items:center;gap:8px;width:100%;max-width:var(--col);margin:0 auto;background:var(--cream2);border:1px solid var(--sand);border-radius:12px;padding:7px 7px 7px 15px;box-shadow:var(--shadow)}
   .inrow:focus-within{border-color:var(--green)}
   .inrow input[type=text]{flex:1;border:none;background:none;outline:none;font-family:inherit;font-size:15px;color:var(--ink);min-width:0}
   .inrow input::placeholder{color:var(--grey2)}
-  .rnd{cursor:pointer;border:none;display:grid;place-items:center;flex:0 0 auto}
-  .rnd.mic{width:36px;height:36px;border-radius:4px;background:var(--tint)}
-  .rnd.send{width:40px;height:40px;border-radius:4px;background:var(--green)}
-  .rnd.plain{background:none;padding:2px}
+  .rnd{cursor:pointer;border:none;display:grid;place-items:center;flex:0 0 auto;transition:background .15s}
+  .rnd.mic{width:36px;height:36px;border-radius:var(--r);background:var(--tint);color:var(--green)}
+  .rnd.mic:hover{background:var(--sand)}
+  .rnd.send{width:40px;height:40px;border-radius:var(--r);background:var(--green);color:#F6F4EF}
+  .rnd.send:hover{background:var(--green-deep)}
+  .rnd.plain{background:none;padding:2px;color:var(--grey)}
+  .rnd.plain:hover{color:var(--green)}
   .rnd:focus-visible{outline:2px solid var(--green);outline-offset:2px}
 
-  .view{position:absolute;inset:0;display:none;flex-direction:column;z-index:10}
+  /* ── Narrow: sidebar becomes a drawer behind a hamburger ──────────────── */
+  .side-backdrop{display:none}
+  @media(max-width:820px){
+    .topbar{display:flex}
+    #sidebar{position:absolute;left:0;top:0;bottom:0;z-index:50;width:270px;transform:translateX(-100%);transition:transform .22s ease;box-shadow:0 0 44px rgba(0,0,0,.22)}
+    #app.side-open #sidebar{transform:none}
+    .side-backdrop{position:absolute;inset:0;z-index:45;background:rgba(0,0,0,.38)}
+    #app.side-open .side-backdrop{display:block}
+  }
+
+  .view{position:absolute;inset:0;display:none;flex-direction:column;z-index:60}
   .view.on{display:flex}
 
   #voiceView{background:var(--green)}
   .vtop{display:flex;justify-content:flex-end;padding:calc(15px + env(safe-area-inset-top)) 22px 4px}
   .vmid{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 40px}
   .vhalo{position:relative;width:150px;height:150px;display:grid;place-items:center;margin-bottom:38px}
-  .vhalo .ring{position:absolute;inset:0;border-radius:50%;background:rgba(251,250,246,.16);animation:halo 2.4s infinite}
-  .vwave{width:104px;height:104px;border-radius:6px;background:var(--cream);display:flex;align-items:center;justify-content:center;gap:5px}
+  .vhalo .ring{position:absolute;inset:0;border-radius:50%;background:rgba(251,250,246,.14);animation:halo 2.4s infinite}
+  .vwave{width:104px;height:104px;border-radius:14px;background:#FBFAF6;display:flex;align-items:center;justify-content:center;gap:5px}
   .vwave span{width:6px;height:38px;background:var(--green);border-radius:3px;animation:bar .9s infinite}
   .vwave span:nth-child(3){background:var(--amber)}
   .vwave span:nth-child(2){animation-delay:.15s}.vwave span:nth-child(3){animation-delay:.3s}
   .vwave span:nth-child(4){animation-delay:.45s}.vwave span:nth-child(5){animation-delay:.6s}
-  #voiceView h2{font-family:var(--serif);font-size:27px;font-weight:600;color:var(--cream);margin-bottom:10px}
-  #voiceView p{color:rgba(251,250,246,.75);font-size:15px;line-height:1.55;max-width:26ch}
+  #voiceView h2{font-family:var(--serif);font-size:27px;font-weight:600;color:#FBFAF6;margin-bottom:10px}
+  #voiceView p{color:rgba(251,250,246,.8);font-size:15px;line-height:1.55;max-width:26ch}
   .vbtns{display:flex;justify-content:center;gap:22px;align-items:center;padding:0 40px calc(46px + env(safe-area-inset-bottom))}
-  .vbtn{cursor:pointer;border:none;border-radius:6px;display:grid;place-items:center}
+  .vbtn{cursor:pointer;border:none;border-radius:14px;display:grid;place-items:center}
   .vbtn.cancel{width:58px;height:58px;background:rgba(251,250,246,.14)}
-  .vbtn.done{width:72px;height:72px;background:var(--cream)}
+  .vbtn.done{width:72px;height:72px;background:#FBFAF6}
   @keyframes halo{0%{transform:scale(.7);opacity:.7}100%{transform:scale(1.35);opacity:0}}
   @keyframes bar{0%,100%{transform:scaleY(.4)}50%{transform:scaleY(1)}}
 
   #settingsView{background:var(--cream)}
-  .stop{display:flex;align-items:center;gap:12px;padding:calc(15px + env(safe-area-inset-top)) 18px 16px 14px}
+  .stop{flex:0 0 auto;display:flex;align-items:center;gap:12px;width:100%;max-width:720px;margin:0 auto;padding:calc(18px + env(safe-area-inset-top)) 20px 18px 14px}
   .stop h2{font-family:var(--serif);font-weight:600;font-size:24px}
-  .slist{flex:1;overflow-y:auto;padding:0 16px calc(16px + env(safe-area-inset-bottom))}
-  .note{background:var(--tint);border-radius:6px;padding:13px 15px;font-size:13px;line-height:1.5;margin-bottom:10px}
-  .srow{display:flex;align-items:center;gap:12px;padding:13px 4px;border-bottom:1px solid var(--sand);cursor:pointer;width:100%;background:none;border-left:none;border-right:none;border-top:none;text-align:left}
-  .srow .ic{width:34px;height:34px;border-radius:4px;background:var(--tint);flex:0 0 auto;display:grid;place-items:center;color:var(--green)}
-  .srow .lb{flex:1;font-weight:600;font-size:14.5px}
-  .srow .rt{font-family:var(--mono);color:var(--grey2);font-size:11.5px}
+  .slist{flex:1;overflow-y:auto;width:100%;max-width:720px;margin:0 auto;padding:0 20px calc(22px + env(safe-area-inset-bottom))}
+  .note{background:var(--tint);border-radius:var(--r);padding:13px 15px;font-size:13.5px;line-height:1.55;margin-bottom:12px;color:var(--ink-2)}
+  .srow{display:flex;align-items:center;gap:13px;padding:14px 6px;border-bottom:1px solid var(--sand);cursor:pointer;width:100%;background:none;border-left:none;border-right:none;border-top:none;text-align:left;border-radius:var(--r-sm);transition:background .12s}
+  .srow .ic{width:34px;height:34px;border-radius:var(--r);background:var(--tint);flex:0 0 auto;display:grid;place-items:center;color:var(--green)}
+  .srow .lb{flex:1;font-weight:500;font-size:14.5px}
+  .srow .rt{font-size:12px;color:var(--grey2)}
   .srow.soon{opacity:.55;cursor:default}
   .srow.soon .ic{background:var(--cream2);color:var(--grey2)}
-  .srow.soon .lb{color:var(--ink-2)}
-  .srow .badge{font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--grey2);background:var(--cream2);padding:4px 8px;border-radius:3px}
-  .srow:focus-visible{outline:2px solid var(--green);outline-offset:-2px;border-radius:4px}
-  .subwrap{padding:6px 2px}
-  .subwrap .drow{display:flex;align-items:center;gap:10px;padding:12px 4px;border-bottom:1px solid var(--sand)}
+  .srow .badge{font-size:10.5px;letter-spacing:.04em;color:var(--grey2);background:var(--cream2);padding:4px 8px;border-radius:var(--r-sm)}
+  .srow:hover{background:var(--cream2)}
+  .srow:focus-visible{outline:2px solid var(--green);outline-offset:-2px}
+  .subwrap{padding:8px 2px}
+  .subwrap .drow{display:flex;align-items:center;gap:10px;padding:12px 6px;border-bottom:1px solid var(--sand)}
   .subwrap .drow .dn{flex:1;font-size:14px;font-weight:500}
-  .subwrap .drow .dc{font-family:var(--mono);font-size:11px;color:var(--grey2)}
-  .subwrap .drow .del{background:none;border:none;cursor:pointer;color:var(--grey);padding:4px 6px;border-radius:4px;font-size:15px}
+  .subwrap .drow .dc{font-size:12px;color:var(--grey2)}
+  .subwrap .drow .del{background:none;border:none;cursor:pointer;color:var(--grey);padding:4px 7px;border-radius:var(--r-sm);font-size:15px;transition:background .12s,color .12s}
   .subwrap .drow .del:hover{background:var(--tint);color:var(--green)}
-  .subwrap .placeholder{color:var(--grey);font-size:14px;line-height:1.6;padding:14px 4px}
-  .langrow{display:flex;align-items:center;gap:12px;padding:14px 6px;border-bottom:1px solid var(--sand);cursor:pointer;width:100%;background:none;border-left:none;border-right:none;border-top:none;text-align:left;font-size:15px;font-weight:500}
+  .subwrap .placeholder{color:var(--grey);font-size:14px;line-height:1.6;padding:14px 6px}
+  .langrow{display:flex;align-items:center;gap:12px;padding:14px 6px;border-bottom:1px solid var(--sand);cursor:pointer;width:100%;background:none;border-left:none;border-right:none;border-top:none;text-align:left;font-size:15px;font-weight:500;border-radius:var(--r-sm);transition:background .12s}
+  .langrow:hover{background:var(--cream2)}
   .langrow .tick{margin-left:auto;color:var(--green)}
-  .langrow:focus-visible{outline:2px solid var(--green);outline-offset:-2px;border-radius:4px}
+  .langrow:focus-visible{outline:2px solid var(--green);outline-offset:-2px}
 
-  /* Settings sub-view form controls — shared by the Email/Web/Tasks/Model panels */
-  .subwrap .sfield{display:flex;flex-direction:column;gap:6px;margin:12px 0}
-  .subwrap .sfield label{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--grey)}
-  .subwrap .sin{width:100%;font-family:inherit;font-size:14.5px;color:var(--ink);background:var(--cream2);border:1px solid var(--sand);border-radius:6px;padding:10px 12px;outline:none}
+  /* Settings sub-view form controls */
+  .subwrap .sfield{display:flex;flex-direction:column;gap:6px;margin:14px 0}
+  .subwrap .sfield label{font-size:12px;font-weight:500;color:var(--grey)}
+  .subwrap .sin{width:100%;font-family:inherit;font-size:14.5px;color:var(--ink);background:var(--cream2);border:1px solid var(--sand);border-radius:var(--r-sm);padding:10px 12px;outline:none;transition:border-color .12s}
   .subwrap select.sin{appearance:none;-webkit-appearance:none;cursor:pointer}
   .subwrap .sin:focus{border-color:var(--green)}
   .subwrap .sin:focus-visible{outline:2px solid var(--green);outline-offset:1px}
-  .subwrap .sbtn{cursor:pointer;font-family:inherit;font-size:13.5px;font-weight:600;border-radius:5px;padding:10px 16px;border:1px solid var(--green);background:var(--green);color:var(--cream);transition:background .15s}
+  .subwrap .sbtn{cursor:pointer;font-family:inherit;font-size:13.5px;font-weight:600;border-radius:var(--r);padding:10px 16px;border:1px solid var(--green);background:var(--green);color:#F6F4EF;transition:background .15s}
   .subwrap .sbtn:hover{background:var(--green-deep)}
   .subwrap .sbtn.ghost{background:none;color:var(--green)}
   .subwrap .sbtn.ghost:hover{background:var(--tint)}
-  .subwrap .sbtn.mini{padding:5px 11px;font-size:11.5px;border-radius:4px}
+  .subwrap .sbtn.mini{padding:5px 11px;font-size:12px;border-radius:var(--r-sm)}
   .subwrap .sbtn:disabled{opacity:.5;cursor:default}
   .subwrap .sbtn:focus-visible{outline:2px solid var(--green);outline-offset:2px}
-  .subwrap .sactions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
-  .subwrap .saddrow{display:flex;gap:8px;margin:12px 0}
+  .subwrap .sactions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
+  .subwrap .saddrow{display:flex;gap:8px;margin:14px 0}
   .subwrap .saddrow .sin{flex:1}
-  .subwrap .smeta{font-family:var(--mono);font-size:11.5px;color:var(--grey2);line-height:1.6;padding:6px 4px}
+  .subwrap .smeta{font-size:12.5px;color:var(--grey2);line-height:1.6;padding:6px 6px}
   .subwrap .drow .dc.on{color:var(--green)}
   .subwrap .drow .acts{display:flex;gap:6px;align-items:center;margin-left:auto}
 
-  .toast{position:absolute;left:50%;bottom:98px;transform:translate(-50%,10px);background:var(--ink);color:var(--tint);font-size:13px;padding:9px 15px;border-radius:5px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:30;max-width:80%;text-align:center}
+  .icbtn{background:none;border:none;cursor:pointer;color:var(--grey);display:grid;place-items:center;padding:6px;border-radius:var(--r-sm);transition:background .12s}
+  .icbtn:hover{background:var(--tint)}
+  .icbtn:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+
+  .toast{position:absolute;left:50%;bottom:98px;transform:translate(-50%,10px);background:var(--ink);color:var(--cream);font-size:13px;padding:10px 16px;border-radius:var(--r);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:80;max-width:80%;text-align:center;box-shadow:var(--shadow)}
   .toast.on{opacity:1;transform:translate(-50%,0)}
 
   @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
@@ -144,42 +222,81 @@
 <body>
 <div id="app">
 
-  <div class="hdr">
-    <svg class="mk" viewBox="0 0 48 56" fill="none"><path d="M24 2.5 41.5 9.2V26.5C41.5 39.5 33.7 48.7 24 53.5 14.3 48.7 6.5 39.5 6.5 26.5V9.2Z" fill="none" stroke="#2D6A4F" stroke-width="2.6" stroke-linejoin="round"/><circle cx="24" cy="27" r="4.2" fill="#2D6A4F"/></svg>
-    <div class="t"><b>Vokter</b><span data-i18n="onDevice">On your device</span></div>
-    <button class="icbtn" id="openSettings" data-i18n-aria="settings" aria-label="Settings">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+  <aside id="sidebar">
+    <div class="side-brand">
+      <svg class="mk" viewBox="0 0 48 56" fill="none"><path d="M24 2.5 41.5 9.2V26.5C41.5 39.5 33.7 48.7 24 53.5 14.3 48.7 6.5 39.5 6.5 26.5V9.2Z" fill="none" stroke="#2D6A4F" stroke-width="2.6" stroke-linejoin="round"/><circle cx="24" cy="27" r="4.2" fill="#2D6A4F"/></svg>
+      <div class="bt"><b>Vokter</b><span data-i18n="onDevice">On your device</span></div>
+    </div>
+    <button id="newChat">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span data-i18n="newChat">New chat</span>
     </button>
-  </div>
 
-  <div class="thread" id="thread">
-    <div class="empty" id="empty">
-      <div class="badge"><svg width="36" height="42" viewBox="0 0 48 56" fill="none"><path d="M24 2.5 41.5 9.2V26.5C41.5 39.5 33.7 48.7 24 53.5 14.3 48.7 6.5 39.5 6.5 26.5V9.2Z" fill="none" stroke="#2D6A4F" stroke-width="2.6" stroke-linejoin="round"/><circle cx="24" cy="27" r="4.2" fill="#2D6A4F"/></svg></div>
-      <h1 data-i18n="emptyTitle">Hello. I'm yours.</h1>
-      <p data-i18n="emptyBody">Only you and your agent are here. Nothing leaves this machine.</p>
-      <div class="chips">
-        <button class="chip" id="chipDoc" data-i18n="chipDoc">Read a document with me</button>
-        <button class="chip" id="chipWhat" data-i18n="chipWhat">What can you do?</button>
+    <div class="side-chats">
+      <div class="side-sec" data-i18n="chatsLabel">Chats</div>
+      <div class="side-chatlist"><div class="side-empty" data-i18n="noChats">No conversations yet</div></div>
+    </div>
+
+    <div class="side-foot">
+      <button class="navbtn" id="sideDocs">
+        <span class="ni"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></span>
+        <span class="nlb" data-i18n="rowDocuments">Documents</span>
+        <span class="nrt" id="sideDocCount"></span>
+      </button>
+      <button class="navbtn" id="sideSettings">
+        <span class="ni"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+        <span class="nlb" data-i18n="settings">Settings</span>
+      </button>
+      <button class="navbtn" id="langBtn">
+        <span class="ni"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M3 12h18M12 3a14 14 0 0 1 4 9 14 14 0 0 1-4 9 14 14 0 0 1-4-9 14 14 0 0 1 4-9z" stroke="currentColor" stroke-width="1.7"/></svg></span>
+        <span class="nlb" data-i18n="rowLanguage">Language</span>
+        <span class="nrt" id="langName"></span>
+      </button>
+      <button class="navbtn" id="themeBtn" data-i18n-aria="themeAria" aria-label="Toggle light or dark">
+        <span class="ni" id="themeIcon"></span>
+        <span class="nlb" data-i18n="theme">Theme</span>
+        <span class="nrt" id="themeName"></span>
+      </button>
+    </div>
+  </aside>
+  <div class="side-backdrop" id="sideBackdrop"></div>
+
+  <main id="main">
+    <div class="topbar">
+      <button id="navToggle" data-i18n-aria="menu" aria-label="Menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></button>
+      <svg class="mk" viewBox="0 0 48 56" fill="none"><path d="M24 2.5 41.5 9.2V26.5C41.5 39.5 33.7 48.7 24 53.5 14.3 48.7 6.5 39.5 6.5 26.5V9.2Z" fill="none" stroke="#2D6A4F" stroke-width="2.6" stroke-linejoin="round"/><circle cx="24" cy="27" r="4.2" fill="#2D6A4F"/></svg>
+      <b>Vokter</b>
+    </div>
+
+    <div class="thread" id="thread">
+      <div class="empty" id="empty">
+        <div class="badge"><svg width="38" height="44" viewBox="0 0 48 56" fill="none"><path d="M24 2.5 41.5 9.2V26.5C41.5 39.5 33.7 48.7 24 53.5 14.3 48.7 6.5 39.5 6.5 26.5V9.2Z" fill="none" stroke="#2D6A4F" stroke-width="2.6" stroke-linejoin="round"/><circle cx="24" cy="27" r="4.2" fill="#2D6A4F"/></svg></div>
+        <h1 data-i18n="emptyTitle">Hello. I'm yours.</h1>
+        <p data-i18n="emptyBody">Only you and your agent are here. Nothing leaves this machine.</p>
+        <div class="chips">
+          <button class="chip" id="chipDoc" data-i18n="chipDoc">Read a document with me</button>
+          <button class="chip" id="chipWhat" data-i18n="chipWhat">What can you do?</button>
+        </div>
+      </div>
+      <div class="msgs" id="msgs" style="display:none"></div>
+    </div>
+
+    <div class="composer">
+      <div class="inrow">
+        <button class="rnd plain" id="attachBtn" data-i18n-aria="addDoc" aria-label="Add a document">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="m8 13 4 4a5 5 0 0 0 7-7l-7-7a3.5 3.5 0 0 0-5 5l7 7a2 2 0 0 0 3-3l-6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <input type="file" id="fileInput" style="display:none" accept=".pdf,.txt,.md,.docx,.csv">
+        <input type="text" id="q" data-i18n-ph="placeholder" placeholder="Message your agent…" autocomplete="off">
+        <button class="rnd mic" id="micBtn" data-i18n-aria="speak" aria-label="Speak">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="9" y="3" width="6" height="12" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <button class="rnd send" id="sendBtn" data-i18n-aria="send" aria-label="Send">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 12h15M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
       </div>
     </div>
-    <div class="msgs" id="msgs" style="display:none"></div>
-  </div>
-
-  <div class="composer">
-    <div class="inrow">
-      <button class="rnd plain" id="attachBtn" data-i18n-aria="addDoc" aria-label="Add a document">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="m8 13 4 4a5 5 0 0 0 7-7l-7-7a3.5 3.5 0 0 0-5 5l7 7a2 2 0 0 0 3-3l-6-6" stroke="#6E6B61" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      <input type="file" id="fileInput" style="display:none" accept=".pdf,.txt,.md,.docx,.csv">
-      <input type="text" id="q" data-i18n-ph="placeholder" placeholder="Message your agent…" autocomplete="off">
-      <button class="rnd mic" id="micBtn" data-i18n-aria="speak" aria-label="Speak">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="9" y="3" width="6" height="12" rx="3" stroke="#2D6A4F" stroke-width="1.8"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="#2D6A4F" stroke-width="1.8" stroke-linecap="round"/></svg>
-      </button>
-      <button class="rnd send" id="sendBtn" data-i18n-aria="send" aria-label="Send">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 12h15M13 6l6 6-6 6" stroke="#F6F4EF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-    </div>
-  </div>
+  </main>
 
   <div class="view" id="voiceView">
     <div class="vtop"><button class="icbtn" style="color:#FBFAF6" id="voiceX" aria-label="Cancel"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M6 18 18 6" stroke="#FBFAF6" stroke-width="2" stroke-linecap="round"/></svg></button></div>
@@ -196,7 +313,7 @@
 
   <div class="view" id="settingsView">
     <div class="stop">
-      <button class="icbtn" id="settingsBack" aria-label="Back"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M15 6l-6 6 6 6" stroke="#171511" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button class="icbtn" id="settingsBack" aria-label="Back"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <h2 id="settingsTitle">Settings</h2>
     </div>
     <div class="slist" id="slist"></div>
