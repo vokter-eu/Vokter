@@ -32,7 +32,8 @@
       taskCreate:"Create task", taskCreateErr:"Couldn't create it. Check the interval (e.g. 30m, 2h, 1d).", taskFill:"Add a name, a goal and an interval.",
       taskPause:"Pause", taskResume:"Resume", taskOn:"on", taskPaused:"paused", taskDeleteConfirm:"Delete \"{name}\"?",
       modelName:"Agent name", modelTone:"Tone", modelMode:"Mode", modelModel:"Chat model", modelModelPh:"e.g. llama3.2:3b",
-      modelModelHint:"Leave blank to use this machine's default model.",
+      modelDefault:"Default (this machine's model)",
+      modelModelHint:"Pick a model you've installed. The first reply after switching is slower while it loads.",
       toneFormal:"Formal", toneNeutral:"Neutral", toneFriendly:"Friendly", modeConversational:"Conversational", modeProductive:"Productive",
       modelSave:"Save", modelSaving:"Saving…", modelSaved:"Saved ✓",
       newChat:"New chat", theme:"Theme", themeAria:"Toggle light or dark theme", menu:"Menu", themeLight:"Light", themeDark:"Dark",
@@ -68,7 +69,8 @@
       taskCreate:"Crear tarea", taskCreateErr:"No se pudo crear. Revisa el intervalo (p. ej. 30m, 2h, 1d).", taskFill:"Añade un nombre, un objetivo y un intervalo.",
       taskPause:"Pausar", taskResume:"Reanudar", taskOn:"activa", taskPaused:"en pausa", taskDeleteConfirm:"¿Borrar \"{name}\"?",
       modelName:"Nombre del agente", modelTone:"Tono", modelMode:"Modo", modelModel:"Modelo de chat", modelModelPh:"p. ej. llama3.2:3b",
-      modelModelHint:"Déjalo en blanco para usar el modelo por defecto de esta máquina.",
+      modelDefault:"Por defecto (el modelo de esta máquina)",
+      modelModelHint:"Elige un modelo que hayas instalado. La primera respuesta tras cambiar tarda más mientras se carga.",
       toneFormal:"Formal", toneNeutral:"Neutral", toneFriendly:"Cercano", modeConversational:"Conversacional", modeProductive:"Productivo",
       modelSave:"Guardar", modelSaving:"Guardando…", modelSaved:"Guardado ✓",
       newChat:"Nuevo chat", theme:"Tema", themeAria:"Cambiar tema claro u oscuro", menu:"Menú", themeLight:"Claro", themeDark:"Oscuro",
@@ -459,18 +461,27 @@
     const modeS=document.createElement('select'); modeS.className='sin';
     [['conversational','modeConversational'],['productive','modeProductive']].forEach(([v,k])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t(k); modeS.appendChild(o); });
     field('modelMode',modeS);
-    const modelI=document.createElement('input'); modelI.type='text'; modelI.className='sin'; modelI.placeholder=t('modelModelPh'); modelI.setAttribute('autocomplete','off'); field('modelModel',modelI);
+    // Chat model: a dropdown of the models installed in the local engine (GET /api/models),
+    // plus a "Default" entry (blank → this machine's default model). Populated after we know
+    // the saved value, so the current model is always selectable even if it's no longer listed.
+    const modelS=document.createElement('select'); modelS.className='sin'; field('modelModel',modelS);
     const hint=document.createElement('div'); hint.className='smeta'; hint.textContent=t('modelModelHint'); wrap.appendChild(hint);
     const saveBtn=document.createElement('button'); saveBtn.className='sbtn'; saveBtn.textContent=t('modelSave');
     const status=document.createElement('span'); status.className='smeta';
     const acts=document.createElement('div'); acts.className='sactions'; acts.appendChild(saveBtn); acts.appendChild(status); wrap.appendChild(acts);
+    let saved='';
     try{ const cfg=await (await fetch('/api/config')).json();
-      nameI.value=cfg.agent_name||'Vokter'; toneS.value=cfg.tone||'neutral'; modeS.value=cfg.mode||'conversational'; modelI.value=cfg.chat_model||'';
+      nameI.value=cfg.agent_name||'Vokter'; toneS.value=cfg.tone||'neutral'; modeS.value=cfg.mode||'conversational'; saved=cfg.chat_model||'';
     }catch{ status.textContent=t('noReachShort'); }
+    // Build the model options: Default first, then installed models; ensure the saved one is present.
+    let models=[]; try{ models=(await (await fetch('/api/models')).json()).models||[]; }catch{}
+    const opts=['']; if(saved && !models.includes(saved)) opts.push(saved); models.forEach(m=>{ if(!opts.includes(m)) opts.push(m); });
+    opts.forEach(m=>{ const o=document.createElement('option'); o.value=m; o.textContent=m||t('modelDefault'); modelS.appendChild(o); });
+    modelS.value=saved;
     saveBtn.onclick=async()=>{
       saveBtn.disabled=true; status.textContent=t('modelSaving');
       try{ const r=await fetch('/api/config',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-        agent_name:nameI.value.trim()||null, tone:toneS.value, mode:modeS.value, chat_model:modelI.value.trim()
+        agent_name:nameI.value.trim()||null, tone:toneS.value, mode:modeS.value, chat_model:modelS.value
       })});
         const d=await r.json();
         if(r.ok){ status.textContent=t('modelSaved'); setTimeout(()=>{status.textContent='';},2000); }

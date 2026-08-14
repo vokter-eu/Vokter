@@ -3,6 +3,7 @@ Agent personalisation API.
 
 GET    /api/config          — returns current settings (with defaults for unset keys)
 PATCH  /api/config          — update one or more settings; returns full config after save
+GET    /api/models          — chat models installed in the local engine (for the picker)
 POST   /api/config/avatar   — upload avatar image (jpg/png/webp/gif)
 GET    /api/config/avatar   — serve current avatar image
 DELETE /api/config/avatar   — remove avatar
@@ -10,12 +11,13 @@ DELETE /api/config/avatar   — remove avatar
 import os
 import shutil
 
+import httpx
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from agent_config import DEFAULTS, get_config, set_config
-from config import DATA_DIR
+from config import DATA_DIR, OLLAMA_URL
 
 router = APIRouter()
 
@@ -86,6 +88,26 @@ def config_patch(patch: ConfigPatch):
     if updates:
         set_config(updates)
     return get_config()
+
+
+@router.get("/api/models")
+async def list_models():
+    """Chat models installed in the local engine, for the Model & tone picker.
+
+    Proxies the engine's model list (Ollama /api/tags) — the loopback UI can't reach
+    the engine directly under its same-origin CSP. Embedding models are filtered out
+    so only chat-capable models appear. Returns {"models": [...]} sorted; an empty
+    list on any error so the picker degrades gracefully (falls back to the default)."""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            r = await client.get(f"{OLLAMA_URL}/api/tags")
+            r.raise_for_status()
+            data = r.json()
+    except Exception:
+        return {"models": []}
+    names = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
+    chat = [n for n in names if "embed" not in n.lower()]  # drop embedding models
+    return {"models": sorted(chat)}
 
 
 def _avatar_path() -> str | None:
