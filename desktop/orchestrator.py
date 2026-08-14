@@ -465,8 +465,30 @@ def ensure_models() -> None:
     """
     models = (CHAT_MODEL, EMBED_MODEL)
     for i, model in enumerate(models, start=1):
+        # Offline-safe: /api/pull still contacts the registry to check the manifest, so a
+        # network blip would fail the pull and die() even when the model is already here.
+        # Skip the network entirely when the model is present locally — only pull when it's
+        # genuinely missing (first run), which legitimately needs the network.
+        if _model_present(model):
+            log(f"model already present, skipping pull: {model}")
+            continue
         log(f"ensuring model present: {model} (first run may download a lot)")
         _pull_streaming(model, index=i, count=len(models))
+
+
+def _model_present(model: str) -> bool:
+    """True if `model` is already in the local store, so starting needs no network.
+
+    Matches Ollama's implicit ':latest' tag. On any error reading the local /api/tags we
+    return False (fall through to the pull) rather than wrongly skip — the tags endpoint is
+    the same local server we just started, so this normally succeeds and keeps boot offline-safe."""
+    want = {model, model if ":" in model else f"{model}:latest"}
+    try:
+        with urllib.request.urlopen(f"{OLLAMA_URL}/api/tags", timeout=10) as resp:
+            have = {m.get("name", "") for m in json.load(resp).get("models", [])}
+    except (urllib.error.URLError, OSError, json.JSONDecodeError, ValueError):
+        return False
+    return bool(want & have)
 
 
 def _pull_streaming(model: str, index: int, count: int) -> None:
