@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from agent_config import build_system_prompt, get_config
 from config import CHAT_MODEL, HUMAN_SESSION_TOKEN, MAX_HISTORY
 from db import get_db
-from engine import ENGINE, ChatRequest
+from engine import get_engine, ChatRequest
 from rag import retrieve
 import memory
 
@@ -157,7 +157,7 @@ async def ask(q: Question, x_vokter_human_session: str | None = Header(default=N
         + [{"role": "user", "content": user_content}]
     )
 
-    answer = await ENGINE.chat(ChatRequest(
+    answer = await get_engine().chat(ChatRequest(
         messages=messages, model=model, context_size=8192, timeout=300,
     ))
 

@@ -4,7 +4,7 @@ from contextlib import closing
 
 from config import TOP_K
 from db import get_db
-from engine import ENGINE
+from engine import get_engine
 
 _SCAN_LIMIT = 10_000  # safety cap — prevents OOM on very large corpora
 
@@ -13,7 +13,7 @@ async def embed(text: str) -> list[float]:
     # Thin wrapper kept for its callers (retrieve, ingestion). The actual
     # engine call lives behind the adapter — Vokter no longer talks to any
     # specific engine here.
-    return await ENGINE.embed(text)
+    return await get_engine().embed(text)
 
 
 def cosine(a: list[float], b: list[float]) -> float:

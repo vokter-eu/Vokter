@@ -17,7 +17,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from agent_config import DEFAULTS, get_config, set_config
-from config import DATA_DIR, OLLAMA_URL
+from config import DATA_DIR
+from engine import resolve_base_url
 
 router = APIRouter()
 
@@ -33,6 +34,7 @@ class ConfigPatch(BaseModel):
     language:    str | None = None
     chat_model:  str | None = None
     embed_model: str | None = None
+    engine_url:  str | None = None
     max_history: int | None = None
     rag_chunks:  int | None = None
     onboarded:   bool | None = None
@@ -72,6 +74,17 @@ def config_patch(patch: ConfigPatch):
     if patch.embed_model is not None:
         updates["embed_model"] = patch.embed_model.strip()
 
+    if patch.engine_url is not None:
+        # Empty → back to the bundled sovereign engine. A value must be an http(s) URL
+        # (this is the one setting that redirects WHERE the user's data goes, so reject
+        # anything that isn't plainly an engine endpoint — file://, javascript:, etc.).
+        # Trailing slash trimmed so it composes with the adapter's f"{base}/api/…".
+        url = patch.engine_url.strip()
+        if url and not url.startswith(("http://", "https://")):
+            raise HTTPException(400, "engine_url must be an http(s) URL, "
+                                     "or empty to use the bundled engine")
+        updates["engine_url"] = url.rstrip("/")
+
     if patch.max_history is not None:
         if not 2 <= patch.max_history <= 200:
             raise HTTPException(400, "max_history must be between 2 and 200")
@@ -100,7 +113,7 @@ async def list_models():
     list on any error so the picker degrades gracefully (falls back to the default)."""
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            r = await client.get(f"{OLLAMA_URL}/api/tags")
+            r = await client.get(f"{resolve_base_url()}/api/tags")
             r.raise_for_status()
             data = r.json()
     except Exception:

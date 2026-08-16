@@ -12,7 +12,7 @@ import time
 from contextlib import closing
 
 from db import get_db
-from engine import ENGINE, ChatRequest
+from engine import get_engine, ChatRequest
 
 # Explicit, predictable triggers — NOT fuzzy NLP. The user always knows when a
 # save happens (Vokter confirms), and can see/delete it in the review window.
@@ -193,7 +193,7 @@ async def extract_candidate(message: str, context: list[str] | None = None,
         msgs.append({"role": "user", "content": turn})
     msgs.append({"role": "user", "content": message})
     try:
-        raw = await ENGINE.chat(ChatRequest(
+        raw = await get_engine().chat(ChatRequest(
             messages=msgs, model=model, json_mode=True,
             temperature=0, context_size=8192, timeout=60,
         ))

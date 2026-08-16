@@ -121,8 +121,26 @@ class OllamaEngine:
         return vec
 
 
-# The single place Vokter chooses an engine. Today it is Ollama, with no
-# question asked of the user (neutral inside, simple outside). When a second
-# engine is added this becomes a small factory reading config; every call site
-# already goes through ENGINE, so nothing else moves.
-ENGINE: InferenceEngine = OllamaEngine()
+def resolve_base_url() -> str:
+    """The engine base URL for THIS request, honouring the user's engine_url setting.
+
+    Empty (the default) → the bundled sovereign engine (config.OLLAMA_URL): app-local,
+    no-cloud. A configured http(s) URL → the user's OWN Ollama, their opt-in step
+    OUTSIDE Vokter's no-cloud control. Read per call, never cached in a module global,
+    because the setting can change at runtime via /api/config — a stale global would
+    keep talking to the old engine after the user switched. Trailing slash trimmed so
+    it composes cleanly with the adapter's f"{base}/api/…" (a value saved outside the
+    /api/config validator can't sneak a double slash through)."""
+    from agent_config import get_config          # local import keeps engine.py free of a
+                                                 # startup dependency on the DB layer
+    return ((get_config().get("engine_url") or "").strip().rstrip("/")) or OLLAMA_URL
+
+
+def get_engine() -> InferenceEngine:
+    """The single place Vokter chooses an engine. Today it is Ollama, with no question
+    asked of the user (neutral inside, simple outside). Built fresh per call — cheap,
+    it only stashes a few strings; the HTTP client is created per request inside
+    chat()/embed() as before — so the user's engine_url override takes effect the
+    instant they save it. Every call site goes through here, so a second engine (a
+    remote confidential-compute node…) means growing this factory, nothing else."""
+    return OllamaEngine(base_url=resolve_base_url())

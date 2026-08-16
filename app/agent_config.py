@@ -16,6 +16,10 @@ DEFAULTS: dict[str, str] = {
     "language":    "auto",            # auto | en | es | de | fr | it | pt | nl | ...
     "chat_model":  "",                # "" = use VOKTER_CHAT_MODEL env var
     "embed_model": "",                # "" = use VOKTER_EMBED_MODEL env var
+    "engine_url":  "",                # "" = the bundled sovereign engine (no-cloud, app-local).
+                                      # An http(s) URL points Vokter at the user's OWN Ollama
+                                      # (e.g. a system install) — OUTSIDE Vokter's no-cloud control.
+                                      # Advanced/opt-in; the default stays the bundled engine.
     "max_history": "20",
     "rag_chunks":  "4",
     "rag_min_score": "0.57",          # cosine floor to treat a chunk as RELEVANT.

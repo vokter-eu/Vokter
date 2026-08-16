@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 from agent_config import get_config
 from browser import BrowseRequest, browse as do_browse
-from engine import ENGINE, ChatRequest
+from engine import get_engine, ChatRequest
 from rag import retrieve
 
 router = APIRouter()
@@ -51,7 +51,7 @@ def _sse(data: dict) -> str:
 
 
 async def _make_plan(goal: str) -> dict:
-    content = await ENGINE.chat(ChatRequest(
+    content = await get_engine().chat(ChatRequest(
         messages=[
             {"role": "system", "content": _PLAN_SYSTEM},
             {"role": "user",   "content": f"Goal: {goal}"},
@@ -140,7 +140,7 @@ async def _execute(goal: str) -> AsyncGenerator[str, None]:
 
     context = "\n\n---\n\n".join(f"[{doc}]\n{content}" for _, doc, content in scored)
     try:
-        answer = await ENGINE.chat(ChatRequest(
+        answer = await get_engine().chat(ChatRequest(
             messages=[
                 {
                     "role": "system",
