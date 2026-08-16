@@ -12,7 +12,8 @@ from languages import chat_name
 DEFAULTS: dict[str, str] = {
     "agent_name":  "Vokter",
     "tone":        "neutral",         # formal | neutral | friendly
-    "mode":        "conversational",  # productive | conversational
+    "mode":        "productive",      # productive | conversational — concise by default:
+                                      # long replies are painful on slow local hardware
     "language":    "auto",            # auto | en | es | de | fr | it | pt | nl | ...
     "chat_model":  "",                # "" = use VOKTER_CHAT_MODEL env var
     "embed_model": "",                # "" = use VOKTER_EMBED_MODEL env var
@@ -68,7 +69,13 @@ def build_system_prompt(cfg: dict[str, str]) -> str:
     elif tone == "friendly":
         parts.append("Be warm, approachable, and encouraging.")
     if mode == "productive":
-        parts.append("Be concise and direct. Avoid unnecessary elaboration.")
+        parts.append(
+            "Be concise and direct by default. Give short, focused answers — a few "
+            "sentences, or a few bullet points at most — then stop. Do NOT pad with "
+            "intros, outros, restating the question, or filler. Expand into a longer, "
+            "detailed answer ONLY when the user explicitly asks for more detail or a "
+            "longer explanation."
+        )
     elif mode == "conversational":
         parts.append("Feel free to elaborate when it adds clarity.")
     if lang != "auto":
