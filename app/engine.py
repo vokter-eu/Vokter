@@ -185,3 +185,25 @@ def get_engine() -> InferenceEngine:
     instant they save it. Every call site goes through here, so a second engine (a
     remote confidential-compute node…) means growing this factory, nothing else."""
     return OllamaEngine(base_url=resolve_base_url())
+
+
+async def warm_up() -> None:
+    """Best-effort: load the configured chat model into the engine's RAM at startup so
+    the user's FIRST message doesn't pay the ~10-15s cold model-load. Never blocks boot,
+    never raises (the engine may still be starting). keep_alive=-1 asks the engine to keep
+    the model resident, pairing with the server's OLLAMA_KEEP_ALIVE; num_predict=1 keeps
+    the warm-up itself trivial."""
+    from agent_config import get_config
+    model = (get_config().get("chat_model") or "").strip() or CHAT_MODEL
+    try:
+        async with httpx.AsyncClient(timeout=180.0) as client:
+            await client.post(f"{resolve_base_url()}/api/chat", json={
+                "model": model, "stream": False, "keep_alive": -1,
+                "messages": [{"role": "user", "content": "hi"}],
+                # num_ctx MUST match the chat path's context_size (chat.py: 8192). Ollama keys a
+                # loaded model on its context size, so warming at a different ctx would leave the
+                # user's first real message to pay a full reload — defeating the pre-warm.
+                "options": {"num_predict": 1, "num_ctx": 8192},
+            })
+    except Exception:
+        pass          # engine not ready / model absent → the first real message just pays the load

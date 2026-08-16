@@ -25,6 +25,7 @@ from voice.whisper import router as whisper_router
 from voice.piper import router as piper_router
 from voice.fetch import router as voice_fetch_router
 from voice.fetch import opportunistic_startup_fetch
+from engine import warm_up
 from browser import router as browser_router
 from planner import router as planner_router
 from schedule_routes import router as schedule_router
@@ -58,9 +59,13 @@ async def lifespan(_app: FastAPI):
     # current language's voice is missing and there's network, it downloads; if not, the
     # backend comes up regardless. Never awaited, never raised → cannot block boot.
     opportunistic_startup_fetch()
+    # Pre-warm the configured chat model so the user's FIRST message hits the warm ~2s
+    # path, not the ~10-15s cold model-load. Fire-and-forget, best-effort — cannot block
+    # or fail boot (see engine.warm_up).
+    warm_task = asyncio.create_task(warm_up())
     yield
     # Cancel background tasks
-    for t in (sched_task, nostr_task):
+    for t in (sched_task, nostr_task, warm_task):
         t.cancel()
         try:
             await t

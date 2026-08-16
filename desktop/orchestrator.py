@@ -435,6 +435,12 @@ def start_ollama() -> None:
     # Non-negotiable #2 ("zero hidden calls"): Ollama otherwise pings ollama.com
     # for cloud inference / web search / model recommendations. Off, hard.
     env["OLLAMA_NO_CLOUD"] = "1"
+    # Keep the loaded model resident instead of evicting it after 5 min idle. On slow
+    # local CPU the cold model-load is the ~10-15s "dead" wait before the first token;
+    # keeping it in RAM makes every message after the first (and, with the startup
+    # pre-warm, the first too) hit the warm ~2s path. Costs one model's RAM (~3.3 GB for
+    # a 4B) held for the session — a deliberate usability trade on this hardware.
+    env["OLLAMA_KEEP_ALIVE"] = os.environ.get("VOKTER_OLLAMA_KEEP_ALIVE", "-1")
     log(f"starting native Ollama on {OLLAMA_URL} (models → {OLLAMA_MODELS_DIR})")
     _procs.append(subprocess.Popen([str(OLLAMA_BIN), "serve"], env=env))
     if not wait_http(f"{OLLAMA_URL}/api/version", timeout=30):
