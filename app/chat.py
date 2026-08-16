@@ -1,10 +1,13 @@
+import asyncio
 import hmac
+import json
 import logging
 import time
 import uuid
 from contextlib import closing
 
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Header, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from agent_config import build_system_prompt, get_config
@@ -21,6 +24,13 @@ log = logging.getLogger("vokter.chat")
 class Question(BaseModel):
     question: str
     conversation_id: str | None = None
+    stream: bool = False              # True → SSE token stream (the Electron shell); the
+                                      # plain-fetch / peer / MCP path leaves it False → JSON
+
+
+def _sse(data: dict) -> str:
+    """One Server-Sent-Events frame, mirroring planner.py's wire format."""
+    return f"data: {json.dumps(data)}\n\n"
 
 
 def is_local_human_session(mark: str | None) -> bool:
@@ -104,6 +114,15 @@ async def ask(q: Question, x_vokter_human_session: str | None = Header(default=N
             answer = (f"Anotado: {fact}" if memory.trigger_lang(q.question) == "es"
                       else f"Got it — I'll remember: {fact}")
             _save_turn(conv_id, q.question, answer, human=True)  # this branch is inside `if human:`
+            if q.stream:
+                # No model runs here, so there is nothing to stream — but the client asked
+                # for the SSE shape, so give it the same two frames (whole answer as one
+                # token, then done) rather than a mismatched JSON body.
+                async def gen_told():
+                    yield _sse({"type": "token", "text": answer})
+                    yield _sse({"type": "done", "answer": answer, "sources": [],
+                                "conversation_id": conv_id, "memory_withheld": False})
+                return StreamingResponse(gen_told(), media_type="text/event-stream")
             return {"answer": answer, "sources": [], "conversation_id": conv_id}
 
     cfg = get_config()
@@ -156,6 +175,41 @@ async def ask(q: Question, x_vokter_human_session: str | None = Header(default=N
         + history
         + [{"role": "user", "content": user_content}]
     )
+
+    if q.stream:
+        # Stream the generation as SSE. The system prompt (with personal memory, if this
+        # is the human session) is ALREADY assembled above — memory injection is a
+        # pre-model step, so it rides the streamed reply exactly as it did the JSON one.
+        # Sources + memory_withheld are known before a token is generated; they travel in
+        # the final `done` frame after the text, per the request.
+        async def gen():
+            parts: list[str] = []
+            try:
+                async for delta in get_engine().chat_stream(ChatRequest(
+                        messages=messages, model=model, context_size=8192, timeout=300)):
+                    parts.append(delta)
+                    yield _sse({"type": "token", "text": delta})
+            except HTTPException as e:
+                # Model missing / engine returned non-200: tell the client and stop.
+                # Nothing is saved — a failed generation never happened.
+                yield _sse({"type": "error", "detail": str(e.detail)})
+                return
+            except asyncio.CancelledError:
+                # Client hung up mid-stream. Deliberate trade-off (v1): discard the partial
+                # turn rather than persist a truncated answer into history. Re-raise so the
+                # httpx stream and the ASGI server unwind cleanly.
+                raise
+            except Exception:
+                # Engine unreachable (e.g. a bad engine_url, Ollama down): httpx raises
+                # ConnectError etc. Emit a clean error frame instead of tearing the stream.
+                log.exception("[chat] streaming generation failed")
+                yield _sse({"type": "error", "detail": "engine error"})
+                return
+            full = "".join(parts)
+            _save_turn(conv_id, q.question, full, human)
+            yield _sse({"type": "done", "answer": full, "sources": sources,
+                        "conversation_id": conv_id, "memory_withheld": memory_withheld})
+        return StreamingResponse(gen(), media_type="text/event-stream")
 
     answer = await get_engine().chat(ChatRequest(
         messages=messages, model=model, context_size=8192, timeout=300,

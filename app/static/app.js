@@ -144,12 +144,9 @@
     d.querySelector('.fn').textContent=name; d.querySelector('.fs').textContent=t('reading');
     msgs.appendChild(d);scroll();return d;
   }
-  function addAgent(text,sources){
-    activate();
-    const d=document.createElement('div');d.className='b them';
-    const av=document.createElement('span');av.className='av';av.innerHTML=SHIELD;
-    const mc=document.createElement('div');mc.className='mc';
-    const p=document.createElement('div');p.className='md';p.innerHTML=mdToHtml(text);mc.appendChild(p);
+  // Append the source chips + the read-aloud button to a finished agent bubble.
+  // Shared by the one-shot addAgent and the streaming finalize so both look identical.
+  function decorateAgent(mc,text,sources){
     if(sources&&sources.length){
       const s=document.createElement('div');s.className='sources';
       sources.slice(0,4).forEach(src=>{const c=document.createElement('span');c.className='src';c.textContent=(typeof src==='string')?src:(src.doc||src.source||'source');s.appendChild(c);});
@@ -159,8 +156,32 @@
     say.innerHTML='<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M11 5 6 9H3v6h3l5 4V5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M16 9a3.5 3.5 0 0 1 0 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span>'+t('readAloud')+'</span>';
     say.onclick=()=>speak(text,say);
     mc.appendChild(say);
+  }
+  function addAgent(text,sources){
+    activate();
+    const d=document.createElement('div');d.className='b them';
+    const av=document.createElement('span');av.className='av';av.innerHTML=SHIELD;
+    const mc=document.createElement('div');mc.className='mc';
+    const p=document.createElement('div');p.className='md';p.innerHTML=mdToHtml(text);mc.appendChild(p);
+    decorateAgent(mc,text,sources);
     d.appendChild(av);d.appendChild(mc);
     msgs.appendChild(d);scroll();return d;
+  }
+  // A progressively-built agent bubble for streaming: the shield + an empty markdown
+  // body appear first, update() re-renders the accumulated text as tokens land, and
+  // finalize() paints the authoritative full answer once and adds sources + voice.
+  function addAgentStreaming(){
+    activate();
+    const d=document.createElement('div');d.className='b them';
+    const av=document.createElement('span');av.className='av';av.innerHTML=SHIELD;
+    const mc=document.createElement('div');mc.className='mc';
+    const p=document.createElement('div');p.className='md';mc.appendChild(p);
+    d.appendChild(av);d.appendChild(mc);
+    msgs.appendChild(d);scroll();
+    return {
+      update(raw){ p.innerHTML=mdToHtml(raw); scroll(); },
+      finalize(text,sources){ p.innerHTML=mdToHtml(text); decorateAgent(mc,text,sources); scroll(); },
+    };
   }
   function addThinking(){ activate(); const d=document.createElement('div');d.className='b them thinking';const av=document.createElement('span');av.className='av';av.innerHTML=SHIELD;const mc=document.createElement('div');mc.className='mc';mc.innerHTML='<span class="typing"><i></i><i></i><i></i></span>';d.appendChild(av);d.appendChild(mc);msgs.appendChild(d);scroll();return d; }
 
@@ -176,9 +197,40 @@
     }
     return fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   }
+  let streaming=false;
+  function setBusy(b){ streaming=b; q.disabled=b; $('sendBtn').disabled=b; }
   async function send(){
+    if(streaming) return;                       // in-flight guard: one generation at a time
     const text=q.value.trim(); if(!text) return;
     addUser(text); q.value='';
+
+    // Streaming path — the Electron shell (window.vokter.askStream). Tokens arrive over
+    // the onAskToken channel and paint live; the promise resolves with the authoritative
+    // full answer + sources for the final render. main.js attaches the human-session
+    // token to this request exactly like vokter:ask, so personal memory still injects.
+    if(window.vokter && window.vokter.askStream && window.vokter.onAskToken){
+      setBusy(true);
+      const think=addThinking();
+      let view=null, raw='', raf=0;
+      const paint=()=>{ if(raf) return; raf=requestAnimationFrame(()=>{ raf=0; if(view) view.update(raw); }); };
+      const ensureBubble=()=>{ if(view===null){ think.remove(); view=addAgentStreaming(); } };
+      const unsub=window.vokter.onAskToken(d=>{ ensureBubble(); raw+=(d&&d.text)||''; paint(); });
+      try{
+        const {status,body}=await window.vokter.askStream({question:text,conversation_id:conversationId});
+        unsub(); if(raf) cancelAnimationFrame(raf);
+        if(status>=200&&status<300&&body){
+          conversationId=body.conversation_id; ensureBubble();
+          view.finalize(body.answer, body.sources);   // authoritative re-render (fixes any partial markdown)
+        }else if(view){ view.finalize(raw||t('serverErr'), []); }
+        else{ think.remove(); addAgent(t('serverErr')); }
+      }catch{
+        unsub(); if(raf) cancelAnimationFrame(raf);
+        if(view){ view.finalize(raw||t('noReach'), []); } else { think.remove(); addAgent(t('noReach')); }
+      }finally{ setBusy(false); }
+      return;
+    }
+
+    // Fallback — plain browser / no shell: non-streaming request/response, unchanged.
     const think=addThinking();
     try{
       const r=await askBackend({question:text,conversation_id:conversationId});

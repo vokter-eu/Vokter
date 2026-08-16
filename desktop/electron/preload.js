@@ -30,6 +30,21 @@ contextBridge.exposeInMainWorld('vokter', {
   // The page passes only {question, conversation_id}; it never sees or holds the token.
   ask: (body) => ipcRenderer.invoke('vokter:ask', body),
 
+  // askStream(body): the streaming twin of ask(). main opens /api/ask with stream=true
+  // (attaching the human-session token — the page still never holds it) and pushes tokens
+  // over the 'vokter:ask-token' channel; this promise resolves with the final
+  // {status, body:{answer, sources, conversation_id, memory_withheld}} — same shape as ask.
+  askStream: (body) => ipcRenderer.invoke('vokter:ask-stream', body),
+
+  // onAskToken(cb): cb({text}) for each streamed delta. Receive-only, like
+  // onDownloadProgress. Returns an unsubscribe fn — the caller MUST call it when the
+  // stream ends so listeners don't pile up across turns.
+  onAskToken: (cb) => {
+    const listener = (_event, data) => cb(data);
+    ipcRenderer.on('vokter:ask-token', listener);
+    return () => ipcRenderer.removeListener('vokter:ask-token', listener);
+  },
+
   // memorySuggest(body): proxy /api/memory/suggest through main so the human-session token
   // never lives in page JS (main attaches it — see main.js 'vokter:memory-suggest'). The
   // backend gates this human-only read on that token. Resolves to {status, body}. The page

@@ -316,6 +316,59 @@ ipcMain.handle('vokter:ask', (_event, body) => new Promise((resolve) => {
   req.end();
 }));
 
+// Streaming twin of 'vokter:ask'. Same privileged request, same human-session token
+// (this line is the memory bridge — drop it and personal memory silently withholds),
+// but the reply is SSE: main parses each `data:` frame and pushes tokens to the renderer
+// over 'vokter:ask-token', then resolves this invoke() with the final authoritative
+// {answer, sources, conversation_id, memory_withheld} — the same body shape 'vokter:ask'
+// returns, so the renderer's end-of-turn handling is unchanged.
+ipcMain.handle('vokter:ask-stream', (event, body) => new Promise((resolve) => {
+  if (!ready || backendPort == null) { resolve({ status: 0, body: null }); return; }
+  const payload = JSON.stringify({ ...(body && typeof body === 'object' ? body : {}), stream: true });
+  const req = http.request({
+    host: '127.0.0.1', port: backendPort, path: '/api/ask', method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(payload),
+      'X-Vokter-Human-Session': HUMAN_SESSION_TOKEN,   // SAME bridge as 'vokter:ask'
+    },
+  }, (res) => {
+    res.setEncoding('utf8');
+    let buf = '';
+    let done = null;      // set from the 'done' frame; the promise resolves with it
+    let errored = false;
+    res.on('data', (chunk) => {
+      buf += chunk;
+      let idx;
+      // SSE frames are '\n\n'-separated (see chat.py _sse). Parse whole frames only.
+      while ((idx = buf.indexOf('\n\n')) !== -1) {
+        const frame = buf.slice(0, idx); buf = buf.slice(idx + 2);
+        const line = frame.startsWith('data:') ? frame.slice(5).trim() : frame.trim();
+        if (!line) continue;
+        let msg; try { msg = JSON.parse(line); } catch { continue; }
+        if (msg.type === 'token') {
+          if (!event.sender.isDestroyed()) event.sender.send('vokter:ask-token', { text: msg.text });
+        } else if (msg.type === 'done') {
+          done = { answer: msg.answer, sources: msg.sources,
+                   conversation_id: msg.conversation_id, memory_withheld: msg.memory_withheld };
+        } else if (msg.type === 'error') {
+          errored = true;
+        }
+      }
+    });
+    res.on('end', () => {
+      if (errored || done == null) { resolve({ status: 502, body: null }); return; }
+      resolve({ status: res.statusCode || 200, body: done });
+    });
+  });
+  req.on('error', () => resolve({ status: 0, body: null }));
+  // Same generous ceiling as 'vokter:ask' — local CPU inference is slow; resolve on
+  // timeout so the renderer's await never hangs forever.
+  req.setTimeout(310000, () => { req.destroy(); resolve({ status: 0, body: null }); });
+  req.write(payload);
+  req.end();
+}));
+
 // The renderer's SECOND privileged request: proxy /api/memory/suggest through MAIN so the
 // human-session token never touches page JS — same discipline as 'vokter:ask'. This endpoint
 // reads the human's own conversation turns to propose personal facts (C2a), so the backend

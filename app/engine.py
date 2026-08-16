@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Protocol
+from typing import AsyncIterator, Protocol
 
 import httpx
 from fastapi import HTTPException
@@ -56,6 +56,11 @@ class InferenceEngine(Protocol):
     inside the implementation, never surfaced here."""
 
     async def chat(self, req: ChatRequest) -> str: ...
+
+    # Streaming variant of chat: yields the reply in deltas as they generate, so the
+    # UI can paint tokens live. An engine that can't stream may implement this by
+    # yielding its whole answer once — callers must not assume >1 chunk.
+    def chat_stream(self, req: ChatRequest) -> AsyncIterator[str]: ...
 
     async def embed(self, text: str, model: str | None = None,
                     timeout: float = 120.0) -> list[float]: ...
@@ -102,6 +107,42 @@ class OllamaEngine:
             return r.json()["message"]["content"]
         except (json.JSONDecodeError, KeyError):
             raise HTTPException(502, "Unexpected response format from Ollama")
+
+    async def chat_stream(self, req: ChatRequest):
+        """Same request as chat(), byte-for-byte, except stream=True — so a streamed
+        answer is never a different answer, only the same one delivered in pieces.
+        Ollama replies with newline-delimited JSON, one object per delta; we yield
+        each `message.content` until the terminating `done` object."""
+        model = req.model or self._chat_model
+        payload: dict = {"model": model, "stream": True, "messages": req.messages}
+        if req.json_mode:
+            payload["format"] = "json"
+        options: dict = {}
+        if req.context_size is not None:
+            options["num_ctx"] = req.context_size
+        if req.temperature is not None:
+            options["temperature"] = req.temperature
+        if options:
+            payload["options"] = options
+
+        async with httpx.AsyncClient(timeout=req.timeout) as client:
+            async with client.stream("POST", f"{self._base}/api/chat", json=payload) as r:
+                if r.status_code != 200:
+                    await r.aread()   # drain so the error body is available/closed cleanly
+                    raise HTTPException(502, f"Ollama (chat) returned {r.status_code}. "
+                                             f"Did you run 'ollama pull {model}'?")
+                async for line in r.aiter_lines():
+                    if not line.strip():
+                        continue
+                    try:
+                        obj = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue          # skip a partial/garbled line rather than abort
+                    delta = obj.get("message", {}).get("content", "")
+                    if delta:
+                        yield delta
+                    if obj.get("done"):
+                        break
 
     async def embed(self, text: str, model: str | None = None,
                     timeout: float = 120.0) -> list[float]:
