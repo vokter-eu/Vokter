@@ -40,7 +40,7 @@
       modelNone:"No models installed yet — download one below.", modelLoading:"Loading…",
       dlTitle:"Download a model", dlHint:"Models run entirely on your machine. Pick a recommended one, or type any Ollama model name.",
       dlLight:"light & fast", dlBetter:"better quality", dlSmart:"smartest · needs 16GB+ RAM",
-      dlPh:"any Ollama model name, e.g. mistral", dlBtn:"Download",
+      dlPh:"any Ollama model name, e.g. mistral", dlBtn:"Download", dlStop:"Stop", dlCancelled:"Download stopped.",
       dlManifest:"Preparing…", dlVerify:"Verifying…", dlDownloading:"Downloading", dlDone:"Downloaded ✓",
       dlErr:"Download failed", dlBusy:"A download is already running.", dlNameNeeded:"Type a model name first.",
       advTitle:"Advanced", advEngineToggle:"Use my own engine (advanced)",
@@ -88,7 +88,7 @@
       modelNone:"Aún no hay modelos instalados — descarga uno abajo.", modelLoading:"Cargando…",
       dlTitle:"Descargar un modelo", dlHint:"Los modelos corren enteros en tu máquina. Elige uno recomendado o escribe cualquier nombre de modelo de Ollama.",
       dlLight:"ligero y rápido", dlBetter:"mejor calidad", dlSmart:"el más listo · necesita 16GB+ RAM",
-      dlPh:"cualquier modelo de Ollama, p. ej. mistral", dlBtn:"Descargar",
+      dlPh:"cualquier modelo de Ollama, p. ej. mistral", dlBtn:"Descargar", dlStop:"Parar", dlCancelled:"Descarga detenida.",
       dlManifest:"Preparando…", dlVerify:"Verificando…", dlDownloading:"Descargando", dlDone:"Descargado ✓",
       dlErr:"Falló la descarga", dlBusy:"Ya hay una descarga en curso.", dlNameNeeded:"Escribe primero un nombre de modelo.",
       advTitle:"Avanzado", advEngineToggle:"Usar mi propio motor (avanzado)",
@@ -585,19 +585,25 @@
     const CURATED=[['llama3.2:3b','~2GB','dlLight'],['gemma3:4b','~3GB','dlBetter'],['qwen3:30b-a3b','~18GB','dlSmart']];
     const nameIn=document.createElement('input'); nameIn.type='text'; nameIn.className='sin'; nameIn.placeholder=t('dlPh'); nameIn.setAttribute('autocomplete','off');
     const dlBtn=document.createElement('button'); dlBtn.className='sbtn'; dlBtn.textContent=t('dlBtn');
-    const row=document.createElement('div'); row.className='saddrow'; row.appendChild(nameIn); row.appendChild(dlBtn); wrap.appendChild(row);
+    const stopBtn=document.createElement('button'); stopBtn.className='sbtn ghost'; stopBtn.textContent=t('dlStop'); stopBtn.style.display='none';
+    const row=document.createElement('div'); row.className='saddrow'; row.appendChild(nameIn); row.appendChild(dlBtn); row.appendChild(stopBtn); wrap.appendChild(row);
     const bar=document.createElement('div'); bar.className='dlbar'; bar.style.display='none'; const fill=document.createElement('div'); fill.className='dlfill'; bar.appendChild(fill); wrap.appendChild(bar);
     const dlStatus=document.createElement('div'); dlStatus.className='smeta'; wrap.appendChild(dlStatus);
-    let pulling=false;
+    let pulling=false, pullCtrl=null;
     function setBar(pct,indet){ bar.style.display=''; fill.classList.toggle('indet',!!indet); if(!indet) fill.style.width=Math.max(0,Math.min(100,pct))+'%'; }
+    // Stop: abort the fetch → the SSE closes → the backend's httpx stream to Ollama closes →
+    // Ollama cancels the pull (it's request-scoped). No half-download keeps running.
+    stopBtn.onclick=()=>{ if(pullCtrl){ stopBtn.disabled=true; pullCtrl.abort(); } };
     async function startPull(name){
       name=(name||'').trim();
       if(pulling){ dlStatus.textContent=t('dlBusy'); return; }
       if(!name){ dlStatus.textContent=t('dlNameNeeded'); return; }
-      pulling=true; dlBtn.disabled=true; chips.querySelectorAll('button').forEach(b=>b.disabled=true);
+      pulling=true; pullCtrl=new AbortController();
+      dlBtn.disabled=true; chips.querySelectorAll('button').forEach(b=>b.disabled=true);
+      stopBtn.style.display=''; stopBtn.disabled=false;
       fill.style.width='0%'; setBar(0,true); dlStatus.textContent=t('dlManifest');
       try{
-        const resp=await fetch('/api/models/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+        const resp=await fetch('/api/models/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name}),signal:pullCtrl.signal});
         if(!resp.ok||!resp.body) throw new Error('no stream');
         const reader=resp.body.getReader(); const dec=new TextDecoder(); let buf='', errored=false;
         while(true){ const {value,done}=await reader.read(); if(done) break; buf+=dec.decode(value,{stream:true});
@@ -614,8 +620,13 @@
           if(errored) break;
         }
         if(!errored){ await refresh(); nameIn.value=''; setTimeout(()=>{ bar.style.display='none'; },600); }
-      }catch{ dlStatus.textContent=t('dlErr'); }
-      pulling=false; dlBtn.disabled=false; chips.querySelectorAll('button').forEach(b=>b.disabled=false);
+      }catch(e){
+        if(e && e.name==='AbortError'){ dlStatus.textContent=t('dlCancelled'); bar.style.display='none'; }
+        else{ dlStatus.textContent=t('dlErr'); }
+      }
+      pulling=false; pullCtrl=null;
+      dlBtn.disabled=false; chips.querySelectorAll('button').forEach(b=>b.disabled=false);
+      stopBtn.style.display='none';
     }
     CURATED.forEach(([mn,sz,lk])=>{ const b=document.createElement('button'); b.type='button'; b.className='mchip';
       const c=document.createElement('span'); c.className='mcn'; c.textContent=mn; const d=document.createElement('span'); d.className='mcd'; d.textContent=sz+' · '+t(lk);
