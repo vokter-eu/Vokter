@@ -2,7 +2,7 @@ import os
 import sys
 import sqlite3 as _plain_sqlite3
 
-VOKTER_VERSION = "0.10.0"  # single source of truth — used by main.py and the agent card
+VOKTER_VERSION = "0.11.0"  # single source of truth — used by main.py and the agent card
 
 _FROZEN = bool(getattr(sys, "frozen", False))  # running as the desktop binary
 
