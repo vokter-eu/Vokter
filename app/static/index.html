@@ -209,6 +209,37 @@
   .subwrap .drow .dc.on{color:var(--green)}
   .subwrap .drow .acts{display:flex;gap:6px;align-items:center;margin-left:auto}
 
+  /* ── in-app model management (Model & tone) ── */
+  .subwrap .ssub{font-family:var(--serif);font-size:15px;font-weight:600;color:var(--ink);margin:20px 6px 2px;padding-top:16px;border-top:1px solid var(--sand)}
+  .mlist{display:flex;flex-direction:column;margin:8px 0}
+  .mrow{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--sand);border-radius:var(--r-sm);margin-bottom:6px;background:var(--cream2);cursor:pointer;transition:border-color .12s,background .12s}
+  .mrow:hover{border-color:var(--green)}
+  .mrow.on{border-color:var(--green);background:var(--tint)}
+  .mrow .mn{flex:1;min-width:0;font-family:var(--mono);font-size:13px;color:var(--ink);word-break:break-all}
+  .mrow .mtag{font-family:var(--body);font-size:11px;color:var(--grey2)}
+  .mrow .tick{color:var(--green);flex:0 0 auto;display:none}
+  .mrow.on .tick{display:block}
+  .mrow:focus-visible{outline:2px solid var(--green);outline-offset:1px}
+  .mchips{display:flex;flex-direction:column;gap:6px;margin:8px 0}
+  .mchip{display:flex;align-items:center;gap:10px;text-align:left;cursor:pointer;font-family:inherit;background:var(--cream2);border:1px solid var(--sand);border-radius:var(--r-sm);padding:10px 12px;transition:border-color .12s}
+  .mchip:hover{border-color:var(--green)}
+  .mchip:disabled{opacity:.5;cursor:default}
+  .mchip .mcn{font-family:var(--mono);font-size:13px;color:var(--ink)}
+  .mchip .mcd{font-size:12px;color:var(--grey2);margin-left:auto}
+  .mchip:focus-visible{outline:2px solid var(--green);outline-offset:1px}
+  .dlbar{height:7px;border-radius:99px;background:var(--sand);overflow:hidden;margin:10px 6px 4px}
+  .dlfill{height:100%;width:0;background:var(--green);border-radius:99px;transition:width .25s ease}
+  .dlfill.indet{width:35%;animation:dlslide 1.1s ease-in-out infinite}
+  @keyframes dlslide{0%{margin-left:-35%}100%{margin-left:100%}}
+  @media (prefers-reduced-motion:reduce){.dlfill,.dlfill.indet{transition:none;animation:none}}
+  .swarn{display:flex;gap:9px;font-size:12.5px;line-height:1.55;color:var(--ink-2);background:color-mix(in srgb,var(--amber) 12%,transparent);border:1px solid color-mix(in srgb,var(--amber) 45%,transparent);border-radius:var(--r-sm);padding:10px 12px;margin:8px 6px}
+  .swarn svg{flex:0 0 auto;color:var(--amber);margin-top:1px}
+  .mtoggle{display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px}
+  .mtoggle input{width:16px;height:16px;accent-color:var(--green);cursor:pointer}
+  .mtoggle span{font-size:13.5px;color:var(--ink)}
+  .modelbadge{font-family:var(--mono);font-size:11px;color:var(--grey2);text-align:center;padding:0 0 7px;min-height:14px;user-select:none}
+  .modelbadge:empty{display:none}
+
   .icbtn{background:none;border:none;cursor:pointer;color:var(--grey);display:grid;place-items:center;padding:6px;border-radius:var(--r-sm);transition:background .12s}
   .icbtn:hover{background:var(--tint)}
   .icbtn:focus-visible{outline:2px solid var(--green);outline-offset:2px}
@@ -282,6 +313,7 @@
     </div>
 
     <div class="composer">
+      <div class="modelbadge" id="modelBadge" title=""></div>
       <div class="inrow">
         <button class="rnd plain" id="attachBtn" data-i18n-aria="addDoc" aria-label="Add a document">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="m8 13 4 4a5 5 0 0 0 7-7l-7-7a3.5 3.5 0 0 0-5 5l7 7a2 2 0 0 0 3-3l-6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>

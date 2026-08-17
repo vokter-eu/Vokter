@@ -36,6 +36,17 @@
       modelModelHint:"Pick a model you've installed. The first reply after switching is slower while it loads.",
       toneFormal:"Formal", toneNeutral:"Neutral", toneFriendly:"Friendly", modeConversational:"Conversational", modeProductive:"Productive",
       modelSave:"Save", modelSaving:"Saving…", modelSaved:"Saved ✓",
+      modelPick:"Chat model", modelCurrentDefault:"(current default)", modelActiveTitle:"Active chat model",
+      modelNone:"No models installed yet — download one below.", modelLoading:"Loading…",
+      dlTitle:"Download a model", dlHint:"Models run entirely on your machine. Pick a recommended one, or type any Ollama model name.",
+      dlLight:"light & fast", dlBetter:"better quality", dlSmart:"smartest · needs 16GB+ RAM",
+      dlPh:"any Ollama model name, e.g. mistral", dlBtn:"Download",
+      dlManifest:"Preparing…", dlVerify:"Verifying…", dlDownloading:"Downloading", dlDone:"Downloaded ✓",
+      dlErr:"Download failed", dlBusy:"A download is already running.", dlNameNeeded:"Type a model name first.",
+      advTitle:"Advanced", advEngineToggle:"Use my own engine (advanced)",
+      advEngineWarn:"An external engine sends your data outside Vokter's bundled, no-cloud engine — leave this off to keep everything on your machine.",
+      advEnginePh:"http://127.0.0.1:11434", advEngineHint:"e.g. your system Ollama. The model list and downloads will target this engine.",
+      advEngineBad:"Must be an http(s) URL, or empty for the bundled engine.",
       newChat:"New chat", theme:"Theme", themeAria:"Toggle light or dark theme", menu:"Menu", themeLight:"Light", themeDark:"Dark",
       chatsLabel:"Chats", noChats:"No conversations yet"
     },
@@ -73,6 +84,17 @@
       modelModelHint:"Elige un modelo que hayas instalado. La primera respuesta tras cambiar tarda más mientras se carga.",
       toneFormal:"Formal", toneNeutral:"Neutral", toneFriendly:"Cercano", modeConversational:"Conversacional", modeProductive:"Productivo",
       modelSave:"Guardar", modelSaving:"Guardando…", modelSaved:"Guardado ✓",
+      modelPick:"Modelo de chat", modelCurrentDefault:"(por defecto actual)", modelActiveTitle:"Modelo de chat activo",
+      modelNone:"Aún no hay modelos instalados — descarga uno abajo.", modelLoading:"Cargando…",
+      dlTitle:"Descargar un modelo", dlHint:"Los modelos corren enteros en tu máquina. Elige uno recomendado o escribe cualquier nombre de modelo de Ollama.",
+      dlLight:"ligero y rápido", dlBetter:"mejor calidad", dlSmart:"el más listo · necesita 16GB+ RAM",
+      dlPh:"cualquier modelo de Ollama, p. ej. mistral", dlBtn:"Descargar",
+      dlManifest:"Preparando…", dlVerify:"Verificando…", dlDownloading:"Descargando", dlDone:"Descargado ✓",
+      dlErr:"Falló la descarga", dlBusy:"Ya hay una descarga en curso.", dlNameNeeded:"Escribe primero un nombre de modelo.",
+      advTitle:"Avanzado", advEngineToggle:"Usar mi propio motor (avanzado)",
+      advEngineWarn:"Un motor externo saca tus datos del motor sin-nube empaquetado de Vokter — déjalo desactivado para mantener todo en tu máquina.",
+      advEnginePh:"http://127.0.0.1:11434", advEngineHint:"p. ej. tu Ollama del sistema. La lista de modelos y las descargas apuntarán a este motor.",
+      advEngineBad:"Debe ser una URL http(s), o vacío para el motor empaquetado.",
       newChat:"Nuevo chat", theme:"Tema", themeAria:"Cambiar tema claro u oscuro", menu:"Menú", themeLight:"Claro", themeDark:"Oscuro",
       chatsLabel:"Chats", noChats:"Aún no hay conversaciones"
     }
@@ -506,6 +528,9 @@
     sTitle.textContent=t('rowModel');
     const wrap=_sub(); _note(wrap,'noteModel');
     function field(labelKey,control){ const f=document.createElement('div'); f.className='sfield'; const l=document.createElement('label'); l.textContent=t(labelKey); f.appendChild(l); f.appendChild(control); wrap.appendChild(f); }
+    function ssub(key){ const d=document.createElement('div'); d.className='ssub'; d.textContent=t(key); wrap.appendChild(d); return d; }
+
+    // — Agent name / tone / mode (Save button below) —
     const nameI=document.createElement('input'); nameI.type='text'; nameI.className='sin'; nameI.setAttribute('autocomplete','off'); field('modelName',nameI);
     const toneS=document.createElement('select'); toneS.className='sin';
     [['formal','toneFormal'],['neutral','toneNeutral'],['friendly','toneFriendly']].forEach(([v,k])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t(k); toneS.appendChild(o); });
@@ -513,34 +538,126 @@
     const modeS=document.createElement('select'); modeS.className='sin';
     [['conversational','modeConversational'],['productive','modeProductive']].forEach(([v,k])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t(k); modeS.appendChild(o); });
     field('modelMode',modeS);
-    // Chat model: a dropdown of the models installed in the local engine (GET /api/models),
-    // plus a "Default" entry (blank → this machine's default model). Populated after we know
-    // the saved value, so the current model is always selectable even if it's no longer listed.
-    const modelS=document.createElement('select'); modelS.className='sin'; field('modelModel',modelS);
-    const hint=document.createElement('div'); hint.className='smeta'; hint.textContent=t('modelModelHint'); wrap.appendChild(hint);
     const saveBtn=document.createElement('button'); saveBtn.className='sbtn'; saveBtn.textContent=t('modelSave');
     const status=document.createElement('span'); status.className='smeta';
     const acts=document.createElement('div'); acts.className='sactions'; acts.appendChild(saveBtn); acts.appendChild(status); wrap.appendChild(acts);
-    let saved='';
     try{ const cfg=await (await fetch('/api/config')).json();
-      nameI.value=cfg.agent_name||'Vokter'; toneS.value=cfg.tone||'neutral'; modeS.value=cfg.mode||'conversational'; saved=cfg.chat_model||'';
+      nameI.value=cfg.agent_name||'Vokter'; toneS.value=cfg.tone||'neutral'; modeS.value=cfg.mode||'conversational';
     }catch{ status.textContent=t('noReachShort'); }
-    // Build the model options: Default first, then installed models; ensure the saved one is present.
-    let models=[]; try{ models=(await (await fetch('/api/models')).json()).models||[]; }catch{}
-    const opts=['']; if(saved && !models.includes(saved)) opts.push(saved); models.forEach(m=>{ if(!opts.includes(m)) opts.push(m); });
-    opts.forEach(m=>{ const o=document.createElement('option'); o.value=m; o.textContent=m||t('modelDefault'); modelS.appendChild(o); });
-    modelS.value=saved;
     saveBtn.onclick=async()=>{
       saveBtn.disabled=true; status.textContent=t('modelSaving');
       try{ const r=await fetch('/api/config',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-        agent_name:nameI.value.trim()||null, tone:toneS.value, mode:modeS.value, chat_model:modelS.value
-      })});
-        const d=await r.json();
-        if(r.ok){ status.textContent=t('modelSaved'); setTimeout(()=>{status.textContent='';},2000); }
-        else{ status.textContent=(typeof d.detail==='string')?d.detail:t('serverErr'); }
+        agent_name:nameI.value.trim()||null, tone:toneS.value, mode:modeS.value })});
+        status.textContent=r.ok?t('modelSaved'):t('serverErr'); if(r.ok) setTimeout(()=>{status.textContent='';},2000);
       }catch{ status.textContent=t('noReachShort'); }
       saveBtn.disabled=false;
     };
+
+    // — Chat model picker: real installed names, active checkmark, real "(current default)" —
+    ssub('modelPick');
+    const mlist=document.createElement('div'); mlist.className='mlist'; wrap.appendChild(mlist);
+    const TICK='<svg class="tick" width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    async function loadModels(){ try{ return await (await fetch('/api/models')).json(); }catch{ return {models:[],active:'',default:''}; } }
+    function paintPicker(data){
+      mlist.textContent='';
+      const active=data.active||'', def=data.default||'';
+      const names=(data.models||[]).slice();
+      if(active && !names.includes(active)) names.unshift(active);   // always show the active one
+      if(!names.length){ const p=document.createElement('div'); p.className='smeta'; p.textContent=t('modelNone'); mlist.appendChild(p); return; }
+      names.forEach(name=>{
+        const row=document.createElement('button'); row.type='button'; row.className='mrow'+(name===active?' on':'');
+        const n=document.createElement('span'); n.className='mn'; n.textContent=name; row.appendChild(n);
+        if(name===def){ const tag=document.createElement('span'); tag.className='mtag'; tag.textContent=t('modelCurrentDefault'); row.appendChild(tag); }
+        row.insertAdjacentHTML('beforeend',TICK);
+        row.onclick=async()=>{
+          try{ await fetch('/api/config',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_model:name})}); }catch{}
+          await refresh(); refreshModelBadge();
+        };
+        mlist.appendChild(row);
+      });
+    }
+    async function refresh(){ paintPicker(await loadModels()); }
+
+    // — Download a model: curated one-tap pulls + free-text, live SSE progress, no terminal —
+    ssub('dlTitle');
+    const dlHint=document.createElement('div'); dlHint.className='smeta'; dlHint.textContent=t('dlHint'); wrap.appendChild(dlHint);
+    const chips=document.createElement('div'); chips.className='mchips'; wrap.appendChild(chips);
+    const CURATED=[['llama3.2:3b','~2GB','dlLight'],['gemma3:4b','~3GB','dlBetter'],['qwen3:30b-a3b','~18GB','dlSmart']];
+    const nameIn=document.createElement('input'); nameIn.type='text'; nameIn.className='sin'; nameIn.placeholder=t('dlPh'); nameIn.setAttribute('autocomplete','off');
+    const dlBtn=document.createElement('button'); dlBtn.className='sbtn'; dlBtn.textContent=t('dlBtn');
+    const row=document.createElement('div'); row.className='saddrow'; row.appendChild(nameIn); row.appendChild(dlBtn); wrap.appendChild(row);
+    const bar=document.createElement('div'); bar.className='dlbar'; bar.style.display='none'; const fill=document.createElement('div'); fill.className='dlfill'; bar.appendChild(fill); wrap.appendChild(bar);
+    const dlStatus=document.createElement('div'); dlStatus.className='smeta'; wrap.appendChild(dlStatus);
+    let pulling=false;
+    function setBar(pct,indet){ bar.style.display=''; fill.classList.toggle('indet',!!indet); if(!indet) fill.style.width=Math.max(0,Math.min(100,pct))+'%'; }
+    async function startPull(name){
+      name=(name||'').trim();
+      if(pulling){ dlStatus.textContent=t('dlBusy'); return; }
+      if(!name){ dlStatus.textContent=t('dlNameNeeded'); return; }
+      pulling=true; dlBtn.disabled=true; chips.querySelectorAll('button').forEach(b=>b.disabled=true);
+      fill.style.width='0%'; setBar(0,true); dlStatus.textContent=t('dlManifest');
+      try{
+        const resp=await fetch('/api/models/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+        if(!resp.ok||!resp.body) throw new Error('no stream');
+        const reader=resp.body.getReader(); const dec=new TextDecoder(); let buf='', errored=false;
+        while(true){ const {value,done}=await reader.read(); if(done) break; buf+=dec.decode(value,{stream:true});
+          let i; while((i=buf.indexOf('\n\n'))>=0){ const frame=buf.slice(0,i); buf=buf.slice(i+2);
+            const ln=frame.startsWith('data:')?frame.slice(5).trim():frame.trim(); if(!ln) continue;
+            let o; try{o=JSON.parse(ln);}catch{continue;}
+            if(o.error){ errored=true; dlStatus.textContent=t('dlErr')+' — '+o.error; break; }
+            if(o.done){ setBar(100,false); dlStatus.textContent=t('dlDone'); }
+            else{ const s=(o.status||'').toLowerCase();
+              const label=s.includes('verif')?t('dlVerify'):s.includes('manifest')?t('dlManifest'):t('dlDownloading')+' '+name+(o.indeterminate?'…':' · '+Math.round(o.percent||0)+'%');
+              dlStatus.textContent=label; setBar(o.percent||0,!!o.indeterminate);
+            }
+          }
+          if(errored) break;
+        }
+        if(!errored){ await refresh(); nameIn.value=''; setTimeout(()=>{ bar.style.display='none'; },600); }
+      }catch{ dlStatus.textContent=t('dlErr'); }
+      pulling=false; dlBtn.disabled=false; chips.querySelectorAll('button').forEach(b=>b.disabled=false);
+    }
+    CURATED.forEach(([mn,sz,lk])=>{ const b=document.createElement('button'); b.type='button'; b.className='mchip';
+      const c=document.createElement('span'); c.className='mcn'; c.textContent=mn; const d=document.createElement('span'); d.className='mcd'; d.textContent=sz+' · '+t(lk);
+      b.appendChild(c); b.appendChild(d); b.onclick=()=>startPull(mn); chips.appendChild(b); });
+    dlBtn.onclick=()=>startPull(nameIn.value);
+    nameIn.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); startPull(nameIn.value); } });
+
+    // — Advanced: point at your own engine (OFF by default; leaves the sovereign no-cloud engine) —
+    ssub('advTitle');
+    const tog=document.createElement('label'); tog.className='mtoggle';
+    const cb=document.createElement('input'); cb.type='checkbox'; const tl=document.createElement('span'); tl.textContent=t('advEngineToggle');
+    tog.appendChild(cb); tog.appendChild(tl); wrap.appendChild(tog);
+    const advBox=document.createElement('div'); advBox.style.display='none'; wrap.appendChild(advBox);
+    const warn=document.createElement('div'); warn.className='swarn';
+    warn.insertAdjacentHTML('afterbegin','<svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M12 9v4M12 17h.01M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+    const warnT=document.createElement('span'); warnT.textContent=t('advEngineWarn'); warn.appendChild(warnT); advBox.appendChild(warn);
+    const urlIn=document.createElement('input'); urlIn.type='text'; urlIn.className='sin'; urlIn.placeholder=t('advEnginePh'); urlIn.setAttribute('autocomplete','off');
+    const applyBtn=document.createElement('button'); applyBtn.className='sbtn'; applyBtn.textContent=t('modelSave');
+    const advRow=document.createElement('div'); advRow.className='saddrow'; advRow.appendChild(urlIn); advRow.appendChild(applyBtn); advBox.appendChild(advRow);
+    const advHint=document.createElement('div'); advHint.className='smeta'; advHint.textContent=t('advEngineHint'); advBox.appendChild(advHint);
+    async function saveEngineUrl(v){
+      try{ const r=await fetch('/api/config',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({engine_url:v})});
+        if(!r.ok){ const d=await r.json().catch(()=>({})); advHint.textContent=(typeof d.detail==='string')?d.detail:t('advEngineBad'); return false; }
+        advHint.textContent=t('advEngineHint'); return true;
+      }catch{ advHint.textContent=t('noReachShort'); return false; }
+    }
+    cb.onchange=async()=>{
+      advBox.style.display=cb.checked?'':'none';
+      if(!cb.checked){ urlIn.value=''; await saveEngineUrl(''); await refresh(); refreshModelBadge(); }   // OFF → back to the bundled engine
+    };
+    applyBtn.onclick=async()=>{
+      const v=urlIn.value.trim();
+      if(v && !/^https?:\/\//i.test(v)){ advHint.textContent=t('advEngineBad'); return; }
+      applyBtn.disabled=true;
+      if(await saveEngineUrl(v)){ await refresh(); refreshModelBadge(); }   // retarget the picker/pulls to the chosen engine
+      applyBtn.disabled=false;
+    };
+
+    // Initial paint: load current engine_url + models together.
+    const first=await loadModels();
+    if(first.engine_url){ cb.checked=true; advBox.style.display=''; urlIn.value=first.engine_url; }
+    paintPicker(first);
   }
 
   // ── Shell controls: sidebar drawer, new chat, settings/docs, language, theme ──
@@ -578,8 +695,19 @@
   function applyTheme(){ document.documentElement.setAttribute('data-theme', theme); refreshShell(); }
   $('themeBtn').onclick=()=>{ theme = theme==='dark'?'light':'dark'; try{ localStorage.setItem('vokter_theme',theme); }catch{} applyTheme(); };
 
+  // Show the resolved active chat model unobtrusively in the chat view (like other
+  // assistant apps). Reads the SAME value chat.py resolves (GET /api/models .active),
+  // so the badge can never disagree with what actually answers. Refreshed on load and
+  // whenever the model or engine changes in Settings.
+  async function refreshModelBadge(){
+    const el=$('modelBadge'); if(!el) return;
+    try{ const d=await (await fetch('/api/models')).json(); el.textContent=d.active||''; el.title=t('modelActiveTitle')+': '+(d.active||''); }
+    catch{ el.textContent=''; }
+  }
+
   applyStatic();
   applyTheme();
   loadDocCount();
+  refreshModelBadge();
   q.focus();
 })();

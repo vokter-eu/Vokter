@@ -3,21 +3,23 @@ Agent personalisation API.
 
 GET    /api/config          — returns current settings (with defaults for unset keys)
 PATCH  /api/config          — update one or more settings; returns full config after save
-GET    /api/models          — chat models installed in the local engine (for the picker)
+GET    /api/models          — installed models + active/default/engine_url (for the picker)
+POST   /api/models/pull     — pull a model into the resolved engine, streaming SSE progress
 POST   /api/config/avatar   — upload avatar image (jpg/png/webp/gif)
 GET    /api/config/avatar   — serve current avatar image
 DELETE /api/config/avatar   — remove avatar
 """
+import json
 import os
 import shutil
 
 import httpx
 from fastapi import APIRouter, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from agent_config import DEFAULTS, get_config, set_config
-from config import DATA_DIR
+from config import DATA_DIR, CHAT_MODEL
 from engine import resolve_base_url
 
 router = APIRouter()
@@ -105,22 +107,99 @@ def config_patch(patch: ConfigPatch):
 
 @router.get("/api/models")
 async def list_models():
-    """Chat models installed in the local engine, for the Model & tone picker.
+    """Chat models installed in the RESOLVED engine (bundled by default, or the user's
+    engine_url override), for the Model & tone picker and the chat model badge.
 
     Proxies the engine's model list (Ollama /api/tags) — the loopback UI can't reach
-    the engine directly under its same-origin CSP. Embedding models are filtered out
-    so only chat-capable models appear. Returns {"models": [...]} sorted; an empty
-    list on any error so the picker degrades gracefully (falls back to the default)."""
+    the engine directly under its same-origin CSP. Embedding models are filtered out.
+    `active` is the model chat.py will actually use (cfg.chat_model or the env default)
+    computed IDENTICALLY so the badge can never disagree with real resolution; `default`
+    is that env fallback's real name (shown as "(current default)" instead of an abstract
+    "Default"). `engine_url` lets the UI show whether an external engine is in effect.
+    On any engine error the model list is empty but active/default/engine_url still return
+    so the UI degrades gracefully."""
+    cfg = get_config()
+    default = CHAT_MODEL
+    active = (cfg.get("chat_model") or "").strip() or default
+    engine_url = (cfg.get("engine_url") or "").strip()
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             r = await client.get(f"{resolve_base_url()}/api/tags")
             r.raise_for_status()
             data = r.json()
+        names = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
+        models = sorted(n for n in names if "embed" not in n.lower())  # drop embedding models
     except Exception:
-        return {"models": []}
-    names = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
-    chat = [n for n in names if "embed" not in n.lower()]  # drop embedding models
-    return {"models": sorted(chat)}
+        models = []
+    return {"models": models, "active": active, "default": default, "engine_url": engine_url}
+
+
+class PullRequest(BaseModel):
+    name: str
+
+
+@router.post("/api/models/pull")
+async def pull_model(req: PullRequest):
+    """Pull a model into the RESOLVED engine (bundled by default) and stream progress as
+    SSE, so a non-technical user never needs a terminal. Same-origin (the page fetches
+    this endpoint under connect-src 'self'); the loading-screen IPC is startup-only and
+    doesn't fit here.
+
+    Progress mirrors desktop/model_pull.py's two non-obvious rules WITHOUT importing it
+    (that module isn't on the web backend's dev path): aggregate completed/total across
+    every layer SEEN, and clamp the percent MONOTONIC so a new layer never bounces the bar
+    backward. The pull client uses NO timeout — a multi-GB pull has manifest/verify gaps
+    far longer than httpx's 5s default, which would otherwise kill the stream mid-download."""
+    name = (req.name or "").strip()
+    if not name:
+        raise HTTPException(400, "model name required")
+    base = resolve_base_url()
+
+    def _sse(d: dict) -> str:
+        return f"data: {json.dumps(d)}\n\n"
+
+    async def gen():
+        seen: dict[str, tuple[int, int]] = {}   # digest → (completed, total) across layers
+        last_pct = 0.0
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(None)) as client:
+                async with client.stream("POST", f"{base}/api/pull",
+                                         json={"name": name, "stream": True}) as r:
+                    if r.status_code != 200:
+                        await r.aread()
+                        yield _sse({"error": f"engine returned {r.status_code} for '{name}'"})
+                        return
+                    async for line in r.aiter_lines():
+                        if not line.strip():
+                            continue
+                        try:
+                            o = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+                        if o.get("error"):
+                            yield _sse({"error": str(o["error"])})
+                            return
+                        status = o.get("status", "")
+                        digest = o.get("digest")
+                        if digest and o.get("total"):
+                            seen[digest] = (int(o.get("completed", 0)), int(o.get("total", 0)))
+                        comp = sum(c for c, _ in seen.values())
+                        tot = sum(t for _, t in seen.values())
+                        pct = (comp / tot * 100.0) if tot else last_pct
+                        if pct < last_pct:            # monotonic: a new layer must not rewind the bar
+                            pct = last_pct
+                        last_pct = pct
+                        if status == "success":
+                            yield _sse({"status": "success", "percent": 100.0, "done": True})
+                            return
+                        yield _sse({"status": status, "completed": comp, "total": tot,
+                                    "percent": round(pct, 1), "indeterminate": tot == 0})
+        except Exception:
+            yield _sse({"error": "pull failed — check the model name, disk space and your connection"})
+            return
+        yield _sse({"percent": 100.0, "done": True})   # stream ended without an explicit 'success'
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
 
 
 def _avatar_path() -> str | None:
