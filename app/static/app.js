@@ -36,6 +36,7 @@
       modelModelHint:"Pick a model you've installed. The first reply after switching is slower while it loads.",
       toneFormal:"Formal", toneNeutral:"Neutral", toneFriendly:"Friendly", modeConversational:"Conversational", modeProductive:"Productive",
       modelSave:"Save", modelSaving:"Saving…", modelSaved:"Saved ✓",
+      secAgent:"Agent", advApply:"Apply", advApplied:"Applied ✓",
       modelPick:"Chat model", modelCurrentDefault:"(current default)", modelActiveTitle:"Active chat model",
       modelNone:"No models installed yet — download one below.", modelLoading:"Loading…",
       dlTitle:"Download a model", dlHint:"Models run entirely on your machine. Pick a recommended one, or type any Ollama model name.",
@@ -84,6 +85,7 @@
       modelModelHint:"Elige un modelo que hayas instalado. La primera respuesta tras cambiar tarda más mientras se carga.",
       toneFormal:"Formal", toneNeutral:"Neutral", toneFriendly:"Cercano", modeConversational:"Conversacional", modeProductive:"Productivo",
       modelSave:"Guardar", modelSaving:"Guardando…", modelSaved:"Guardado ✓",
+      secAgent:"Agente", advApply:"Aplicar", advApplied:"Aplicado ✓",
       modelPick:"Modelo de chat", modelCurrentDefault:"(por defecto actual)", modelActiveTitle:"Modelo de chat activo",
       modelNone:"Aún no hay modelos instalados — descarga uno abajo.", modelLoading:"Cargando…",
       dlTitle:"Descargar un modelo", dlHint:"Los modelos corren enteros en tu máquina. Elige uno recomendado o escribe cualquier nombre de modelo de Ollama.",
@@ -558,10 +560,14 @@
   async function renderModel(){
     sTitle.textContent=t('rowModel');
     const wrap=_sub(); _note(wrap,'noteModel');
-    function field(labelKey,control){ const f=document.createElement('div'); f.className='sfield'; const l=document.createElement('label'); l.textContent=t(labelKey); f.appendChild(l); f.appendChild(control); wrap.appendChild(f); }
+    // The Save button persists ONLY agent name/tone/mode — so those three live inside a bordered
+    // card WITH the Save button, making the scope visually obvious. Everything below the card
+    // (chat model, download, engine URL) is a separate section that applies instantly.
+    const card=document.createElement('div'); card.className='scard'; wrap.appendChild(card);
+    const cardH=document.createElement('div'); cardH.className='scardh'; cardH.textContent=t('secAgent'); card.appendChild(cardH);
+    function field(labelKey,control){ const f=document.createElement('div'); f.className='sfield'; const l=document.createElement('label'); l.textContent=t(labelKey); f.appendChild(l); f.appendChild(control); card.appendChild(f); }
     function ssub(key){ const d=document.createElement('div'); d.className='ssub'; d.textContent=t(key); wrap.appendChild(d); return d; }
 
-    // — Agent name / tone / mode (Save button below) —
     const nameI=document.createElement('input'); nameI.type='text'; nameI.className='sin'; nameI.setAttribute('autocomplete','off'); field('modelName',nameI);
     const toneS=document.createElement('select'); toneS.className='sin';
     [['formal','toneFormal'],['neutral','toneNeutral'],['friendly','toneFriendly']].forEach(([v,k])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t(k); toneS.appendChild(o); });
@@ -602,7 +608,7 @@
         row.insertAdjacentHTML('beforeend',TICK);
         row.onclick=async()=>{
           try{ await fetch('/api/config',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_model:name})}); }catch{}
-          await refresh(); refreshModelBadge();
+          await refresh(); refreshModelBadge();      // instant: the check moves + the chat badge updates
         };
         mlist.appendChild(row);
       });
@@ -675,7 +681,7 @@
     warn.insertAdjacentHTML('afterbegin','<svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M12 9v4M12 17h.01M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>');
     const warnT=document.createElement('span'); warnT.textContent=t('advEngineWarn'); warn.appendChild(warnT); advBox.appendChild(warn);
     const urlIn=document.createElement('input'); urlIn.type='text'; urlIn.className='sin'; urlIn.placeholder=t('advEnginePh'); urlIn.setAttribute('autocomplete','off');
-    const applyBtn=document.createElement('button'); applyBtn.className='sbtn'; applyBtn.textContent=t('modelSave');
+    const applyBtn=document.createElement('button'); applyBtn.className='sbtn'; applyBtn.textContent=t('advApply');
     const advRow=document.createElement('div'); advRow.className='saddrow'; advRow.appendChild(urlIn); advRow.appendChild(applyBtn); advBox.appendChild(advRow);
     const advHint=document.createElement('div'); advHint.className='smeta'; advHint.textContent=t('advEngineHint'); advBox.appendChild(advHint);
     async function saveEngineUrl(v){
@@ -692,7 +698,8 @@
       const v=urlIn.value.trim();
       if(v && !/^https?:\/\//i.test(v)){ advHint.textContent=t('advEngineBad'); return; }
       applyBtn.disabled=true;
-      if(await saveEngineUrl(v)){ await refresh(); refreshModelBadge(); }   // retarget the picker/pulls to the chosen engine
+      if(await saveEngineUrl(v)){ await refresh(); refreshModelBadge();       // retarget the picker/pulls to the chosen engine
+        advHint.textContent=t('advApplied'); setTimeout(()=>{ advHint.textContent=t('advEngineHint'); },2000); }
       applyBtn.disabled=false;
     };
 
