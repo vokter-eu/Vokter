@@ -94,8 +94,8 @@ OLLAMA_PORT = int(os.environ.get("VOKTER_DESKTOP_OLLAMA_PORT", "11435"))
 # 8081 on purpose: the leftover Docker vokter-app squats on 8080. A desktop app
 # also shouldn't collide with a dev server on the conventional 8080.
 BACKEND_PORT = int(os.environ.get("VOKTER_DESKTOP_BACKEND_PORT", "8081"))
-CHAT_MODEL  = os.environ.get("VOKTER_CHAT_MODEL",  "llama3.2:3b")
-EMBED_MODEL = os.environ.get("VOKTER_EMBED_MODEL", "nomic-embed-text")
+CHAT_MODEL  = os.environ.get("VOKTER_CHAT_MODEL",  "qwen2.5:3b")  # first-run pull default (see
+EMBED_MODEL = os.environ.get("VOKTER_EMBED_MODEL", "nomic-embed-text")  # config.py rationale)
 
 OLLAMA_HOST = f"127.0.0.1:{OLLAMA_PORT}"
 OLLAMA_URL  = f"http://{OLLAMA_HOST}"

@@ -37,8 +37,15 @@ def _default_db_path() -> str:
 
 
 OLLAMA_URL  = os.getenv("VOKTER_OLLAMA_URL",  "http://ollama:11434")
-CHAT_MODEL  = os.getenv("VOKTER_CHAT_MODEL",  "llama3.2:3b")
-EMBED_MODEL = os.getenv("VOKTER_EMBED_MODEL", "nomic-embed-text")
+CHAT_MODEL  = os.getenv("VOKTER_CHAT_MODEL",  "qwen2.5:3b")  # default: the CPU sweet spot —
+                                                            # NON-SWA (prompt cache works, so
+                                                            # first-token ~1s vs gemma's ~10s on
+                                                            # a weak CPU), doesn't dump stored
+                                                            # memory like llama3.2:3b, decent
+                                                            # es/ca. gemma3:4b (quality, slow on
+                                                            # weak CPU) and llama3.2:3b (lightest)
+                                                            # remain pickable in the UI.
+EMBED_MODEL = os.getenv("VOKTER_EMBED_MODEL", "nomic-embed-text")  # embedder unchanged
 DB_PATH     = os.getenv("VOKTER_DB") or _default_db_path()
 DATA_DIR    = os.path.dirname(DB_PATH) or "/data"
 DB_KEY      = os.getenv("VOKTER_DB_KEY",      "")

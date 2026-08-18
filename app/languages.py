@@ -12,6 +12,10 @@ local voice for now). Adding a language for STT/chat = one row here.
 V1_LANGUAGES: dict[str, dict[str, str]] = {
     "en": {"whisper": "en", "chat": "English"},
     "es": {"whisper": "es", "chat": "Spanish"},
+    # Catalan: auto-detect can't tell ca from es on a small model, so a reliable Catalan reply
+    # needs the user to SELECT it here → build_system_prompt forces "reply in Catalan". No local
+    # Kokoro voice for ca (speak() returns voice_not_ready), but STT + chat work.
+    "ca": {"whisper": "ca", "chat": "Catalan"},
     "fr": {"whisper": "fr", "chat": "French"},
     "de": {"whisper": "de", "chat": "German"},
     "it": {"whisper": "it", "chat": "Italian"},

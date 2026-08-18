@@ -31,7 +31,7 @@
       tasksEmpty:"No scheduled tasks yet.", taskName:"Name", taskGoal:"What should it do?", taskInterval:"Every — e.g. 30m, 2h, 1d",
       taskCreate:"Create task", taskCreateErr:"Couldn't create it. Check the interval (e.g. 30m, 2h, 1d).", taskFill:"Add a name, a goal and an interval.",
       taskPause:"Pause", taskResume:"Resume", taskOn:"on", taskPaused:"paused", taskDeleteConfirm:"Delete \"{name}\"?",
-      modelName:"Agent name", modelTone:"Tone", modelMode:"Mode", modelModel:"Chat model", modelModelPh:"e.g. llama3.2:3b",
+      modelName:"Agent name", modelTone:"Tone", modelMode:"Mode", modelLang:"Reply language", langAuto:"Auto (match my language)", modelModel:"Chat model", modelModelPh:"e.g. llama3.2:3b",
       modelDefault:"Default (this machine's model)",
       modelModelHint:"Pick a model you've installed. The first reply after switching is slower while it loads.",
       toneFormal:"Formal", toneNeutral:"Neutral", toneFriendly:"Friendly", modeConversational:"Conversational", modeProductive:"Productive",
@@ -80,7 +80,7 @@
       tasksEmpty:"Aún no hay tareas programadas.", taskName:"Nombre", taskGoal:"¿Qué debe hacer?", taskInterval:"Cada — p. ej. 30m, 2h, 1d",
       taskCreate:"Crear tarea", taskCreateErr:"No se pudo crear. Revisa el intervalo (p. ej. 30m, 2h, 1d).", taskFill:"Añade un nombre, un objetivo y un intervalo.",
       taskPause:"Pausar", taskResume:"Reanudar", taskOn:"activa", taskPaused:"en pausa", taskDeleteConfirm:"¿Borrar \"{name}\"?",
-      modelName:"Nombre del agente", modelTone:"Tono", modelMode:"Modo", modelModel:"Modelo de chat", modelModelPh:"p. ej. llama3.2:3b",
+      modelName:"Nombre del agente", modelTone:"Tono", modelMode:"Modo", modelLang:"Idioma de respuesta", langAuto:"Auto (mi idioma)", modelModel:"Modelo de chat", modelModelPh:"p. ej. llama3.2:3b",
       modelDefault:"Por defecto (el modelo de esta máquina)",
       modelModelHint:"Elige un modelo que hayas instalado. La primera respuesta tras cambiar tarda más mientras se carga.",
       toneFormal:"Formal", toneNeutral:"Neutral", toneFriendly:"Cercano", modeConversational:"Conversacional", modeProductive:"Productivo",
@@ -602,16 +602,23 @@
     const modeS=document.createElement('select'); modeS.className='sin';
     [['conversational','modeConversational'],['productive','modeProductive']].forEach(([v,k])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t(k); modeS.appendChild(o); });
     field('modelMode',modeS);
+    // Reply language: 'auto' mirrors the user; a concrete value forces "reply in <lang>". Català
+    // is the reliable path to Catalan (auto can't tell ca from es on a small model). Endonyms so
+    // the names read the same in either UI language.
+    const langS=document.createElement('select'); langS.className='sin';
+    [['auto',t('langAuto')],['en','English'],['es','Español'],['ca','Català'],['fr','Français'],['it','Italiano'],['pt','Português']]
+      .forEach(([v,label])=>{ const o=document.createElement('option'); o.value=v; o.textContent=label; langS.appendChild(o); });
+    field('modelLang',langS);
     const saveBtn=document.createElement('button'); saveBtn.className='sbtn'; saveBtn.textContent=t('modelSave');
     const status=document.createElement('span'); status.className='smeta';
-    const acts=document.createElement('div'); acts.className='sactions'; acts.appendChild(saveBtn); acts.appendChild(status); wrap.appendChild(acts);
+    const acts=document.createElement('div'); acts.className='sactions'; acts.appendChild(saveBtn); acts.appendChild(status); card.appendChild(acts);
     try{ const cfg=await (await fetch('/api/config')).json();
-      nameI.value=cfg.agent_name||'Vokter'; toneS.value=cfg.tone||'neutral'; modeS.value=cfg.mode||'conversational';
+      nameI.value=cfg.agent_name||'Vokter'; toneS.value=cfg.tone||'neutral'; modeS.value=cfg.mode||'conversational'; langS.value=cfg.language||'auto';
     }catch{ status.textContent=t('noReachShort'); }
     saveBtn.onclick=async()=>{
       saveBtn.disabled=true; status.textContent=t('modelSaving');
       try{ const r=await fetch('/api/config',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-        agent_name:nameI.value.trim()||null, tone:toneS.value, mode:modeS.value })});
+        agent_name:nameI.value.trim()||null, tone:toneS.value, mode:modeS.value, language:langS.value })});
         status.textContent=r.ok?t('modelSaved'):t('serverErr'); if(r.ok) setTimeout(()=>{status.textContent='';},2000);
       }catch{ status.textContent=t('noReachShort'); }
       saveBtn.disabled=false;
