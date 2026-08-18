@@ -66,9 +66,9 @@ MAX_HISTORY   = 20
 VOICE_MODELS_DIR = os.getenv("VOKTER_VOICE_MODELS_DIR") or (
     os.path.join(DATA_DIR, "models") if _FROZEN else "/data/models"
 )
-WHISPER_MODEL    = os.getenv("VOKTER_WHISPER_MODEL",    "base")
-WHISPER_DEVICE   = os.getenv("VOKTER_WHISPER_DEVICE",   "cpu")
-PIPER_VOICE      = os.getenv("VOKTER_PIPER_VOICE",      "en_US-lessac-medium")
+WHISPER_MODEL    = os.getenv("VOKTER_WHISPER_MODEL",    "small")  # small int8 ≈ 460MB: much
+WHISPER_DEVICE   = os.getenv("VOKTER_WHISPER_DEVICE",   "cpu")     # better than 'base' on es/ca,
+                                                                   # still usable on a CPU i3
 
 # Bind address/port for entry points that serve the app themselves (the frozen
 # desktop binary). Docker and the orchestrator pass uvicorn CLI flags instead,

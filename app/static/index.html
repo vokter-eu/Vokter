@@ -86,6 +86,10 @@
   .them .src{font-family:var(--mono);font-size:11px;letter-spacing:-.01em;color:var(--green);background:var(--cream2);border:1px solid var(--sand);border-radius:var(--r-sm);padding:3px 8px}
   .them .say{margin-top:12px;background:none;border:none;cursor:pointer;color:var(--grey);display:inline-flex;align-items:center;gap:6px;font-family:inherit;font-size:12.5px;font-weight:500;padding:3px 0;transition:color .15s}
   .them .say:hover{color:var(--green)}
+  .them .say.say-on{color:var(--green)}   /* active: generating or playing → instant visual cue */
+  .them .say .spin{transform-origin:center;animation:sayspin .8s linear infinite}
+  @keyframes sayspin{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.them .say .spin{animation:none}}
   .them .say:focus-visible{outline:2px solid var(--green);outline-offset:2px;border-radius:3px}
   /* Markdown in agent replies */
   .md>*:first-child{margin-top:0}.md>*:last-child{margin-bottom:0}

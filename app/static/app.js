@@ -3,10 +3,10 @@
 
   const T={
     en:{
-      onDevice:"On your device", settings:"Settings", send:"Send", speak:"Speak", addDoc:"Add a document",
+      onDevice:"On your device", settings:"Settings", send:"Send", stopGen:"Stop generating", speak:"Speak", addDoc:"Add a document",
       emptyTitle:"Hello. I'm yours.", emptyBody:"Only you and your agent are here. Nothing leaves this machine.",
       chipDoc:"Read a document with me", chipWhat:"What can you do?", placeholder:"Message your agent…",
-      listening:"Listening…", listeningBody:"Take your time. I'm hearing you on this device only.", readAloud:"Read aloud",
+      listening:"Listening…", listeningBody:"Take your time. I'm hearing you on this device only.", readAloud:"Read aloud", stopAloud:"Stop", speaking:"Generating…",
       reading:"Reading…", readDone:"Read · {n} passages, kept on your disk", readFail:"Couldn't read it",
       noReach:"I can't reach your agent. Make sure Vokter is running on this machine, then try again.",
       serverErr:"Something went wrong.", noReachShort:"Couldn't reach your agent",
@@ -51,10 +51,10 @@
       chatsLabel:"Chats", noChats:"No conversations yet"
     },
     es:{
-      onDevice:"En tu dispositivo", settings:"Ajustes", send:"Enviar", speak:"Hablar", addDoc:"Añadir un documento",
+      onDevice:"En tu dispositivo", settings:"Ajustes", send:"Enviar", stopGen:"Detener generación", speak:"Hablar", addDoc:"Añadir un documento",
       emptyTitle:"Hola. Soy tuyo.", emptyBody:"Aquí solo estáis tú y tu agente. Nada sale de esta máquina.",
       chipDoc:"Lee un documento conmigo", chipWhat:"¿Qué puedes hacer?", placeholder:"Escribe a tu agente…",
-      listening:"Escuchando…", listeningBody:"Tómate tu tiempo. Te escucho solo en este dispositivo.", readAloud:"Leer en voz alta",
+      listening:"Escuchando…", listeningBody:"Tómate tu tiempo. Te escucho solo en este dispositivo.", readAloud:"Leer en voz alta", stopAloud:"Parar", speaking:"Generando…",
       reading:"Leyendo…", readDone:"Leído · {n} fragmentos, guardado en tu disco", readFail:"No pude leerlo",
       noReach:"No llego a tu agente. Asegúrate de que Vokter está funcionando en esta máquina e inténtalo de nuevo.",
       serverErr:"Algo ha ido mal.", noReachShort:"No llego a tu agente",
@@ -303,14 +303,45 @@
   $('voiceDone').onclick=()=>stopVoice(true);
   $('voiceCancel').onclick=()=>stopVoice(false);
   $('voiceX').onclick=()=>stopVoice(false);
+  // Only ONE TTS playback at a time across the whole app, with INSTANT visual feedback: the
+  // MOMENT the button is clicked it swaps to a spinner ("generating"), then to a Stop square
+  // once audio actually plays, then back to the speaker icon when it ends/stops. On slow
+  // hardware that instant swap is what tells the user the click registered, so they don't
+  // re-click into stacked audio. Clicking the same active button (or any other) aborts the
+  // in-flight fetch AND stops the audio first; a guard on _tts identity before play() means a
+  // late/aborted fetch's audio can never start.
+  const _SPIN='<svg class="spin" width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="42 22"/></svg>';
+  const _SQUARE='<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></svg>';
+  let _tts=null;   // {btn,origHTML,ctrl,audio} of the current playback, or null
+  function _stopTTS(){
+    const s=_tts; _tts=null; if(!s) return;
+    try{ s.ctrl.abort(); }catch{}
+    if(s.audio){ try{ s.audio.pause(); }catch{} if(s.audio.src) URL.revokeObjectURL(s.audio.src); }
+    s.btn.classList.remove('say-on'); s.btn.removeAttribute('aria-label'); s.btn.innerHTML=s.origHTML;  // back to the read-aloud icon
+  }
   async function speak(text,btn){
-    const label=btn.querySelector('span'); const prev=label?label.textContent:'';
-    if(label) label.textContent='…';
+    const toggle = _tts && _tts.btn===btn;   // clicking the SAME active button = just stop
+    _stopTTS();                              // one at a time: cancel any in-progress first
+    if(toggle) return;
+    const ctrl=new AbortController();
+    const s={btn,origHTML:btn.innerHTML,ctrl,audio:null}; _tts=s;
+    // INSTANT: spinner + "…" before the audio even exists, so the click is obviously registered.
+    btn.classList.add('say-on'); btn.setAttribute('aria-label',t('speaking')); btn.innerHTML=_SPIN+'<span>…</span>';
     try{
-      const r=await fetch('/api/voice/speak',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
-      if(r.ok){ const url=URL.createObjectURL(await r.blob()); const a=new Audio(url); a.onended=()=>{URL.revokeObjectURL(url); if(label)label.textContent=prev;}; a.play(); }
-      else if(label) label.textContent=prev;
-    }catch{ if(label) label.textContent=prev; toast(t('voiceUnavail')); }
+      const r=await fetch('/api/voice/speak',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text}),signal:ctrl.signal});
+      if(_tts!==s) return;                   // superseded/stopped while the request was in flight
+      if(!r.ok){ _stopTTS(); return; }       // voice_not_ready (e.g. de/nl/ca) → quietly revert
+      const blob=await r.blob();
+      if(_tts!==s) return;                   // aborted during the read → never start late audio
+      const a=new Audio(URL.createObjectURL(blob)); s.audio=a;
+      a.onended=()=>{ if(_tts===s) _stopTTS(); };
+      btn.setAttribute('aria-label',t('stopAloud')); btn.innerHTML=_SQUARE+'<span>'+t('stopAloud')+'</span>';  // PLAYING → Stop square
+      a.play();
+    }catch(e){
+      if(e && e.name==='AbortError') return; // stopped on purpose — not an error
+      if(_tts===s) _stopTTS();
+      toast(t('voiceUnavail'));
+    }
   }
 
   const settingsView=$('settingsView'), slist=$('slist'), sTitle=$('settingsTitle');

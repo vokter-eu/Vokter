@@ -18,10 +18,13 @@ binaries = []
 hiddenimports = ["orchestrator", "keysource", "keychain", "datadir", "model_pull"]
 
 # collect_all (never collect_data_files) for every package with native pieces:
-# piper's espeakbridge.so + espeak-ng-data must travel together (spike lesson).
+# kokoro-onnx (TTS) needs its phonemizer + espeak-ng data to travel together (the same
+# espeak lesson that applied to Piper); av (PyAV) decodes the mic audio for whisper.
 # secretstorage/jeepney: the OS keychain, so --orchestrate reads it in-process.
 for pkg in (
-    "piper",
+    "kokoro_onnx",
+    "espeakng_loader",
+    "phonemizer",
     "sqlcipher3",
     "ctranslate2",
     "faster_whisper",

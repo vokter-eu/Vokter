@@ -25,7 +25,7 @@ def _get_model():
     # Prefer the model bundled + seeded by the desktop package (offline, no
     # download). Fall back to the model NAME, which faster-whisper downloads into
     # download_root on demand — the behaviour when there is no seeded copy.
-    seeded = os.path.join(download_root, "base-int8")
+    seeded = os.path.join(download_root, f"{WHISPER_MODEL}-int8")
     model_ref = seeded if os.path.exists(os.path.join(seeded, "model.bin")) else WHISPER_MODEL
     print(f"voice: loading Whisper model '{model_ref}' on {WHISPER_DEVICE}…")
     _model = WhisperModel(
