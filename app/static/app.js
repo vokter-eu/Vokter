@@ -214,15 +214,34 @@
   // the backend inject personal memory into the reply. Fall back to a direct fetch in a plain
   // browser / Docker (no token → memory withheld, deny-by-default). Returns a Response-like
   // {ok, status, json()} either way, so the handling below is identical for both paths.
-  async function askBackend(payload){
+  async function askBackend(payload,signal){
     if(window.vokter && window.vokter.ask){
       const {status, body}=await window.vokter.ask(payload);
       return { ok: status>=200 && status<300, status, json: async()=>{ if(body==null) throw new Error('empty body'); return body; } };
     }
-    return fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    return fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal});
   }
-  let streaming=false;
-  function setBusy(b){ streaming=b; q.disabled=b; $('sendBtn').disabled=b; }
+  // While a reply is generating, the send (→) button becomes a Stop (square) that aborts the
+  // in-flight /api/ask stream (same abort pattern as read-aloud). The already-streamed text
+  // stays; the backend discards the partial turn. The input is disabled meanwhile, re-enabled
+  // when the stream ends or is stopped.
+  // Explicit icons (not a captured innerHTML — that proved fragile and could restore empty):
+  const _SEND_ARROW='<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 12h15M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const _SEND_STOP='<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></svg>';
+  let streaming=false, _askAborted=false, _askCtrl=null;
+  function setBusy(b){
+    streaming=b; const sb=$('sendBtn');
+    q.disabled=b;                        // input disabled while generating…
+    sb.disabled=false;                   // …but the button stays clickable so it can Stop
+    sb.classList.toggle('stopping',b);
+    sb.setAttribute('aria-label',t(b?'stopGen':'send'));
+    sb.innerHTML = b ? _SEND_STOP : _SEND_ARROW;   // always a known icon — never blank
+  }
+  function stopStream(){                  // the Stop button while streaming
+    _askAborted=true;
+    if(window.vokter && window.vokter.askAbort) window.vokter.askAbort();   // Electron: main destroys the request
+    if(_askCtrl){ try{ _askCtrl.abort(); }catch{} }                        // browser fallback: abort the fetch
+  }
   async function send(){
     if(streaming) return;                       // in-flight guard: one generation at a time
     const text=q.value.trim(); if(!text) return;
@@ -233,38 +252,46 @@
     // full answer + sources for the final render. main.js attaches the human-session
     // token to this request exactly like vokter:ask, so personal memory still injects.
     if(window.vokter && window.vokter.askStream && window.vokter.onAskToken){
-      setBusy(true);
+      setBusy(true); _askAborted=false;
       const think=addThinking();
       let view=null, raw='', raf=0;
       const paint=()=>{ if(raf) return; raf=requestAnimationFrame(()=>{ raf=0; if(view) view.update(raw); }); };
       const ensureBubble=()=>{ if(view===null){ think.remove(); view=addAgentStreaming(); } };
       const unsub=window.vokter.onAskToken(d=>{ ensureBubble(); raw+=(d&&d.text)||''; paint(); });
+      const settle=(ok,body)=>{
+        if(_askAborted){                             // Stop clicked: keep what streamed; if nothing did, drop the empty bubble
+          if(view){ view.finalize(raw,[]); } else { think.remove(); }
+        } else if(ok&&body){
+          conversationId=body.conversation_id; ensureBubble();
+          view.finalize(body.answer, body.sources);  // authoritative re-render (fixes any partial markdown)
+        } else if(view){ view.finalize(raw||t('serverErr'), []); }
+        else { think.remove(); addAgent(t('serverErr')); }
+      };
       try{
         const {status,body}=await window.vokter.askStream({question:text,conversation_id:conversationId});
         unsub(); if(raf) cancelAnimationFrame(raf);
-        if(status>=200&&status<300&&body){
-          conversationId=body.conversation_id; ensureBubble();
-          view.finalize(body.answer, body.sources);   // authoritative re-render (fixes any partial markdown)
-        }else if(view){ view.finalize(raw||t('serverErr'), []); }
-        else{ think.remove(); addAgent(t('serverErr')); }
+        settle(status>=200&&status<300, body);
       }catch{
         unsub(); if(raf) cancelAnimationFrame(raf);
-        if(view){ view.finalize(raw||t('noReach'), []); } else { think.remove(); addAgent(t('noReach')); }
+        if(_askAborted){ if(view){ view.finalize(raw,[]); } else { think.remove(); } }
+        else if(view){ view.finalize(raw||t('noReach'), []); } else { think.remove(); addAgent(t('noReach')); }
       }finally{ setBusy(false); }
       return;
     }
 
-    // Fallback — plain browser / no shell: non-streaming request/response, unchanged.
+    // Fallback — plain browser / no shell: non-streaming, but still abortable via the Stop button.
+    setBusy(true); _askAborted=false; _askCtrl=new AbortController();
     const think=addThinking();
     try{
-      const r=await askBackend({question:text,conversation_id:conversationId});
-      let j; try{j=await r.json();}catch{ think.remove(); addAgent(t('serverErr')); return; }
+      const r=await askBackend({question:text,conversation_id:conversationId}, _askCtrl.signal);
+      let j; try{j=await r.json();}catch{ think.remove(); if(!_askAborted) addAgent(t('serverErr')); return; }
       think.remove();
       if(r.ok){ conversationId=j.conversation_id; addAgent(j.answer,j.sources); }
       else{ addAgent(j.detail||t('serverErr')); }
-    }catch{ think.remove(); addAgent(t('noReach')); }
+    }catch(e){ think.remove(); if(!(_askAborted||(e&&e.name==='AbortError'))) addAgent(t('noReach')); }
+    finally{ _askCtrl=null; setBusy(false); }
   }
-  $('sendBtn').onclick=send;
+  $('sendBtn').onclick=()=>{ if(streaming) stopStream(); else send(); };
   q.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();send();} });
 
   $('attachBtn').onclick=()=>$('fileInput').click();

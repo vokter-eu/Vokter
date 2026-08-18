@@ -322,8 +322,27 @@ ipcMain.handle('vokter:ask', (_event, body) => new Promise((resolve) => {
 // over 'vokter:ask-token', then resolves this invoke() with the final authoritative
 // {answer, sources, conversation_id, memory_withheld} — the same body shape 'vokter:ask'
 // returns, so the renderer's end-of-turn handling is unchanged.
+// The in-flight streaming request + its resolver, so the renderer's Stop button can end it
+// DETERMINISTICALLY. Abort resolves the invoke() itself (not via a stream 'error' event, which
+// is unreliable across Node versions) and destroys the request so the backend drops the
+// connection → its generator gets CancelledError and discards the partial turn.
+let _askStreamReq = null;
+let _askStreamFinish = null;
+ipcMain.on('vokter:ask-abort', () => {
+  const finish = _askStreamFinish;
+  if (_askStreamReq) { try { _askStreamReq.destroy(); } catch { /* already gone */ } }
+  _askStreamReq = null; _askStreamFinish = null;
+  if (finish) finish({ status: 0, body: null });   // resolve NOW — never leave the renderer hanging
+});
+
 ipcMain.handle('vokter:ask-stream', (event, body) => new Promise((resolve) => {
   if (!ready || backendPort == null) { resolve({ status: 0, body: null }); return; }
+  let settled = false;
+  const finish = (v) => {                  // idempotent: first caller wins (done / error / timeout / abort)
+    if (settled) return; settled = true;
+    _askStreamReq = null; _askStreamFinish = null;
+    resolve(v);
+  };
   const payload = JSON.stringify({ ...(body && typeof body === 'object' ? body : {}), stream: true });
   const req = http.request({
     host: '127.0.0.1', port: backendPort, path: '/api/ask', method: 'POST',
@@ -356,15 +375,15 @@ ipcMain.handle('vokter:ask-stream', (event, body) => new Promise((resolve) => {
         }
       }
     });
-    res.on('end', () => {
-      if (errored || done == null) { resolve({ status: 502, body: null }); return; }
-      resolve({ status: res.statusCode || 200, body: done });
-    });
+    res.on('end', () => finish((errored || done == null) ? { status: 502, body: null } : { status: res.statusCode || 200, body: done }));
+    res.on('error', () => finish({ status: 0, body: null }));       // socket torn (e.g. abort) — resolve, don't crash
+    res.on('aborted', () => finish({ status: 0, body: null }));
   });
-  req.on('error', () => resolve({ status: 0, body: null }));
-  // Same generous ceiling as 'vokter:ask' — local CPU inference is slow; resolve on
-  // timeout so the renderer's await never hangs forever.
-  req.setTimeout(310000, () => { req.destroy(); resolve({ status: 0, body: null }); });
+  _askStreamReq = req; _askStreamFinish = finish;   // expose for 'vokter:ask-abort'
+  req.on('error', () => finish({ status: 0, body: null }));
+  // Same generous ceiling as 'vokter:ask' — local CPU inference is slow; resolve on timeout so
+  // the renderer's await never hangs forever.
+  req.setTimeout(310000, () => { try { req.destroy(); } catch {} finish({ status: 0, body: null }); });
   req.write(payload);
   req.end();
 }));

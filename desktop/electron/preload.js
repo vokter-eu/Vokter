@@ -36,6 +36,10 @@ contextBridge.exposeInMainWorld('vokter', {
   // {status, body:{answer, sources, conversation_id, memory_withheld}} — same shape as ask.
   askStream: (body) => ipcRenderer.invoke('vokter:ask-stream', body),
 
+  // askAbort(): interrupt the in-flight askStream (the Stop button). main destroys the request;
+  // the streamed tokens already shown stay on screen, the backend discards the partial turn.
+  askAbort: () => ipcRenderer.send('vokter:ask-abort'),
+
   // onAskToken(cb): cb({text}) for each streamed delta. Receive-only, like
   // onDownloadProgress. Returns an unsubscribe fn — the caller MUST call it when the
   // stream ends so listeners don't pile up across turns.
