@@ -126,8 +126,10 @@ def speak(req: SpeakRequest):
         samples, sr = _get_kokoro().create(req.text, voice=voice, lang=klang)
     except HTTPException:
         raise
-    except Exception:
-        raise HTTPException(502, "Kokoro synthesis failed")
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(502, f"Kokoro synthesis failed: {e!r}"[:300])
 
     buf = io.BytesIO()
     with wave.open(buf, "wb") as wav_file:      # float32 [-1,1] → 16-bit PCM WAV, 24 kHz mono

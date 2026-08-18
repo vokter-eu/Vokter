@@ -25,6 +25,12 @@ for pkg in (
     "kokoro_onnx",
     "espeakng_loader",
     "phonemizer",
+    # phonemizer's transitive data-carrying deps — each ships JSON/locale data that Kokoro's
+    # phonemization needs at runtime (language_tags/data/json was the one that broke frozen TTS).
+    "language_tags",
+    "csvw",
+    "segments",
+    "babel",
     "sqlcipher3",
     "ctranslate2",
     "faster_whisper",
