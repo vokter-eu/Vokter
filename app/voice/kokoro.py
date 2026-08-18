@@ -75,19 +75,31 @@ def _get_kokoro():
     return _kokoro
 
 
-# 'auto' language detection for the reply text. The common case is EN vs ES (the app's two
-# UI languages); fr/it/pt get light hints. Zero-dependency on purpose — a concrete selector
-# value skips this entirely (the reply was forced into that language, so it's authoritative).
-_MARK = {
-    "es": re.compile(r"[ñ¿¡]|\b(que|de|la|el|los|las|una?|con|para|est[áa]|c[óo]mo|qu[ée]|gracias|porque|pero|hola|es)\b", re.I),
-    "fr": re.compile(r"[çœ]|\b(le|les|est|vous|bonjour|merci|pour|avec|c'est|je|une)\b", re.I),
-    "it": re.compile(r"\b(che|di|il|sono|perch[ée]|ciao|grazie|questo|molto|una|sei)\b", re.I),
-    "pt": re.compile(r"[ãõ]|ção|\b(n[ãa]o|voc[êe]|obrigad[oa]|estou|tamb[ée]m|isso|uma)\b", re.I),
+# 'auto' language detection for the reply text. The common case is EN vs ES (the app's two UI
+# languages); fr/it/pt get light hints. Zero-dependency on purpose — a concrete selector value
+# skips this entirely (the reply was forced into that language, so it's authoritative).
+#
+# Two tiers: STRONG cues are language-DISTINCTIVE (own accented chars / near-unique words) and
+# score 2; WEAK cues are pan-Romance stopwords (de/la/che/uma…) that keep recall but, at score 1,
+# can't outvote a neighbour's own strong markers — so an Italian/Portuguese reply isn't mistaken
+# for Spanish just because it shares a few little words.
+_STRONG = {
+    "es": re.compile(r"[ñ¿¡]|\b(est[áa][sn]?|c[óo]mo|qu[ée]|gracias|porque|tambi[ée]n|usted(es)?|espa[ñn]ol|hola)\b", re.I),
+    "fr": re.compile(r"[çœ]|\b(bonjour|merci|c'est|être|fran[çc]ais|vous|voilà|aujourd)\b", re.I),
+    "it": re.compile(r"\b(perch[ée]|ciao|grazie|per[òo]|sono|molto|italiano|questo)\b", re.I),
+    "pt": re.compile(r"[ãõ]|ção|\b(n[ãa]o|voc[êe]|obrigad[oa]|est[áa]|portugu[êe]s|tamb[ée]m)\b", re.I),
+}
+_WEAK = {
+    "es": re.compile(r"\b(que|de|la|el|los|las|una?|con|para|pero)\b", re.I),
+    "fr": re.compile(r"\b(le|les|est|pour|avec|une|je|des)\b", re.I),
+    "it": re.compile(r"\b(che|di|il|una|sei|come)\b", re.I),
+    "pt": re.compile(r"\b(uma|isso|estou|porque|com)\b", re.I),
 }
 
 
 def _detect(text: str) -> str:
-    scores = {lang: len(rx.findall(text)) for lang, rx in _MARK.items()}
+    scores = {lang: 2 * len(_STRONG[lang].findall(text)) + len(_WEAK[lang].findall(text))
+              for lang in _STRONG}
     best = max(scores, key=scores.get)
     return best if scores[best] > 0 else "en"
 
