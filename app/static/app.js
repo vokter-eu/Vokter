@@ -22,6 +22,10 @@
       passages:"{n} passages", deleted:"Deleted — document and its memory", loading:"Loading…",
       couldntCatch:"Couldn't catch that", micPerm:"Microphone permission needed", voiceUnavail:"Voice isn't available right now",
       dlVoice:"Getting voice", dlStt:"Getting speech model", voiceNoLang:"No local voice for this language yet",
+      rowVoiceTts:"Voice (speaking)", rowVoiceStt:"Speech-to-text (listening)", voiceNote:"Voice runs entirely on your machine. Models download once from Vokter's own servers.",
+      voiceReady:"Installed ✓", voiceAbsent:"Not downloaded", voiceGet:"Download", voiceGetting:"Downloading…",
+      voiceLangsCovered:"Voices available: English, Spanish, French, Italian, Portuguese.",
+      voiceLangsPhase2:"German, Dutch, Catalan and others: no local voice yet (coming as downloadable voice packs).",
       langNote:"Choose the language for the app. Your agent still replies in whatever language you write or speak.",
       emailNotConfigured:"Email isn't set up on this machine. Add your inbox settings in the environment to connect it.",
       emailInMemory:"{n} emails indexed on this device", emailNoneSynced:"Connected. No emails synced yet.",
@@ -72,6 +76,10 @@
       passages:"{n} fragmentos", deleted:"Borrado — el documento y su memoria", loading:"Cargando…",
       couldntCatch:"No te he entendido", micPerm:"Se necesita permiso del micrófono", voiceUnavail:"La voz no está disponible ahora mismo",
       dlVoice:"Obteniendo voz", dlStt:"Obteniendo modelo de voz", voiceNoLang:"Aún no hay voz local para este idioma",
+      rowVoiceTts:"Voz (hablar)", rowVoiceStt:"Voz a texto (escuchar)", voiceNote:"La voz corre entera en tu máquina. Los modelos se descargan una vez desde los servidores de Vokter.",
+      voiceReady:"Instalado ✓", voiceAbsent:"Sin descargar", voiceGet:"Descargar", voiceGetting:"Descargando…",
+      voiceLangsCovered:"Voces disponibles: inglés, español, francés, italiano, portugués.",
+      voiceLangsPhase2:"Alemán, neerlandés, catalán y otros: aún sin voz local (llegarán como paquetes de voz descargables).",
       langNote:"Elige el idioma de la app. Tu agente seguirá respondiendo en el idioma en que escribas o hables.",
       emailNotConfigured:"El correo no está configurado en esta máquina. Añade los datos de tu buzón en el entorno para conectarlo.",
       emailInMemory:"{n} correos indexados en este dispositivo", emailNoneSynced:"Conectado. Aún no hay correos sincronizados.",
@@ -431,7 +439,7 @@
     {k:'email',lk:'rowEmail',type:'email'},
     {k:'web',lk:'rowWeb',type:'web'},
     {k:'tasks',lk:'rowTasks',type:'tasks'},
-    {k:'voice',lk:'rowVoice',type:'placeholder',note:'noteVoice'},
+    {k:'voice',lk:'rowVoice',type:'voice'},
     {k:'model',lk:'rowModel',type:'model'},
     {k:'language',lk:'rowLanguage',type:'lang'}
   ];
@@ -462,6 +470,7 @@
     if(row.type==='web') return renderWeb();
     if(row.type==='tasks') return renderTasks();
     if(row.type==='model') return renderModel();
+    if(row.type==='voice') return renderVoice();
     sTitle.textContent=t(row.lk);
     slist.innerHTML='<div class="subwrap"><div class="placeholder">'+t(row.note)+'</div></div>';
   }
@@ -621,6 +630,38 @@
       createBtn.disabled=false;
     };
     refresh();
+  }
+
+  // ── Voice: STT + TTS model status, download-on-demand with a progress bar (voiceEnsure).
+  async function renderVoice(){
+    sTitle.textContent=t('rowVoice');
+    const wrap=_sub();
+    const note=document.createElement('div'); note.className='smeta'; note.textContent=t('voiceNote'); wrap.appendChild(note);
+    async function state(){ try{ return await (await fetch('/api/voice/state')).json(); }catch{ return {}; } }
+    function section(asset,titleKey,extraNotes){
+      const h=document.createElement('div'); h.className='ssub'; h.textContent=t(titleKey); wrap.appendChild(h);
+      const status=document.createElement('div'); status.className='smeta'; wrap.appendChild(status);
+      const bar=document.createElement('div'); bar.className='dlbar'; bar.style.display='none'; const fill=document.createElement('div'); fill.className='dlfill'; bar.appendChild(fill); wrap.appendChild(bar);
+      const btn=document.createElement('button'); btn.className='sbtn'; btn.textContent=t('voiceGet'); btn.style.display='none';
+      const acts=document.createElement('div'); acts.className='sactions'; acts.appendChild(btn); wrap.appendChild(acts);
+      (extraNotes||[]).forEach(k=>{ const n=document.createElement('div'); n.className='smeta'; n.textContent=t(k); wrap.appendChild(n); });
+      async function refresh(){
+        const st=(await state())[asset]||{status:'idle'};
+        if(st.status==='ready'){ status.textContent=t('voiceReady'); btn.style.display='none'; bar.style.display='none'; }
+        else if(st.status==='downloading'){ status.textContent=t('voiceGetting'); btn.style.display='none'; bar.style.display='';
+          if(st.total) fill.style.width=Math.round(st.downloaded/st.total*100)+'%'; }
+        else { status.textContent=t('voiceAbsent'); btn.style.display=''; bar.style.display='none'; }
+      }
+      btn.onclick=async()=>{
+        btn.disabled=true; btn.style.display='none'; bar.style.display=''; fill.style.width='0%'; status.textContent=t('voiceGetting');
+        try{ await voiceEnsure(asset,(pct)=>{ fill.style.width=Math.max(0,Math.min(100,pct))+'%'; status.textContent=t('voiceGetting')+' '+pct+'%'; }); }
+        catch{ toast(t('voiceUnavail')); }
+        btn.disabled=false; refresh();
+      };
+      refresh();
+    }
+    section('stt','rowVoiceStt');
+    section('tts','rowVoiceTts',['voiceLangsCovered','voiceLangsPhase2']);
   }
 
   // ── Model & tone: agent name / tone / mode / chat model, from and to /api/config.
