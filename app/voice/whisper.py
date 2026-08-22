@@ -4,7 +4,7 @@ import tempfile
 from fastapi import APIRouter, HTTPException, UploadFile
 
 from agent_config import get_config
-from config import VOICE_MODELS_DIR, WHISPER_DEVICE, WHISPER_MODEL
+from config import VOICE_MODELS_DIR, WHISPER_DEVICE
 from languages import whisper_lang
 
 router = APIRouter()
@@ -20,20 +20,15 @@ def _get_model():
         from faster_whisper import WhisperModel
     except ImportError:
         raise HTTPException(503, "faster-whisper not installed — add it to requirements.txt")
-    download_root = os.path.join(VOICE_MODELS_DIR, "whisper")
-    os.makedirs(download_root, exist_ok=True)
-    # Prefer the model bundled + seeded by the desktop package (offline, no
-    # download). Fall back to the model NAME, which faster-whisper downloads into
-    # download_root on demand — the behaviour when there is no seeded copy.
-    seeded = os.path.join(download_root, f"{WHISPER_MODEL}-int8")
-    model_ref = seeded if os.path.exists(os.path.join(seeded, "model.bin")) else WHISPER_MODEL
-    print(f"voice: loading Whisper model '{model_ref}' on {WHISPER_DEVICE}…")
-    _model = WhisperModel(
-        model_ref,
-        device=WHISPER_DEVICE,
-        compute_type="int8",
-        download_root=download_root,
-    )
+    # Sovereign: load ONLY the mirrored faster-whisper-small directory (fetched by voice/fetch.py
+    # from our OWN host). Never pass a model NAME — that would make faster-whisper phone HuggingFace.
+    # Absent → voice_not_ready (503); the UI kicks the download (POST /api/voice/ensure {asset:stt})
+    # and shows progress, so transcribe never silently hangs on a multi-hundred-MB fetch.
+    local = os.path.join(VOICE_MODELS_DIR, "whisper", "faster-whisper-small")
+    if not os.path.exists(os.path.join(local, "model.bin")):
+        raise HTTPException(503, "voice_not_ready: speech-to-text model not downloaded yet")
+    print(f"voice: loading Whisper (small) from {local} on {WHISPER_DEVICE}…")
+    _model = WhisperModel(local, device=WHISPER_DEVICE, compute_type="int8")
     print("voice: Whisper ready.")
     return _model
 
