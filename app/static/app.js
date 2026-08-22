@@ -21,6 +21,7 @@
       docsEmpty:"No documents yet. Attach one from the chat and your agent will read it — all on your disk.",
       passages:"{n} passages", deleted:"Deleted — document and its memory", loading:"Loading…",
       couldntCatch:"Couldn't catch that", micPerm:"Microphone permission needed", voiceUnavail:"Voice isn't available right now",
+      dlVoice:"Getting voice", dlStt:"Getting speech model", voiceNoLang:"No local voice for this language yet",
       langNote:"Choose the language for the app. Your agent still replies in whatever language you write or speak.",
       emailNotConfigured:"Email isn't set up on this machine. Add your inbox settings in the environment to connect it.",
       emailInMemory:"{n} emails indexed on this device", emailNoneSynced:"Connected. No emails synced yet.",
@@ -70,6 +71,7 @@
       docsEmpty:"Aún no hay documentos. Adjunta uno desde el chat y tu agente lo leerá — todo en tu disco.",
       passages:"{n} fragmentos", deleted:"Borrado — el documento y su memoria", loading:"Cargando…",
       couldntCatch:"No te he entendido", micPerm:"Se necesita permiso del micrófono", voiceUnavail:"La voz no está disponible ahora mismo",
+      dlVoice:"Obteniendo voz", dlStt:"Obteniendo modelo de voz", voiceNoLang:"Aún no hay voz local para este idioma",
       langNote:"Elige el idioma de la app. Tu agente seguirá respondiendo en el idioma en que escribas o hables.",
       emailNotConfigured:"El correo no está configurado en esta máquina. Añade los datos de tu buzón en el entorno para conectarlo.",
       emailInMemory:"{n} correos indexados en este dispositivo", emailNoneSynced:"Conectado. Aún no hay correos sincronizados.",
@@ -320,9 +322,17 @@
         stream.getTracks().forEach(tr=>tr.stop()); showVoice(false);
         if(!keep) return;
         const blob=new Blob(chunks,{type:'audio/webm'}); const fd=new FormData(); fd.append('audio',blob,'recording.webm');
-        try{ const r=await fetch('/api/voice/transcribe',{method:'POST',body:fd}); const j=await r.json();
-          if(r.ok&&j.text){ q.value=j.text; q.focus(); } else toast(t('couldntCatch')); }
-        catch{ toast(t('noReachShort')); }
+        const send=()=>fetch('/api/voice/transcribe',{method:'POST',body:fd});
+        try{
+          let r=await send();
+          if(r.status===503){                 // speech model not downloaded → fetch it WITH progress, then retry (was a silent multi-minute hang)
+            try{ await voiceEnsure('stt',(pct)=>toast(t('dlStt')+' '+pct+'%')); }
+            catch{ toast(t('voiceUnavail')); return; }
+            r=await send();
+          }
+          const j=await r.json();
+          if(r.ok&&j.text){ q.value=j.text; q.focus(); } else toast(t('couldntCatch'));
+        }catch{ toast(t('noReachShort')); }
       };
       rec.start(); showVoice(true);
     }catch{ toast(t('micPerm')); }
@@ -339,6 +349,24 @@
   // re-click into stacked audio. Clicking the same active button (or any other) aborts the
   // in-flight fetch AND stops the audio first; a guard on _tts identity before play() means a
   // late/aborted fetch's audio can never start.
+  // Poll-driven voice-asset download (asset='tts'|'stt'): kicks POST /api/voice/ensure, then polls
+  // GET /api/voice/state, calling onPct(percent) as it progresses. Resolves when 'ready', rejects
+  // on 'error'/network. Shared by read-aloud (tts), the mic (stt) and the Voice settings panel — so
+  // the "downloading voice…" feedback and retry are the same everywhere, no silent hang/no-op.
+  async function voiceEnsure(asset,onPct){
+    try{ await fetch('/api/voice/ensure',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({asset})}); }catch{ throw new Error('net'); }
+    return new Promise((resolve,reject)=>{
+      const tick=async()=>{
+        let st; try{ st=(await (await fetch('/api/voice/state')).json())[asset]; }catch{ return reject(new Error('net')); }
+        if(!st) return reject(new Error('nostate'));
+        if(st.status==='ready'){ if(onPct) onPct(100); return resolve(); }
+        if(st.status==='error'){ return reject(new Error('dl')); }
+        if(onPct) onPct(st.total? Math.round(st.downloaded/st.total*100):0);
+        setTimeout(tick,1000);
+      };
+      tick();
+    });
+  }
   const _SPIN='<svg class="spin" width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="42 22"/></svg>';
   const _SQUARE='<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></svg>';
   let _tts=null;   // {btn,origHTML,ctrl,audio} of the current playback, or null
@@ -356,10 +384,22 @@
     const s={btn,origHTML:btn.innerHTML,ctrl,audio:null}; _tts=s;
     // INSTANT: spinner + "…" before the audio even exists, so the click is obviously registered.
     btn.classList.add('say-on'); btn.setAttribute('aria-label',t('speaking')); btn.innerHTML=_SPIN+'<span>…</span>';
+    const doFetch=()=>fetch('/api/voice/speak',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text}),signal:ctrl.signal});
     try{
-      const r=await fetch('/api/voice/speak',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text}),signal:ctrl.signal});
+      let r=await doFetch();
       if(_tts!==s) return;                   // superseded/stopped while the request was in flight
-      if(!r.ok){ _stopTTS(); return; }       // voice_not_ready (e.g. de/nl/ca) → quietly revert
+      if(r.status===503){                    // voice not ready — WHY? (was a silent revert before)
+        let reason=''; try{ reason=(await r.json()).reason; }catch{}
+        if(reason==='no_voice'){ _stopTTS(); toast(t('voiceNoLang')); return; }  // de/nl/ca: no Kokoro voice
+        const sp=btn.querySelector('span');  // model_missing → download the voice, % in the button, then retry
+        try{ await voiceEnsure('tts',(pct)=>{ if(_tts===s&&sp) sp.textContent=t('dlVoice')+' '+pct+'%'; }); }
+        catch{ if(_tts===s) _stopTTS(); toast(t('voiceUnavail')); return; }
+        if(_tts!==s) return;
+        if(sp) sp.textContent='…';
+        r=await doFetch();
+        if(_tts!==s) return;
+      }
+      if(!r.ok){ _stopTTS(); toast(t('voiceUnavail')); return; }
       const blob=await r.blob();
       if(_tts!==s) return;                   // aborted during the read → never start late audio
       const a=new Audio(URL.createObjectURL(blob)); s.audio=a;
