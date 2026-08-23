@@ -1,6 +1,6 @@
 {
   "name": "vokter-desktop",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "private": true,
   "description": "Vokter — sovereign local AI agent",
   "author": "Vokter <noreply@vokter.eu>",
