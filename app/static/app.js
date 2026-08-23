@@ -21,7 +21,7 @@
       docsEmpty:"No documents yet. Attach one from the chat and your agent will read it — all on your disk.",
       passages:"{n} passages", deleted:"Deleted — document and its memory", loading:"Loading…",
       couldntCatch:"Couldn't catch that", micPerm:"Microphone permission needed", voiceUnavail:"Voice isn't available right now",
-      dlVoice:"Getting voice", dlStt:"Getting speech model", voiceNoLang:"No local voice for this language yet",
+      dlVoice:"Getting voice", dlStt:"Getting speech model", voiceNoLang:"No local voice for this language yet", voiceNothing:"Nothing to read aloud",
       rowVoiceTts:"Voice (speaking)", rowVoiceStt:"Speech-to-text (listening)", voiceNote:"Voice runs entirely on your machine. Models download once from Vokter's own servers.",
       voiceReady:"Installed ✓", voiceAbsent:"Not downloaded", voiceGet:"Download", voiceGetting:"Downloading…",
       voiceLangsCovered:"Voices available: English, Spanish, French, Italian, Portuguese.",
@@ -76,7 +76,7 @@
       docsEmpty:"Aún no hay documentos. Adjunta uno desde el chat y tu agente lo leerá — todo en tu disco.",
       passages:"{n} fragmentos", deleted:"Borrado — el documento y su memoria", loading:"Cargando…",
       couldntCatch:"No te he entendido", micPerm:"Se necesita permiso del micrófono", voiceUnavail:"La voz no está disponible ahora mismo",
-      dlVoice:"Obteniendo voz", dlStt:"Obteniendo modelo de voz", voiceNoLang:"Aún no hay voz local para este idioma",
+      dlVoice:"Obteniendo voz", dlStt:"Obteniendo modelo de voz", voiceNoLang:"Aún no hay voz local para este idioma", voiceNothing:"No hay nada que leer",
       rowVoiceTts:"Voz (hablar)", rowVoiceStt:"Voz a texto (escuchar)", voiceNote:"La voz corre entera en tu máquina. Los modelos se descargan una vez desde los servidores de Vokter.",
       voiceReady:"Instalado ✓", voiceAbsent:"Sin descargar", voiceGet:"Descargar", voiceGetting:"Descargando…",
       voiceLangsCovered:"Voces disponibles: inglés, español, francés, italiano, portugués.",
@@ -386,10 +386,37 @@
     if(s.audio){ try{ s.audio.pause(); }catch{} if(s.audio.src) URL.revokeObjectURL(s.audio.src); }
     s.btn.classList.remove('say-on'); s.btn.removeAttribute('aria-label'); s.btn.innerHTML=s.origHTML;  // back to the read-aloud icon
   }
-  async function speak(text,btn){
+  // Markdown/URL/emoji → plain prose for TTS, so the voice speaks words, not "asterisk asterisk".
+  // Pure string ops — CSP-safe (no innerHTML/eval). Applies to every language/voice.
+  function _ttsClean(s){
+    if(!s) return '';
+    return s
+      .replace(/```[\s\S]*?```/g,' ')                    // fenced code blocks → drop (don't read code aloud)
+      .replace(/`([^`]+)`/g,'$1')                        // inline `code` → keep the word
+      .replace(/!\[[^\]]*\]\([^)]*\)/g,' ')              // images → drop
+      .replace(/\[([^\]]+)\]\([^)]*\)/g,'$1')            // [text](url) → text
+      .replace(/<https?:\/\/[^>]+>/gi,' ')               // <autolink>
+      .replace(/\bhttps?:\/\/\S+/gi,' ')                 // bare URLs → drop
+      .replace(/\bwww\.\S+/gi,' ')
+      .replace(/^\s{0,3}#{1,6}\s+/gm,'')                 // # headers
+      .replace(/^\s{0,3}>\s?/gm,'')                      // > blockquotes
+      .replace(/^\s{0,3}([-*+]|\d+[.)])\s+/gm,'')        // list markers (bullets + numbered)
+      .replace(/^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/gm,' ') // --- *** ___ horizontal rules
+      .replace(/(\*\*|__)(.*?)\1/g,'$2')                 // **bold** __bold__
+      .replace(/(\*|_)(.*?)\1/g,'$2')                    // *italic* _italic_
+      .replace(/~~(.*?)~~/g,'$1')                        // ~~strike~~
+      .replace(/[#*_`~>|]/g,'')                          // any stray markdown / table punctuation
+      .replace(/[\u{1F000}-\u{1FAFF}\u{2190}-\u{27BF}\u{2B00}-\u{2BFF}\u{2300}-\u{23FF}\u{FE0F}\u{200D}\u{1F1E6}-\u{1F1FF}]/gu,'') // emoji/pictographs/flags
+      .replace(/[ \t]{2,}/g,' ')                         // collapse runs of spaces
+      .replace(/\s*\n\s*/g,'\n').replace(/\n{2,}/g,'\n') // tidy line breaks
+      .trim();
+  }
+  async function speak(rawText,btn){
+    const text=_ttsClean(rawText);
     const toggle = _tts && _tts.btn===btn;   // clicking the SAME active button = just stop
     _stopTTS();                              // one at a time: cancel any in-progress first
     if(toggle) return;
+    if(!text){ toast(t('voiceNothing')); return; }   // nothing speakable after cleaning (code-only / emoji-only)
     const ctrl=new AbortController();
     const s={btn,origHTML:btn.innerHTML,ctrl,audio:null}; _tts=s;
     // INSTANT: spinner + "…" before the audio even exists, so the click is obviously registered.
