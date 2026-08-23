@@ -25,7 +25,8 @@
       rowVoiceTts:"Voice (speaking)", rowVoiceStt:"Speech-to-text (listening)", voiceNote:"Voice runs entirely on your machine. Models download once from Vokter's own servers.",
       voiceReady:"Installed ✓", voiceAbsent:"Not downloaded", voiceGet:"Download", voiceGetting:"Downloading…",
       voiceLangsCovered:"Voices available: English, Spanish, French, Italian, Portuguese.",
-      voiceLangsPhase2:"German, Dutch, Catalan and others: no local voice yet (coming as downloadable voice packs).",
+      voicePacksTitle:"Extra voices (download)", voicePacksIntro:"Languages Kokoro can't speak. Download a voice pack to hear replies aloud in them.",
+      voicePackCa:"Catalan voice (Català)", voicePackDe:"German voice (Deutsch)", voicePackNl:"Dutch voice (Nederlands)",
       langNote:"Choose the language for the app. Your agent still replies in whatever language you write or speak.",
       emailNotConfigured:"Email isn't set up on this machine. Add your inbox settings in the environment to connect it.",
       emailInMemory:"{n} emails indexed on this device", emailNoneSynced:"Connected. No emails synced yet.",
@@ -79,7 +80,8 @@
       rowVoiceTts:"Voz (hablar)", rowVoiceStt:"Voz a texto (escuchar)", voiceNote:"La voz corre entera en tu máquina. Los modelos se descargan una vez desde los servidores de Vokter.",
       voiceReady:"Instalado ✓", voiceAbsent:"Sin descargar", voiceGet:"Descargar", voiceGetting:"Descargando…",
       voiceLangsCovered:"Voces disponibles: inglés, español, francés, italiano, portugués.",
-      voiceLangsPhase2:"Alemán, neerlandés, catalán y otros: aún sin voz local (llegarán como paquetes de voz descargables).",
+      voicePacksTitle:"Voces adicionales (descargar)", voicePacksIntro:"Idiomas que Kokoro no habla. Descarga un paquete de voz para oír las respuestas en ellos.",
+      voicePackCa:"Voz en catalán (Català)", voicePackDe:"Voz en alemán (Deutsch)", voicePackNl:"Voz en neerlandés (Nederlands)",
       langNote:"Elige el idioma de la app. Tu agente seguirá respondiendo en el idioma en que escribas o hables.",
       emailNotConfigured:"El correo no está configurado en esta máquina. Añade los datos de tu buzón en el entorno para conectarlo.",
       emailInMemory:"{n} correos indexados en este dispositivo", emailNoneSynced:"Conectado. Aún no hay correos sincronizados.",
@@ -365,7 +367,7 @@
     try{ await fetch('/api/voice/ensure',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({asset})}); }catch{ throw new Error('net'); }
     return new Promise((resolve,reject)=>{
       const tick=async()=>{
-        let st; try{ st=(await (await fetch('/api/voice/state')).json())[asset]; }catch{ return reject(new Error('net')); }
+        let st; try{ const j=await (await fetch('/api/voice/state')).json(); st=j[asset]||(j.packs&&j.packs[asset]); }catch{ return reject(new Error('net')); }
         if(!st) return reject(new Error('nostate'));
         if(st.status==='ready'){ if(onPct) onPct(100); return resolve(); }
         if(st.status==='error'){ return reject(new Error('dl')); }
@@ -397,10 +399,10 @@
       let r=await doFetch();
       if(_tts!==s) return;                   // superseded/stopped while the request was in flight
       if(r.status===503){                    // voice not ready — WHY? (was a silent revert before)
-        let reason=''; try{ reason=(await r.json()).reason; }catch{}
-        if(reason==='no_voice'){ _stopTTS(); toast(t('voiceNoLang')); return; }  // de/nl/ca: no Kokoro voice
-        const sp=btn.querySelector('span');  // model_missing → download the voice, % in the button, then retry
-        try{ await voiceEnsure('tts',(pct)=>{ if(_tts===s&&sp) sp.textContent=t('dlVoice')+' '+pct+'%'; }); }
+        let reason='',asset='tts'; try{ const j=await r.json(); reason=j.reason; asset=j.asset||'tts'; }catch{}
+        if(reason==='no_voice'){ _stopTTS(); toast(t('voiceNoLang')); return; }  // language no engine speaks
+        const sp=btn.querySelector('span');  // model_missing → download that voice/pack, % in the button, then retry
+        try{ await voiceEnsure(asset,(pct)=>{ if(_tts===s&&sp) sp.textContent=t('dlVoice')+' '+pct+'%'; }); }
         catch{ if(_tts===s) _stopTTS(); toast(t('voiceUnavail')); return; }
         if(_tts!==s) return;
         if(sp) sp.textContent='…';
@@ -646,7 +648,7 @@
       const acts=document.createElement('div'); acts.className='sactions'; acts.appendChild(btn); wrap.appendChild(acts);
       (extraNotes||[]).forEach(k=>{ const n=document.createElement('div'); n.className='smeta'; n.textContent=t(k); wrap.appendChild(n); });
       async function refresh(){
-        const st=(await state())[asset]||{status:'idle'};
+        const j=await state(); const st=j[asset]||(j.packs&&j.packs[asset])||{status:'idle'};   // packs nested under j.packs
         if(st.status==='ready'){ status.textContent=t('voiceReady'); btn.style.display='none'; bar.style.display='none'; }
         else if(st.status==='downloading'){ status.textContent=t('voiceGetting'); btn.style.display='none'; bar.style.display='';
           if(st.total) fill.style.width=Math.round(st.downloaded/st.total*100)+'%'; }
@@ -661,7 +663,13 @@
       refresh();
     }
     section('stt','rowVoiceStt');
-    section('tts','rowVoiceTts',['voiceLangsCovered','voiceLangsPhase2']);
+    section('tts','rowVoiceTts',['voiceLangsCovered']);
+    // Downloadable per-language Piper voice packs — the languages Kokoro can't speak.
+    const ph=document.createElement('div'); ph.className='ssub'; ph.textContent=t('voicePacksTitle'); wrap.appendChild(ph);
+    const pn=document.createElement('div'); pn.className='smeta'; pn.textContent=t('voicePacksIntro'); wrap.appendChild(pn);
+    section('ca','voicePackCa');
+    section('de','voicePackDe');
+    section('nl','voicePackNl');
   }
 
   // ── Model & tone: agent name / tone / mode / chat model, from and to /api/config.
@@ -687,7 +695,7 @@
     // is the reliable path to Catalan (auto can't tell ca from es on a small model). Endonyms so
     // the names read the same in either UI language.
     const langS=document.createElement('select'); langS.className='sin';
-    [['auto',t('langAuto')],['en','English'],['es','Español'],['ca','Català'],['fr','Français'],['it','Italiano'],['pt','Português']]
+    [['auto',t('langAuto')],['en','English'],['es','Español'],['ca','Català'],['fr','Français'],['it','Italiano'],['pt','Português'],['de','Deutsch'],['nl','Nederlands']]
       .forEach(([v,label])=>{ const o=document.createElement('option'); o.value=v; o.textContent=label; langS.appendChild(o); });
     field('modelLang',langS);
     const saveBtn=document.createElement('button'); saveBtn.className='sbtn'; saveBtn.textContent=t('modelSave');
