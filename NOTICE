@@ -14,21 +14,29 @@ Speech-to-text (STT)
 
 Text-to-speech (TTS)
 --------------------
-- Kokoro-82M (TTS model) — Apache License 2.0.
+- Kokoro-82M (TTS model, en/es/fr/it/pt) — Apache License 2.0.
   https://huggingface.co/hexgrad/Kokoro-82M
 - kokoro-onnx (ONNX runner) — MIT License.
   https://github.com/thewh1teagle/kokoro-onnx
-- eSpeak NG (phonemization, via espeakng-loader) — GNU GPL v3.
+- Piper (TTS engine for de/nl/ca voice packs) — MIT License.
+  https://github.com/rhasspy/piper
+- eSpeak NG (phonemization, via espeakng-loader and Piper) — GNU GPL v3.
   https://github.com/espeak-ng/espeak-ng
   (used only as a separate phonemizer process/library at runtime).
+
+Downloadable voice packs (Piper)
+--------------------------------
+Fetched on demand from Vokter's own mirror; redistributed under their own
+licenses, unmodified.
+- Catalan — ca_ES-upc_ona-medium (UPC / Col·lectivaT, Aina Project) —
+  CC BY-SA 3.0 ES. https://huggingface.co/rhasspy/piper-voices
+- German — de_DE-thorsten-medium (Thorsten-Voice) — CC0 1.0 (public domain).
+  https://huggingface.co/rhasspy/piper-voices
+- Dutch — nl_NL-mls-medium (Multilingual LibriSpeech) — CC BY 4.0.
+  https://huggingface.co/rhasspy/piper-voices
 
 Runtime
 -------
 - ONNX Runtime — MIT License. https://github.com/microsoft/onnxruntime
 - NumPy — BSD 3-Clause License. https://numpy.org
 
-Previously bundled and now removed
-----------------------------------
-- Piper (piper-tts) — MIT License. Replaced by Kokoro in v0.12; German, Dutch
-  and Catalan lose a local voice as a result (STT still transcribes them; the
-  chat can still reply in them).

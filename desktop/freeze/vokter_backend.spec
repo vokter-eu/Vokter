@@ -25,6 +25,11 @@ for pkg in (
     "kokoro_onnx",
     "espeakng_loader",
     "phonemizer",
+    # Piper (TTS engine 2, de/nl/ca packs): the piper package bundles its OWN espeak-ng-data +
+    # espeakbridge.so as native data/binaries — the same "data files don't travel unless
+    # collected" class that broke frozen-only TTS before (language_tags). collect_all so the
+    # frozen .deb speaks de/nl/ca, not just dev preview.
+    "piper",
     # phonemizer's transitive data-carrying deps — each ships JSON/locale data that Kokoro's
     # phonemization needs at runtime (language_tags/data/json was the one that broke frozen TTS).
     "language_tags",

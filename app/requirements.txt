@@ -4,9 +4,12 @@ httpx==0.27.*
 pypdf==5.*
 python-multipart>=0.0.18
 faster-whisper>=1.0,<2
-# TTS: Kokoro-82M (Apache-2.0) via kokoro-onnx — runs on the onnxruntime faster-whisper
-# already pulls in, no PyTorch. Replaced Piper (piper-tts) in v0.12.
+# TTS engine 1: Kokoro-82M (Apache-2.0) via kokoro-onnx — runs on the onnxruntime faster-whisper
+# already pulls in, no PyTorch. Covers en/es/fr/it/pt.
 kokoro-onnx>=0.4,<1
+# TTS engine 2: Piper (MIT) — the languages Kokoro can't speak (de/nl/ca), as on-demand
+# per-language voice packs. Same onnxruntime; ships piper-phonemize (its own espeak-ng data).
+piper-tts==1.4.2
 sqlcipher3>=0.5,<1
 mcp>=1.0,<2
 nostr-sdk>=0.44,<1
