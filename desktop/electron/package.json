@@ -49,8 +49,8 @@
         ]
       },
       {
-        "from": "../runtime/voice-seed",
-        "to": "desktop/runtime/voice-seed"
+        "from": "../../NOTICE",
+        "to": "NOTICE"
       }
     ],
     "linux": {
@@ -60,7 +60,7 @@
       ],
       "category": "Utility",
       "maintainer": "Vokter <noreply@vokter.eu>",
-      "description": "Sovereign local AI agent (C2: bundles the frozen backend, native Ollama CPU-only, and offline voice — piper + whisper. LLM weights download on first run; GPU acceleration is an optional future add-on)."
+      "description": "Sovereign local AI agent: bundles the frozen backend and native Ollama (CPU-only). LLM weights and voice models (Kokoro/Piper TTS + whisper STT) download on first run from Vokter's own mirror; GPU acceleration is an optional future add-on."
     },
     "deb": {
       "afterInstall": "build/deb-after-install.sh",
