@@ -25,6 +25,7 @@ CATALOG = [
     {"tier": "light",    "model": "qwen2.5:3b",       "size_gb": 2.0,  "source": "registry"},
     {"tier": "balanced", "model": "gemma3:4b",        "size_gb": 3.0,  "source": "registry"},
     {"tier": "powerful", "model": "qwen3:30b-a3b",    "size_gb": 18.0, "source": "registry"},
+    {"tier": "catalan",  "model": "salamandra-2b-instruct", "size_gb": 1.5, "source": "mirror"},
 ]
 _BY_TIER = {c["tier"]: c for c in CATALOG}
 
@@ -111,9 +112,13 @@ def detect() -> dict:
     }
 
 
-def recommend(hw: dict) -> dict:
-    """Map detected hardware → a curated tier. SWA lesson baked in: never suggest gemma3:4b
-    (SWA) without a GPU or a capable CPU — it would be ~10 s/message on a weak machine."""
+def recommend(hw: dict, lang: str = "auto") -> dict:
+    """Map detected hardware (and the reply language) → a curated model. Catalan gets Salamandra
+    (BSC, Apache-2.0) — measurably better Catalan than qwen2.5:3b and non-SWA/CPU-fast; qwen2.5:3b
+    stays the default for everything else. SWA lesson baked in: never suggest gemma3:4b (SWA)
+    without a GPU or a capable CPU — it would be ~10 s/message on a weak machine."""
+    if lang == "ca":
+        return _BY_TIER["catalan"]
     ram = hw.get("ram_gb") or 0.0
     cores = hw.get("cpu_cores") or 1
     gpu = hw.get("gpu")
@@ -132,6 +137,10 @@ def recommend(hw: dict) -> dict:
 
 
 @router.get("/api/hardware")
-def hardware():
+def hardware(lang: str | None = None):
+    # `lang` lets the picker PREVIEW the recommendation for the currently-selected reply language
+    # (before Save); without it we fall back to the saved config language.
+    from agent_config import get_config
     hw = detect()
-    return {"hardware": hw, "recommended": recommend(hw), "catalog": CATALOG}
+    lang = (lang or get_config().get("language") or "auto").strip()
+    return {"hardware": hw, "recommended": recommend(hw, lang), "catalog": CATALOG}
