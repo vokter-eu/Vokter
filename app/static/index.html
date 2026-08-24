@@ -165,6 +165,19 @@
   .vbtn.done{width:72px;height:72px;background:#FBFAF6}
   @keyframes halo{0%{transform:scale(.7);opacity:.7}100%{transform:scale(1.35);opacity:0}}
   @keyframes bar{0%,100%{transform:scaleY(.4)}50%{transform:scaleY(1)}}
+  /* Voice-conversation mode (Phase 1): reuses #voiceView, driven by data-vs state */
+  .rnd.convo{width:36px;height:36px;border-radius:var(--r);background:var(--tint);color:var(--green)}
+  .rnd.convo:hover{background:var(--sand)}
+  .vhint{color:rgba(251,250,246,.7);font-size:12.5px;margin-top:16px;min-height:1.2em}
+  #voiceView .vbtn.stop{display:none;width:72px;height:72px;background:#FBFAF6;color:var(--green)}
+  /* In convo mode: hide the one-shot dictation buttons, show Stop */
+  #voiceView.convo .vbtn.cancel,#voiceView.convo .vbtn.done{display:none}
+  #voiceView.convo .vbtn.stop{display:grid}
+  /* State cues on the orb: thinking = amber pulse (no bars), speaking = faster green bars */
+  #voiceView[data-vs="thinking"] .vwave span{animation:none;transform:scaleY(.5);background:var(--amber)}
+  #voiceView[data-vs="thinking"] .ring{animation-duration:1.2s}
+  #voiceView[data-vs="speaking"] .vwave span{animation-duration:.5s}
+  #voiceView[data-vs="speaking"] .ring{animation:none}
 
   #settingsView{background:var(--cream)}
   .stop{flex:0 0 auto;display:flex;align-items:center;gap:12px;width:100%;max-width:720px;margin:0 auto;padding:calc(18px + env(safe-area-inset-top)) 20px 18px 14px}
@@ -338,6 +351,9 @@
         <button class="rnd mic" id="micBtn" data-i18n-aria="speak" aria-label="Speak">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="9" y="3" width="6" height="12" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         </button>
+        <button class="rnd convo" id="convoBtn" data-i18n-aria="voiceConvo" aria-label="Voice conversation">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 10v4M7 6v12M11 3v18M15 6v12M19 10v4M23 11v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
         <button class="rnd send" id="sendBtn" data-i18n-aria="send" aria-label="Send">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 12h15M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
@@ -351,10 +367,12 @@
       <div class="vhalo"><span class="ring"></span><div class="vwave"><span></span><span></span><span></span><span></span><span></span></div></div>
       <h2 data-i18n="listening">Listening…</h2>
       <p data-i18n="listeningBody">Take your time. I'm hearing you on this device only.</p>
+      <div class="vhint" id="voiceHint"></div>
     </div>
     <div class="vbtns">
       <button class="vbtn cancel" id="voiceCancel" aria-label="Cancel"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M6 18 18 6" stroke="#FBFAF6" stroke-width="2" stroke-linecap="round"/></svg></button>
       <button class="vbtn done" id="voiceDone" aria-label="Done"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#2D6A4F" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button class="vbtn stop" id="voiceStop" aria-label="Stop"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2.5"/></svg></button>
     </div>
   </div>
 
