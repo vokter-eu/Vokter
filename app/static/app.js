@@ -46,7 +46,8 @@
       modelPick:"Chat model", modelCurrentDefault:"(current default)", modelActiveTitle:"Active chat model",
       modelNone:"No models installed yet — download one below.", modelLoading:"Loading…",
       dlTitle:"Download a model", dlHint:"Models run entirely on your machine. Pick a recommended one, or type any Ollama model name.",
-      dlLight:"light & fast", dlBetter:"better quality", dlSmart:"smartest · needs 16GB+ RAM",
+      mtLight:"Light", mtBalanced:"Balanced", mtPowerful:"Powerful", recBadge:"Best for your computer",
+      recOnbA:"Your computer runs best with", recOnbB:"Download it?", recGet:"Download", recNo:"Not now",
       dlPh:"any Ollama model name, e.g. mistral", dlBtn:"Download", dlStop:"Stop", dlCancelled:"Download stopped.",
       dlManifest:"Preparing…", dlVerify:"Verifying…", dlDownloading:"Downloading", dlDone:"Downloaded ✓",
       dlErr:"Download failed", dlBusy:"A download is already running.", dlNameNeeded:"Type a model name first.",
@@ -101,7 +102,8 @@
       modelPick:"Modelo de chat", modelCurrentDefault:"(por defecto actual)", modelActiveTitle:"Modelo de chat activo",
       modelNone:"Aún no hay modelos instalados — descarga uno abajo.", modelLoading:"Cargando…",
       dlTitle:"Descargar un modelo", dlHint:"Los modelos corren enteros en tu máquina. Elige uno recomendado o escribe cualquier nombre de modelo de Ollama.",
-      dlLight:"ligero y rápido", dlBetter:"mejor calidad", dlSmart:"el más listo · necesita 16GB+ RAM",
+      mtLight:"Ligero", mtBalanced:"Equilibrado", mtPowerful:"Potente", recBadge:"Lo mejor para tu ordenador",
+      recOnbA:"Tu ordenador funciona mejor con", recOnbB:"¿Lo descargas?", recGet:"Descargar", recNo:"Ahora no",
       dlPh:"cualquier modelo de Ollama, p. ej. mistral", dlBtn:"Descargar", dlStop:"Parar", dlCancelled:"Descarga detenida.",
       dlManifest:"Preparando…", dlVerify:"Verificando…", dlDownloading:"Descargando", dlDone:"Descargado ✓",
       dlErr:"Falló la descarga", dlBusy:"Ya hay una descarga en curso.", dlNameNeeded:"Escribe primero un nombre de modelo.",
@@ -376,6 +378,23 @@
       };
       tick();
     });
+  }
+  const _TIER_LK={light:'mtLight',balanced:'mtBalanced',powerful:'mtPowerful'};   // tier → friendly-label i18n key
+  // Shared model pull: POST /api/models/pull, parse the SSE, report progress/status via callbacks.
+  // Single source used by the Settings picker AND the onboarding recommendation (no duplicate SSE).
+  async function pullModel(name,{onProgress,onStatus,signal}={}){
+    const resp=await fetch('/api/models/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name}),signal});
+    if(!resp.ok||!resp.body) throw new Error('no stream');
+    const reader=resp.body.getReader(); const dec=new TextDecoder(); let buf='';
+    while(true){ const {value,done}=await reader.read(); if(done) break; buf+=dec.decode(value,{stream:true});
+      let i; while((i=buf.indexOf('\n\n'))>=0){ const frame=buf.slice(0,i); buf=buf.slice(i+2);
+        const ln=frame.startsWith('data:')?frame.slice(5).trim():frame.trim(); if(!ln) continue;
+        let o; try{o=JSON.parse(ln);}catch{continue;}
+        if(o.error) throw new Error(o.error);
+        if(o.done){ onProgress&&onProgress(100,false); onStatus&&onStatus('done',o); return; }
+        onProgress&&onProgress(o.percent||0,!!o.indeterminate); onStatus&&onStatus((o.status||'').toLowerCase(),o);
+      }
+    }
   }
   const _SPIN='<svg class="spin" width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="42 22"/></svg>';
   const _SQUARE='<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></svg>';
@@ -769,7 +788,6 @@
     ssub('dlTitle');
     const dlHint=document.createElement('div'); dlHint.className='smeta'; dlHint.textContent=t('dlHint'); wrap.appendChild(dlHint);
     const chips=document.createElement('div'); chips.className='mchips'; wrap.appendChild(chips);
-    const CURATED=[['llama3.2:3b','~2GB','dlLight'],['gemma3:4b','~3GB','dlBetter'],['qwen3:30b-a3b','~18GB','dlSmart']];
     const nameIn=document.createElement('input'); nameIn.type='text'; nameIn.className='sin'; nameIn.placeholder=t('dlPh'); nameIn.setAttribute('autocomplete','off');
     const dlBtn=document.createElement('button'); dlBtn.className='sbtn'; dlBtn.textContent=t('dlBtn');
     const stopBtn=document.createElement('button'); stopBtn.className='sbtn ghost'; stopBtn.textContent=t('dlStop'); stopBtn.style.display='none';
@@ -790,34 +808,34 @@
       stopBtn.style.display=''; stopBtn.disabled=false;
       fill.style.width='0%'; setBar(0,true); dlStatus.textContent=t('dlManifest');
       try{
-        const resp=await fetch('/api/models/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name}),signal:pullCtrl.signal});
-        if(!resp.ok||!resp.body) throw new Error('no stream');
-        const reader=resp.body.getReader(); const dec=new TextDecoder(); let buf='', errored=false;
-        while(true){ const {value,done}=await reader.read(); if(done) break; buf+=dec.decode(value,{stream:true});
-          let i; while((i=buf.indexOf('\n\n'))>=0){ const frame=buf.slice(0,i); buf=buf.slice(i+2);
-            const ln=frame.startsWith('data:')?frame.slice(5).trim():frame.trim(); if(!ln) continue;
-            let o; try{o=JSON.parse(ln);}catch{continue;}
-            if(o.error){ errored=true; dlStatus.textContent=t('dlErr')+' — '+o.error; break; }
-            if(o.done){ setBar(100,false); dlStatus.textContent=t('dlDone'); }
-            else{ const s=(o.status||'').toLowerCase();
-              const label=s.includes('verif')?t('dlVerify'):s.includes('manifest')?t('dlManifest'):t('dlDownloading')+' '+name+(o.indeterminate?'…':' · '+Math.round(o.percent||0)+'%');
-              dlStatus.textContent=label; setBar(o.percent||0,!!o.indeterminate);
-            }
-          }
-          if(errored) break;
-        }
-        if(!errored){ await refresh(); nameIn.value=''; setTimeout(()=>{ bar.style.display='none'; },600); }
+        await pullModel(name,{signal:pullCtrl.signal,
+          onProgress:(pct,indet)=>setBar(pct,indet),
+          onStatus:(s,o)=>{ if(s==='done'){ setBar(100,false); dlStatus.textContent=t('dlDone'); return; }
+            dlStatus.textContent = s.includes('verif')?t('dlVerify') : s.includes('manifest')?t('dlManifest')
+              : t('dlDownloading')+' '+name+((o&&o.indeterminate)?'…':' · '+Math.round((o&&o.percent)||0)+'%'); }});
+        await refresh(); nameIn.value=''; setTimeout(()=>{ bar.style.display='none'; },600);
       }catch(e){
         if(e && e.name==='AbortError'){ dlStatus.textContent=t('dlCancelled'); bar.style.display='none'; }
-        else{ dlStatus.textContent=t('dlErr'); }
+        else{ dlStatus.textContent=t('dlErr')+((e&&e.message)?(' — '+e.message):''); }
       }
       pulling=false; pullCtrl=null;
       dlBtn.disabled=false; chips.querySelectorAll('button').forEach(b=>b.disabled=false);
       stopBtn.style.display='none';
     }
-    CURATED.forEach(([mn,sz,lk])=>{ const b=document.createElement('button'); b.type='button'; b.className='mchip';
-      const c=document.createElement('span'); c.className='mcn'; c.textContent=mn; const d=document.createElement('span'); d.className='mcd'; d.textContent=sz+' · '+t(lk);
-      b.appendChild(c); b.appendChild(d); b.onclick=()=>startPull(mn); chips.appendChild(b); });
+    // Chips are built from the backend catalog (GET /api/hardware) — single source of truth, so
+    // the picker and the recommendation can't drift. The machine-matched tier gets the ✦ badge.
+    (async()=>{
+      let hw; try{ hw=await (await fetch('/api/hardware')).json(); }catch{ hw={}; }
+      const rec=(hw.recommended||{}).model;
+      (hw.catalog||[]).forEach(({tier,model,size_gb})=>{
+        const b=document.createElement('button'); b.type='button'; b.className='mchip'+(model===rec?' rec':'');
+        const c=document.createElement('span'); c.className='mcn'; c.textContent=model;
+        const d=document.createElement('span'); d.className='mcd'; d.textContent='~'+size_gb+'GB · '+t(_TIER_LK[tier]||'');
+        b.appendChild(c); b.appendChild(d);
+        if(model===rec){ const badge=document.createElement('span'); badge.className='mcrec'; badge.textContent='✦ '+t('recBadge'); b.appendChild(badge); }
+        b.onclick=()=>startPull(model); chips.appendChild(b);
+      });
+    })();
     dlBtn.onclick=()=>startPull(nameIn.value);
     nameIn.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); startPull(nameIn.value); } });
 
@@ -904,9 +922,45 @@
     catch{ el.textContent=''; }
   }
 
+  // Onboarding: if the machine's recommended model isn't installed yet, offer a one-tap download
+  // on the welcome screen. Adds value only when it should — a fresh weak machine already has the
+  // Light default, so it simply won't appear. Dismissible (remembered). 100% local, CSP-safe.
+  async function maybeShowRecommendation(){
+    const host=$('empty'); if(!host) return;
+    try{ if(localStorage.getItem('vokter_rec_dismissed')) return; }catch{}
+    let hw, models;
+    try{ [hw,models]=await Promise.all([(await fetch('/api/hardware')).json(),(await fetch('/api/models')).json()]); }catch{ return; }
+    const rec=hw.recommended||{}, installed=(models.models||[]);
+    if(!rec.model || installed.includes(rec.model)) return;      // already have the best → no nag
+    const label=t(_TIER_LK[rec.tier]||'');
+    const card=document.createElement('div'); card.className='reccard';
+    const txt=document.createElement('div'); txt.className='smeta'; txt.textContent=t('recOnbA')+' '+label+' (~'+rec.size_gb+'GB). '+t('recOnbB');
+    const bar=document.createElement('div'); bar.className='dlbar'; bar.style.display='none'; const fill=document.createElement('div'); fill.className='dlfill'; bar.appendChild(fill);
+    const st=document.createElement('div'); st.className='smeta';
+    const acts=document.createElement('div'); acts.className='recacts';
+    const dl=document.createElement('button'); dl.className='sbtn'; dl.textContent=t('recGet');
+    const no=document.createElement('button'); no.className='sbtn ghost'; no.textContent=t('recNo');
+    acts.appendChild(dl); acts.appendChild(no);
+    card.appendChild(txt); card.appendChild(bar); card.appendChild(st); card.appendChild(acts); host.appendChild(card);
+    no.onclick=()=>{ try{ localStorage.setItem('vokter_rec_dismissed','1'); }catch{} card.remove(); };
+    dl.onclick=async()=>{
+      dl.disabled=true; no.disabled=true; bar.style.display=''; fill.style.width='0%'; st.textContent=t('dlManifest');
+      try{
+        await pullModel(rec.model,{
+          onProgress:(pct,indet)=>{ fill.classList.toggle('indet',!!indet); if(!indet) fill.style.width=Math.max(0,Math.min(100,pct))+'%'; },
+          onStatus:(s,o)=>{ st.textContent = s==='done'?t('dlDone') : s.includes('verif')?t('dlVerify') : s.includes('manifest')?t('dlManifest')
+            : t('dlDownloading')+((o&&o.indeterminate)?'…':' · '+Math.round((o&&o.percent)||0)+'%'); }});
+        try{ await fetch('/api/config',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_model:rec.model})}); }catch{}
+        try{ localStorage.setItem('vokter_rec_dismissed','1'); }catch{}
+        st.textContent=t('dlDone'); refreshModelBadge(); setTimeout(()=>card.remove(),1500);
+      }catch(e){ st.textContent=t('dlErr'); dl.disabled=false; no.disabled=false; }
+    };
+  }
+
   applyStatic();
   applyTheme();
   loadDocCount();
   refreshModelBadge();
+  maybeShowRecommendation();
   q.focus();
 })();

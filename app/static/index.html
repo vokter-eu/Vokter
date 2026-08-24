@@ -239,6 +239,13 @@
   .dlfill{height:100%;width:0;background:var(--green);border-radius:99px;transition:width .25s ease}
   .dlfill.indet{width:35%;animation:dlslide 1.1s ease-in-out infinite}
   @keyframes dlslide{0%{margin-left:-35%}100%{margin-left:100%}}
+  /* Hardware recommendation: badge on the matching model chip + onboarding card */
+  .mchip{flex-wrap:wrap}
+  .mchip.rec{border-color:var(--green);background:var(--tint)}
+  .mcrec{flex-basis:100%;margin-top:5px;font-size:11px;font-weight:600;color:var(--green)}
+  .reccard{margin-top:22px;width:100%;max-width:34ch;text-align:left;background:var(--cream2);border:1px solid var(--sand);border-radius:var(--r-sm);padding:14px 16px;box-shadow:var(--shadow)}
+  .reccard .smeta{margin:0}
+  .recacts{display:flex;gap:8px;margin-top:12px}
   @media (prefers-reduced-motion:reduce){.dlfill,.dlfill.indet{transition:none;animation:none}}
   .swarn{display:flex;gap:9px;font-size:12.5px;line-height:1.55;color:var(--ink-2);background:color-mix(in srgb,var(--amber) 12%,transparent);border:1px solid color-mix(in srgb,var(--amber) 45%,transparent);border-radius:var(--r-sm);padding:10px 12px;margin:8px 6px}
   .swarn svg{flex:0 0 auto;color:var(--amber);margin-top:1px}
