@@ -1,7 +1,7 @@
 import os
 import tempfile
 
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, Form, HTTPException, UploadFile
 
 from agent_config import get_config
 from config import VOICE_MODELS_DIR, WHISPER_DEVICE
@@ -34,7 +34,7 @@ def _get_model():
 
 
 @router.post("/api/voice/transcribe")
-async def transcribe(audio: UploadFile):
+async def transcribe(audio: UploadFile, fast: bool = Form(False)):
     suffix = os.path.splitext(audio.filename or "audio.webm")[1] or ".webm"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(await audio.read())
@@ -44,7 +44,10 @@ async def transcribe(audio: UploadFile):
         # Pass the selected language to Whisper when it's concrete (more accurate); None for
         # 'auto'/unknown → Whisper auto-detects, today's behaviour.
         lang = whisper_lang(get_config().get("language", "auto"))
-        segments, _ = model.transcribe(tmp_path, beam_size=5, language=lang)
+        # Voice-conversation mode sends fast=true → greedy decode (beam_size=1) to cut latency
+        # on weak CPUs; the one-shot dictation button keeps beam_size=5 for accuracy.
+        beam = 1 if fast else 5
+        segments, _ = model.transcribe(tmp_path, beam_size=beam, language=lang)
         text = " ".join(s.text.strip() for s in segments).strip()
         return {"text": text}
     except HTTPException:
