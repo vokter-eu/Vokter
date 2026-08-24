@@ -17,6 +17,10 @@
   "build": {
     "appId": "eu.vokter.desktop",
     "productName": "Vokter",
+    "electronLanguages": [
+      "en-US",
+      "es"
+    ],
     "files": [
       "main.js",
       "loading.html",

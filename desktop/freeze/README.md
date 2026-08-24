@@ -10,11 +10,19 @@ nostr) travel inside the bundle.
 # one-time: the desktop venv from ../setup.sh, plus PyInstaller
 ../runtime/venv/bin/pip install "pyinstaller>=6" pyinstaller-hooks-contrib
 
-../runtime/venv/bin/pyinstaller --noconfirm vokter_backend.spec
+# freeze + prune (do NOT call pyinstaller directly — see below)
+./build.sh
 ```
 
-Output: `dist/vokter-backend/` (~480 MB, git-ignored). PyInstaller does not
-cross-compile — build on each target OS.
+Output: `dist/vokter-backend/` (~410 MB after prune, git-ignored). PyInstaller
+does not cross-compile — build on each target OS.
+
+**Use `./build.sh`, not raw `pyinstaller`.** It runs the freeze and then
+`prune_frozen.py`, which deletes data the voice engines *can* reach but our
+languages never use — unused espeak `*_dict` (both espeak-ng-data copies),
+`hf_xet` (HuggingFace is never contacted at runtime), and unused `babel`
+locales — ~69 MB. A bare `pyinstaller` re-includes all of it, so the .deb only
+stays lean when the build goes through this wrapper.
 
 ## Run
 
