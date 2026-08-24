@@ -46,7 +46,9 @@ async def transcribe(audio: UploadFile, fast: bool = Form(False)):
         lang = whisper_lang(get_config().get("language", "auto"))
         # Voice-conversation mode sends fast=true → greedy decode (beam_size=1) to cut latency
         # on weak CPUs; the one-shot dictation button keeps beam_size=5 for accuracy.
-        beam = 1 if fast else 5
+        # Catalan is the exception: whisper-small mishears it, so ALWAYS beam_size=5 for ca
+        # (accept the extra latency for accuracy), even in voice mode.
+        beam = 5 if lang == "ca" else (1 if fast else 5)
         segments, _ = model.transcribe(tmp_path, beam_size=beam, language=lang)
         text = " ".join(s.text.strip() for s in segments).strip()
         return {"text": text}
