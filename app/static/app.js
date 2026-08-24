@@ -22,6 +22,9 @@
       passages:"{n} passages", deleted:"Deleted — document and its memory", loading:"Loading…",
       couldntCatch:"Couldn't catch that", micPerm:"Microphone permission needed", voiceUnavail:"Voice isn't available right now",
       dlVoice:"Getting voice", dlStt:"Getting speech model", voiceNoLang:"No local voice for this language yet", voiceNothing:"Nothing to read aloud",
+      voiceConvo:"Voice conversation", vmPrepare:"Getting ready…", vmThink:"Thinking…", vmThinkBody:"Working out a reply.",
+      vmSpeak:"Speaking…", vmSpeakBody:"Talk any time to interrupt.", vmHeadphones:"Tip: use headphones for the best results.",
+      vmSlow:"Live voice may be slow on this computer.", vmAutoNudge:"Pick a language in Settings for the clearest voice.",
       rowVoiceTts:"Voice (speaking)", rowVoiceStt:"Speech-to-text (listening)", voiceNote:"Voice runs entirely on your machine. Models download once from Vokter's own servers.",
       voiceReady:"Installed ✓", voiceAbsent:"Not downloaded", voiceGet:"Download", voiceGetting:"Downloading…",
       voiceLangsCovered:"Voices available: English, Spanish, French, Italian, Portuguese.",
@@ -78,6 +81,9 @@
       passages:"{n} fragmentos", deleted:"Borrado — el documento y su memoria", loading:"Cargando…",
       couldntCatch:"No te he entendido", micPerm:"Se necesita permiso del micrófono", voiceUnavail:"La voz no está disponible ahora mismo",
       dlVoice:"Obteniendo voz", dlStt:"Obteniendo modelo de voz", voiceNoLang:"Aún no hay voz local para este idioma", voiceNothing:"No hay nada que leer",
+      voiceConvo:"Conversación por voz", vmPrepare:"Preparando…", vmThink:"Pensando…", vmThinkBody:"Preparando una respuesta.",
+      vmSpeak:"Hablando…", vmSpeakBody:"Habla cuando quieras para interrumpir.", vmHeadphones:"Consejo: usa auriculares para un mejor resultado.",
+      vmSlow:"La voz en directo puede ir lenta en este ordenador.", vmAutoNudge:"Elige un idioma en Ajustes para una voz más clara.",
       rowVoiceTts:"Voz (hablar)", rowVoiceStt:"Voz a texto (escuchar)", voiceNote:"La voz corre entera en tu máquina. Los modelos se descargan una vez desde los servidores de Vokter.",
       voiceReady:"Instalado ✓", voiceAbsent:"Sin descargar", voiceGet:"Descargar", voiceGetting:"Descargando…",
       voiceLangsCovered:"Voces disponibles: inglés, español, francés, italiano, portugués.",
@@ -353,7 +359,205 @@
   $('micBtn').onclick=startVoice;
   $('voiceDone').onclick=()=>stopVoice(true);
   $('voiceCancel').onclick=()=>stopVoice(false);
-  $('voiceX').onclick=()=>stopVoice(false);
+  $('voiceX').onclick=()=>{ if(VMODE.active) VMODE.stop(); else stopVoice(false); };
+
+  // ============================================================================
+  // Phase 1 — hands-free "voice conversation" mode. Reuses #voiceView as a state
+  // machine (Listening → Thinking → Speaking → loop): WebAudio RMS silence
+  // detection (no VAD model, CSP-safe), greedy STT, sentence-chunked TTS, and
+  // echo-guarded barge-in. Sovereign: mic + same-origin /api only, no cloud.
+  // ============================================================================
+  const VMODE=(function(){
+    const view=$('voiceView'), h2=view.querySelector('.vmid h2'), pEl=view.querySelector('.vmid p');
+    const hint=$('voiceHint');
+    // Tuning (calibrated for a weak CPU / quiet room).
+    const SIL_MS=1200, MIN_UTT_MS=400, MAX_UTT_MS=15000, NO_ONSET_MS=12000, CALIB_MS=350;
+    const ONSET_FRAMES=3, FLOOR_FACTOR=2.2, ABS_MIN=0.012;
+    const SPEAK_ONSET_MULT=2.6, BARGE_GUARD_MS=500;      // echo defence while SPEAKING
+    // Barge-in listens through the mic WHILE Vokter speaks — on speakers, Vokter's own voice
+    // echoes back and self-triggers, cutting itself off. Default OFF so replies always finish;
+    // reliable barge-in needs headphones/AEC (a later refinement). Flip to re-tune with headphones.
+    const BARGE_ENABLED=false;
+
+    let active=false, state='idle';
+    let stream=null, rec=null, recChunks=[], ctx=null, analyser=null, buf=null, rafId=0;
+    let ambient=0, framesAbove=0, silenceStart=0, spoke=false, listenStart=0;
+    let ttsQ=[], ttsBusy=false, curSrc=null, curClipRes=null, curFetch=null, speakStartAt=0;
+    let generating=false, unsubTok=null, bubble=null, ttsText='', ttsCursor=0;
+
+    function setState(s){
+      state=s; view.setAttribute('data-vs',s);
+      const M={listening:['listening','listeningBody'],thinking:['vmThink','vmThinkBody'],speaking:['vmSpeak','vmSpeakBody']};
+      const k=M[s]; if(k){ h2.textContent=t(k[0]); pEl.textContent=t(k[1]); }
+    }
+    function setHint(txt){ hint.textContent=txt||''; }
+
+    // ---- WebAudio RMS meter (CSP-safe, no dep) ----
+    function startMeter(){
+      buf=new Float32Array(analyser.fftSize);
+      const tick=()=>{ if(!active) return; analyser.getFloatTimeDomainData(buf);
+        let s=0; for(let i=0;i<buf.length;i++) s+=buf[i]*buf[i]; onRms(Math.sqrt(s/buf.length));
+        rafId=requestAnimationFrame(tick); };
+      rafId=requestAnimationFrame(tick);
+    }
+    function onRms(rms){
+      const now=performance.now();
+      if(state==='listening'){
+        if(now-listenStart<CALIB_MS){ ambient=Math.max(ambient,rms); return; }     // learn the noise floor
+        const thr=Math.max(ambient*FLOOR_FACTOR, ABS_MIN);
+        if(rms>thr){ framesAbove++; if(framesAbove>=ONSET_FRAMES) spoke=true; silenceStart=0; }
+        else { framesAbove=0; if(spoke){ if(!silenceStart) silenceStart=now;
+          else if(now-silenceStart>SIL_MS && now-listenStart>MIN_UTT_MS) endUtterance(); } }
+        if(spoke && now-listenStart>MAX_UTT_MS) endUtterance();
+        if(!spoke && now-listenStart>NO_ONSET_MS){ listenStart=now; ambient=0; }    // idle → recalibrate
+      } else if(state==='speaking'){
+        if(!BARGE_ENABLED) return;                                                  // barge-in off → echo can't cut Vokter off
+        if(now-speakStartAt<BARGE_GUARD_MS) return;                                 // ignore the clip's own onset
+        const thr=Math.max(ambient*FLOOR_FACTOR, ABS_MIN)*SPEAK_ONSET_MULT;         // higher bar vs echo
+        if(rms>thr){ framesAbove++; if(framesAbove>=ONSET_FRAMES+2) bargeIn(); } else framesAbove=0;
+      }
+    }
+
+    // ---- listen → record → transcribe ----
+    function startListening(){
+      if(!active) return;
+      spoke=false; framesAbove=0; silenceStart=0; ambient=0; listenStart=performance.now(); recChunks=[];
+      try{ rec=new MediaRecorder(stream); rec.ondataavailable=e=>recChunks.push(e.data); rec.onstop=onRecStop; rec.start(); }
+      catch{ stop(); return; }
+      setState('listening'); setHint(t('vmHeadphones'));
+    }
+    function endUtterance(){ if(rec && rec.state==='recording'){ try{ rec.stop(); }catch{} } }
+    async function onRecStop(){
+      if(!active) return;
+      if(!spoke){ startListening(); return; }                    // no speech captured → keep listening
+      const blob=new Blob(recChunks,{type:'audio/webm'});
+      setState('thinking'); setHint('');
+      const fd=new FormData(); fd.append('audio',blob,'v.webm'); fd.append('fast','true');   // greedy STT
+      let text='';
+      try{ const r=await fetch('/api/voice/transcribe',{method:'POST',body:fd}); if(r.ok) text=((await r.json()).text||'').trim(); }catch{}
+      if(!active) return;
+      if(!text){ startListening(); return; }
+      addUser(text); think(text);
+    }
+
+    // ---- LLM stream → chat bubble + sentence→TTS ----
+    async function think(text){
+      generating=true; ttsText=''; ttsCursor=0; bubble=null;
+      const ensure=()=>{ if(!bubble) bubble=addAgentStreaming(); };
+      if(window.vokter && window.vokter.askStream && window.vokter.onAskToken){
+        unsubTok=window.vokter.onAskToken(d=>{ ensure(); ttsText+=(d&&d.text)||''; bubble.update(ttsText); flush(false); });
+        try{
+          const {status,body}=await window.vokter.askStream({question:text,conversation_id:conversationId});
+          if(unsubTok){ unsubTok(); unsubTok=null; }
+          if(status>=200&&status<300&&body){ conversationId=body.conversation_id; ensure();
+            ttsText=body.answer||ttsText;                        // authoritative answer drives TTS (tokens may not stream)
+            bubble.finalize(body.answer, body.sources); }
+          else if(bubble){ bubble.finalize(ttsText||t('serverErr'),[]); }
+        }catch{ if(unsubTok){ unsubTok(); unsubTok=null; } if(bubble) bubble.finalize(ttsText||t('noReach'),[]); }
+      } else {                                                    // plain browser: non-streaming, speak the whole reply
+        try{ const r=await askBackend({question:text,conversation_id:conversationId}); const j=await r.json();
+          if(r.ok){ conversationId=j.conversation_id; addAgent(j.answer,j.sources); ttsText=j.answer; } else addAgent(j.detail||t('serverErr')); }
+        catch{ addAgent(t('noReach')); }
+      }
+      flush(true); generating=false; maybeResume();
+    }
+    function flush(final){                                        // enqueue any newly-complete sentences
+      const pending=ttsText.slice(ttsCursor), re=/[.!?…]["')\]]?(\s|$)|\n/g;
+      let last=0, m; while((m=re.exec(pending))){ const end=m.index+m[0].length; enqueue(pending.slice(last,end)); last=end; }
+      ttsCursor+=last;
+      if(final){ const rest=ttsText.slice(ttsCursor); if(rest.trim()){ enqueue(rest); ttsCursor=ttsText.length; } }
+    }
+
+    // ---- sentence-chunked TTS queue ----
+    function enqueue(raw){ const s=_ttsClean(raw); if(s.trim()){ ttsQ.push(s); pump(); } }
+    async function pump(){
+      if(ttsBusy) return; ttsBusy=true;
+      while(active && ttsQ.length){
+        const s=ttsQ.shift(); let blob=null;
+        try{ curFetch=new AbortController();
+          const r=await fetch('/api/voice/speak',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:s}),signal:curFetch.signal});
+          if(r.ok) blob=await r.blob();
+        }catch{} curFetch=null;
+        if(!active) break;
+        if(blob){ if(state!=='speaking'){ setState('speaking'); setHint(t('vmHeadphones')); } await playClip(blob); }
+      }
+      ttsBusy=false; maybeResume();
+    }
+    // Play through the (already-running) AudioContext, NOT an <audio> element: Electron's autoplay
+    // policy blocks HTMLMediaElement.play() without a fresh user gesture, and voice-mode playback
+    // happens seconds after the entry click. Web Audio on a running context has no such gate.
+    function playClip(blob){
+      return new Promise(res=>{
+        curClipRes=res;
+        const done=()=>{ if(!curClipRes) return; curClipRes=null; res(); };
+        blob.arrayBuffer().then(a=>ctx.decodeAudioData(a)).then(audioBuf=>{
+          if(!active || !curClipRes){ done(); return; }
+          const s=ctx.createBufferSource(); s.buffer=audioBuf; s.connect(ctx.destination); curSrc=s;
+          s.onended=()=>{ if(curSrc===s) curSrc=null; done(); };
+          speakStartAt=performance.now(); s.start();
+        }).catch(done);
+      });
+    }
+    function maybeResume(){ if(active && state!=='listening' && !generating && !ttsBusy && ttsQ.length===0) startListening(); }
+
+    function bargeIn(){                                           // user talks over Vokter → stop + listen
+      ttsQ=[];
+      if(curSrc){ try{ curSrc.stop(); }catch{} curSrc=null; }
+      if(curFetch){ try{ curFetch.abort(); }catch{} curFetch=null; }
+      if(curClipRes){ const r=curClipRes; curClipRes=null; r(); }
+      generating=false;
+      if(unsubTok){ try{ unsubTok(); }catch{} unsubTok=null; }
+      if(window.vokter && window.vokter.askAbort) window.vokter.askAbort();
+      startListening();
+    }
+
+    async function preflight(lang){                              // ensure STT + the right voice are downloaded
+      const asset=(lang==='ca'||lang==='de'||lang==='nl')?lang:'tts';
+      try{ await voiceEnsure('stt',p=>setHint(t('dlStt')+' '+p+'%')); }catch{ return false; }
+      try{ await voiceEnsure(asset,p=>setHint(t('dlVoice')+' '+p+'%')); }catch{ return false; }
+      setHint(''); return true;
+    }
+    async function enter(){
+      if(active) return; active=true;
+      showVoice(true); view.classList.add('convo'); view.setAttribute('data-vs','thinking');
+      h2.textContent=t('vmPrepare'); pEl.textContent=''; setHint('');
+      let cfg={}; try{ cfg=await (await fetch('/api/config')).json(); }catch{}
+      const lang=(cfg.language||'auto');
+      if(lang==='auto') toast(t('vmAutoNudge'));                  // auto can't tell ca/es apart → nudge
+      let acked=false; try{ acked=!!localStorage.getItem('vokter_voice_slow_ack'); }catch{}
+      if(!acked){ try{ const hw=await (await fetch('/api/hardware')).json(); const h=hw.hardware||{};
+        if(!h.gpu && (h.cpu_cores||0)<8) toast(t('vmSlow')); }catch{}      // non-blocking note (a modal gate here stalled entry)
+        try{ localStorage.setItem('vokter_voice_slow_ack','1'); }catch{} }
+      if(!active) return;
+      try{ stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}}); }
+      catch{ toast(t('micPerm')); stop(); return; }
+      ctx=new (window.AudioContext||window.webkitAudioContext)();
+      try{ await ctx.resume(); }catch{}                         // ensure the context is running (also used for TTS output)
+      const src=ctx.createMediaStreamSource(stream); analyser=ctx.createAnalyser(); analyser.fftSize=512; src.connect(analyser);
+      startMeter();
+      if(!(await preflight(lang))){ toast(t('voiceUnavail')); stop(); return; }
+      if(!active) return;
+      startListening();
+    }
+    function stop(){
+      active=false;
+      if(rafId){ cancelAnimationFrame(rafId); rafId=0; }
+      if(rec && rec.state==='recording'){ try{ rec.stop(); }catch{} } rec=null;
+      ttsQ=[]; ttsBusy=false;
+      if(curSrc){ try{ curSrc.stop(); }catch{} curSrc=null; }
+      if(curClipRes){ const r=curClipRes; curClipRes=null; r(); }
+      if(curFetch){ try{ curFetch.abort(); }catch{} curFetch=null; }
+      if(unsubTok){ try{ unsubTok(); }catch{} unsubTok=null; }
+      if(window.vokter && window.vokter.askAbort) window.vokter.askAbort();
+      if(stream){ stream.getTracks().forEach(tr=>tr.stop()); stream=null; }
+      if(ctx){ try{ ctx.close(); }catch{} ctx=null; }
+      view.classList.remove('convo'); view.removeAttribute('data-vs'); showVoice(false); state='idle';
+    }
+    return { enter, stop, get active(){ return active; } };
+  })();
+  $('convoBtn').onclick=()=>VMODE.enter();
+  $('voiceStop').onclick=()=>VMODE.stop();
+
   // Only ONE TTS playback at a time across the whole app, with INSTANT visual feedback: the
   // MOMENT the button is clicked it swaps to a spinner ("generating"), then to a Stop square
   // once audio actually plays, then back to the speaker icon when it ends/stops. On slow
