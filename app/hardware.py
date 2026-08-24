@@ -19,12 +19,33 @@ from fastapi import APIRouter
 router = APIRouter()
 
 # Tier → curated model. size_gb is the first-run download size (what the user actually feels).
+# `source`: "registry" → pulled from the Ollama registry (ollama.com); "mirror" → GGUF fetched
+# from OUR host and sideloaded into Ollama (sovereign — see MIRROR_MODELS + config_routes).
 CATALOG = [
-    {"tier": "light",    "model": "qwen2.5:3b",    "size_gb": 2.0},
-    {"tier": "balanced", "model": "gemma3:4b",     "size_gb": 3.0},
-    {"tier": "powerful", "model": "qwen3:30b-a3b", "size_gb": 18.0},
+    {"tier": "light",    "model": "qwen2.5:3b",       "size_gb": 2.0,  "source": "registry"},
+    {"tier": "balanced", "model": "gemma3:4b",        "size_gb": 3.0,  "source": "registry"},
+    {"tier": "powerful", "model": "qwen3:30b-a3b",    "size_gb": 18.0, "source": "registry"},
 ]
 _BY_TIER = {c["tier"]: c for c in CATALOG}
+
+# Sovereign mirror for GGUF chat models: our own release. Overridable (tests / a future CDN).
+MODEL_ASSETS_BASE = os.getenv(
+    "VOKTER_MODEL_ASSETS_BASE",
+    "https://github.com/vokter-eu/Vokter/releases/download/models-v1",
+).rstrip("/")
+
+# Models we host ourselves and sideload into Ollama (GGUF + the Ollama import recipe). Salamandra
+# (BSC, Apache-2.0) is the Catalan pick — see the ChatML template from its tokenizer_config.
+MIRROR_MODELS = {
+    "salamandra-2b-instruct": {
+        "gguf": "salamandra-2b-instruct-Q4_K_M.gguf",
+        "sha256": "3984c6f0204a981379aa02ddbe67a7c7ebe6f26c9bc0543832cf77bd2b665a33",
+        "size": 1506089312,
+        "template": "{{- range .Messages }}<|im_start|>{{ .Role }}\n{{ .Content }}<|im_end|>\n{{ end }}<|im_start|>assistant\n",
+        "stop": ["<|im_end|>", "</s>"],
+        "num_ctx": 8192,
+    },
+}
 
 
 def _ram_gb() -> float:

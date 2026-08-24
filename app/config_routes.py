@@ -9,6 +9,7 @@ POST   /api/config/avatar   — upload avatar image (jpg/png/webp/gif)
 GET    /api/config/avatar   — serve current avatar image
 DELETE /api/config/avatar   — remove avatar
 """
+import hashlib
 import json
 import os
 import shutil
@@ -21,6 +22,7 @@ from pydantic import BaseModel
 from agent_config import DEFAULTS, get_config, set_config
 from config import DATA_DIR, CHAT_MODEL
 from engine import resolve_base_url
+from hardware import MIRROR_MODELS, MODEL_ASSETS_BASE
 
 router = APIRouter()
 
@@ -138,6 +140,85 @@ class PullRequest(BaseModel):
     name: str
 
 
+async def _sideload_gen(name: str, meta: dict):
+    """Sovereign sideload: download the GGUF from OUR host (sha256-verified, progress 0–95%), push
+    it as an Ollama blob if absent, then create the model with its ChatML template — no registry,
+    no third-party host at runtime. Emits the same SSE frames as the registry pull."""
+    def _sse(d: dict) -> str:
+        return f"data: {json.dumps(d)}\n\n"
+
+    base = resolve_base_url()
+    digest = "sha256:" + meta["sha256"]
+    url = f"{MODEL_ASSETS_BASE}/{meta['gguf']}"
+    cache = os.path.join(DATA_DIR, "gguf-cache")
+    os.makedirs(cache, exist_ok=True)
+    tmp = os.path.join(cache, meta["gguf"] + ".part")
+    try:
+        # 1) download from our host, verify sha256, report progress (0–95%)
+        h = hashlib.sha256(); total = int(meta["size"]); done = 0; last = -1.0
+        async with httpx.AsyncClient(timeout=httpx.Timeout(None), follow_redirects=True) as client:
+            async with client.stream("GET", url) as r:
+                if r.status_code != 200:
+                    yield _sse({"error": f"model host returned {r.status_code}"}); return
+                with open(tmp, "wb") as f:
+                    async for chunk in r.aiter_bytes(1 << 20):
+                        f.write(chunk); h.update(chunk); done += len(chunk)
+                        pct = (done / total * 95.0) if total else 0.0
+                        if pct - last >= 0.5:
+                            last = pct
+                            yield _sse({"status": "downloading", "completed": done, "total": total,
+                                        "percent": round(pct, 1), "indeterminate": False})
+        if h.hexdigest() != meta["sha256"]:
+            os.remove(tmp); yield _sse({"error": "download checksum mismatch"}); return
+
+        # 2) push the blob (if Ollama doesn't already have it) then create the model
+        yield _sse({"status": "importing", "percent": 96.0, "indeterminate": True})
+        async with httpx.AsyncClient(timeout=httpx.Timeout(None)) as client:
+            head = await client.request("HEAD", f"{base}/api/blobs/{digest}")
+            if head.status_code != 200:
+                async def _body():
+                    with open(tmp, "rb") as f:
+                        while True:
+                            b = f.read(1 << 20)
+                            if not b:
+                                break
+                            yield b
+                push = await client.post(f"{base}/api/blobs/{digest}", content=_body(),
+                                         headers={"Content-Length": str(os.path.getsize(tmp))})
+                if push.status_code not in (200, 201):
+                    yield _sse({"error": f"blob import failed ({push.status_code})"}); return
+            async with client.stream("POST", f"{base}/api/create", json={
+                    "model": name, "files": {meta["gguf"]: digest}, "template": meta["template"],
+                    "parameters": {"stop": meta["stop"], "num_ctx": meta["num_ctx"]},
+                    "stream": True}) as r:
+                if r.status_code != 200:
+                    await r.aread(); yield _sse({"error": f"create failed ({r.status_code})"}); return
+                async for line in r.aiter_lines():
+                    if not line.strip():
+                        continue
+                    try:
+                        o = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if o.get("error"):
+                        yield _sse({"error": str(o["error"])}); return
+                    if o.get("status") == "success":
+                        yield _sse({"status": "success", "percent": 100.0, "done": True})
+                        try:
+                            os.remove(tmp)          # Ollama has its own blob copy now
+                        except OSError:
+                            pass
+                        return
+                    yield _sse({"status": "importing", "percent": 98.0, "indeterminate": True})
+        yield _sse({"percent": 100.0, "done": True})
+    except Exception:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        yield _sse({"error": "model import failed — check disk space and your connection"})
+
+
 @router.post("/api/models/pull")
 async def pull_model(req: PullRequest):
     """Pull a model into the RESOLVED engine (bundled by default) and stream progress as
@@ -153,6 +234,12 @@ async def pull_model(req: PullRequest):
     name = (req.name or "").strip()
     if not name:
         raise HTTPException(400, "model name required")
+    # Sovereign-mirrored models (e.g. Salamandra for Catalan) aren't in the Ollama registry — fetch
+    # the GGUF from OUR host and sideload it. Same SSE frame shape, so the picker's pullModel is
+    # unchanged. Only the bundled engine can be sideloaded (a user's external engine_url isn't ours).
+    if name in MIRROR_MODELS and not (get_config().get("engine_url") or "").strip():
+        return StreamingResponse(_sideload_gen(name, MIRROR_MODELS[name]),
+                                 media_type="text/event-stream")
     base = resolve_base_url()
 
     def _sse(d: dict) -> str:
