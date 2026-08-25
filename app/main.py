@@ -31,6 +31,7 @@ from planner import router as planner_router
 from schedule_routes import router as schedule_router
 from config_routes import router as config_router
 from hardware import router as hardware_router
+from safety import router as safety_router
 from memory_routes import router as memory_router
 from agent_routes import router as agent_router
 from negotiation_routes import router as negotiation_router
@@ -42,6 +43,11 @@ import nostr_listener
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    # Arm the capability gateway BEFORE anything can act. Fail-closed on the CAPABILITY,
+    # not on boot: if the constitution doesn't load, the app still comes up and chats,
+    # but every guarded action denies/confirms (see safety.py).
+    import safety
+    safety.load()
     # Fail closed: refuse to start when exposed without an admin token. A2A_URL
     # set signals intent to expose; without ADMIN_TOKEN the admin API (config,
     # documents, email) would be reachable by anyone who can reach the
@@ -108,6 +114,7 @@ app.include_router(planner_router)
 app.include_router(schedule_router)
 app.include_router(config_router)
 app.include_router(hardware_router)
+app.include_router(safety_router)
 app.include_router(memory_router)
 app.include_router(agent_router)
 app.include_router(negotiation_router)

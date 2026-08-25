@@ -11,7 +11,11 @@ APP_DIR = os.path.abspath(os.path.join(SPECPATH, "..", "..", "app"))
 # app/ (verified), so both can share pathex safely.
 DESKTOP_DIR = os.path.abspath(os.path.join(SPECPATH, ".."))
 
-datas = [(os.path.join(APP_DIR, "static"), "static")]
+datas = [
+    (os.path.join(APP_DIR, "static"), "static"),
+    (os.path.join(APP_DIR, "safety_rules.yaml"), "."),   # capability-gateway rules (safety.py)
+    (os.path.join(APP_DIR, "..", "CONSTITUTION.md"), "."),  # human-readable constitution
+]
 binaries = []
 # The orchestrate-mode modules are imported lazily (inside a branch), so name
 # them explicitly to guarantee they travel in the bundle.

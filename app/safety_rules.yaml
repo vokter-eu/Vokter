@@ -1,0 +1,38 @@
+# Vokter safety rules — the machine-readable teeth behind CONSTITUTION.md.
+# The gateway (safety.py) reads THIS; CONSTITUTION.md is the human-readable mirror.
+# Keep them in lockstep. See safety.py for how each verdict is enforced.
+#
+# Per action, a verdict for `human` (the owner, via the local UI) and `nonhuman`
+# (peers over A2A/Nostr, the MCP server, autonomous planner/scheduler):
+#   allow                — permit
+#   block                — refuse always
+#   confirm              — permit only after explicit human approval; in ANY
+#                          non-human context confirm COLLAPSES TO BLOCK
+#   allow_if_allowlisted — permit only if `target` passes the browse allowlist
+#   allow_if_known       — permit only if `target` peer is an already-known agent
+version: 1
+
+# Deny-by-default: an action with no rule below (or an unknown action id) uses this.
+default:
+  human: confirm
+  nonhuman: block
+
+rules:
+  # Read-only web fetch — the allowlist/SSRF check is the target predicate.
+  browse:
+    human: allow_if_allowlisted
+    nonhuman: allow_if_allowlisted
+  # Outbound agent messages — channel-confined to peers we already know.
+  dm.send:
+    human: allow_if_known
+    nonhuman: allow_if_known
+  # Local, owner-only destructive actions — never reachable by a peer/MCP.
+  doc.delete:      { human: confirm, nonhuman: block }
+  memory.delete:   { human: confirm, nonhuman: block }
+  memory.purge:    { human: confirm, nonhuman: block }
+  task.delete:     { human: confirm, nonhuman: block }
+  email.purge:     { human: confirm, nonhuman: block }
+  avatar.delete:   { human: confirm, nonhuman: block }
+  # Creating a recurring autonomous job — the MCP server exposes this, so a peer
+  # MUST be blocked here even though the tool exists.
+  schedule.create: { human: confirm, nonhuman: block }
