@@ -111,6 +111,11 @@ async def call_nostr(target: str, text: str, *, ttl: float = DEFAULT_TTL) -> str
     recipient_hex = recipient.to_hex()
     if is_blocked(recipient_hex):
         raise ValueError("this agent is blocked")
+    # Channel-confine Vokter-INITIATED messages to peers we already know (exfil defence).
+    # Replies to inbound peers are confined separately by the inbound-allow check.
+    from safety import Decision, guard
+    if guard("dm.send", recipient_hex, context="peer") != Decision.ALLOW:
+        raise ValueError("outbound message blocked by safety rules — recipient is not a known peer")
 
     corr_id = uuid.uuid4().hex
     future  = asyncio.get_running_loop().create_future()

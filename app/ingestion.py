@@ -59,7 +59,9 @@ def list_docs():
 
 
 @router.delete("/api/docs/{doc_name}")
-def delete_doc(doc_name: str):
+def delete_doc(doc_name: str, confirm: bool = False):
+    from safety import HUMAN, enforce_http
+    enforce_http("doc.delete", doc_name, context=HUMAN, confirmed=confirm)
     with closing(get_db()) as db:
         cur = db.execute("DELETE FROM chunks WHERE doc = ?", (doc_name,))
         db.commit()

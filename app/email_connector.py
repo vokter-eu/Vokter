@@ -137,7 +137,9 @@ def email_status():
 
 
 @router.delete("/api/email/all")
-def delete_all_emails():
+def delete_all_emails(confirm: bool = False):
+    from safety import HUMAN, enforce_http
+    enforce_http("email.purge", None, context=HUMAN, confirmed=confirm)
     with closing(get_db()) as db:
         chunks_removed = db.execute(
             "DELETE FROM chunks WHERE doc LIKE 'email::%'"

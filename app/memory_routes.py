@@ -19,6 +19,7 @@ from pydantic import BaseModel
 import memory
 from chat import is_local_human_session
 from db import get_db
+from safety import HUMAN, enforce_http
 
 router = APIRouter()
 
@@ -89,14 +90,16 @@ def memory_edit(mem_id: int, item: MemoryIn):
 
 
 @router.delete("/api/memory/{mem_id}")
-def memory_delete(mem_id: int):
+def memory_delete(mem_id: int, confirm: bool = False):
+    enforce_http("memory.delete", mem_id, context=HUMAN, confirmed=confirm)
     if not memory.delete(mem_id):
         raise HTTPException(404, "no such memory")
     return {"ok": True, "id": mem_id}
 
 
 @router.delete("/api/memory")
-def memory_forget_all():
+def memory_forget_all(confirm: bool = False):
+    enforce_http("memory.purge", None, context=HUMAN, confirmed=confirm)
     removed = memory.forget_all()
     return {"ok": True, "forgotten": removed}
 

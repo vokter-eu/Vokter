@@ -136,6 +136,12 @@ async def schedule_create(name: str, goal: str, interval: str) -> str:
 
     interval: '30m', '2h', '1d' (minimum 5m).
     Vokter will run the goal automatically on this schedule."""
+    # Capability gateway: creating a recurring autonomous job over MCP is a non-human
+    # context → BLOCK. This is why the A2A/MCP surfaces can't diverge: the same guarded
+    # action is enforced here regardless of which adapter exposes the tool.
+    from safety import Decision, guard
+    if guard("schedule.create", name, context="mcp") != Decision.ALLOW:
+        return "Blocked by Vokter's safety rules: scheduled tasks can only be created by the owner."
     d = await _post("/api/schedule", {"name": name, "goal": goal, "interval": interval})
     return f"Created task '{d['name']}' (ID: {d['id']}) — runs every {interval}."
 

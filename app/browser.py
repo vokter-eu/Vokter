@@ -82,7 +82,11 @@ async def browse(req: BrowseRequest):
     if not parsed.netloc:
         raise HTTPException(400, "Invalid URL.")
 
-    if not _is_allowed(url):
+    # Route the allowlist decision through the capability gateway (browse is
+    # context-agnostic — the allowlist is the guard). The SSRF-during-fetch checks
+    # below stay here (they need the in-flight request).
+    from safety import HUMAN, Decision, guard
+    if guard("browse", url, context=HUMAN) != Decision.ALLOW:
         raise HTTPException(
             403, "URL not in allowlist. Add a permission pattern first."
         )

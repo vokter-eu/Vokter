@@ -323,7 +323,9 @@ def avatar_get():
 
 
 @router.delete("/api/config/avatar")
-def avatar_delete():
+def avatar_delete(confirm: bool = False):
+    from safety import HUMAN, enforce_http
+    enforce_http("avatar.delete", None, context=HUMAN, confirmed=confirm)
     path = _avatar_path()
     if not path:
         raise HTTPException(404, "No avatar to delete")

@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, field_validator
 
 from db import get_db
+from safety import HUMAN, enforce_http
 
 router = APIRouter()
 
@@ -97,7 +98,8 @@ def _run_row(row) -> dict:
 
 
 @router.post("/api/schedule", status_code=201)
-def create_task(req: CreateTask):
+def create_task(req: CreateTask, confirm: bool = False):
+    enforce_http("schedule.create", req.name, context=HUMAN, confirmed=confirm)
     task_id = str(uuid.uuid4())
     now = time.time()
     interval_seconds = _parse_interval(req.interval)
@@ -176,7 +178,8 @@ def patch_task(task_id: str, req: PatchTask):
 
 
 @router.delete("/api/schedule/{task_id}", status_code=204)
-def delete_task(task_id: str):
+def delete_task(task_id: str, confirm: bool = False):
+    enforce_http("task.delete", task_id, context=HUMAN, confirmed=confirm)
     with closing(get_db()) as db:
         cur = db.execute("DELETE FROM scheduled_tasks WHERE id=?", (task_id,))
         db.commit()
