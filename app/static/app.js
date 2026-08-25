@@ -12,7 +12,8 @@
       serverErr:"Something went wrong.", noReachShort:"Couldn't reach your agent",
       settingsNote:"Everything here stays on your machine. You're in control of all of it.",
       rowDocuments:"Documents", rowEmail:"Email", rowWeb:"Web access", rowTasks:"Scheduled tasks",
-      rowVoice:"Voice", rowModel:"Model & tone", rowLanguage:"Language", soon:"Soon",
+      rowVoice:"Voice", rowModel:"Model & tone", rowSafety:"Vokter's rules", rowLanguage:"Language", soon:"Soon",
+      docDeleteConfirm:"Delete “{doc}” and everything your agent learned from it?", safetyBannerBad:"⚠ Safety rules failed to load — every guarded action is blocked or needs confirmation until this is fixed.",
       noteEmail:"Connect an inbox — indexed on this machine, never uploaded.",
       noteWeb:"Choose which sites your agent may visit.",
       noteTasks:"Let your agent work on a routine and report back.",
@@ -71,7 +72,8 @@
       serverErr:"Algo ha ido mal.", noReachShort:"No llego a tu agente",
       settingsNote:"Todo lo que hay aquí se queda en tu máquina. Tú controlas todo.",
       rowDocuments:"Documentos", rowEmail:"Correo", rowWeb:"Acceso a la web", rowTasks:"Tareas programadas",
-      rowVoice:"Voz", rowModel:"Modelo y tono", rowLanguage:"Idioma", soon:"Pronto",
+      rowVoice:"Voz", rowModel:"Modelo y tono", rowSafety:"Reglas de Vokter", rowLanguage:"Idioma", soon:"Pronto",
+      docDeleteConfirm:"¿Borrar «{doc}» y todo lo que tu agente aprendió de él?", safetyBannerBad:"⚠ No se pudieron cargar las reglas de seguridad — toda acción protegida queda bloqueada o requiere confirmación hasta arreglarlo.",
       noteEmail:"Conecta un buzón — se indexa en esta máquina, nunca se sube.",
       noteWeb:"Elige a qué sitios puede acceder tu agente.",
       noteTasks:"Deja que tu agente trabaje con una rutina y te informe.",
@@ -693,6 +695,7 @@
     {k:'tasks',lk:'rowTasks',type:'tasks'},
     {k:'voice',lk:'rowVoice',type:'voice'},
     {k:'model',lk:'rowModel',type:'model'},
+    {k:'safety',lk:'rowSafety',type:'safety'},
     {k:'language',lk:'rowLanguage',type:'lang'}
   ];
   function renderHome(){
@@ -723,8 +726,22 @@
     if(row.type==='tasks') return renderTasks();
     if(row.type==='model') return renderModel();
     if(row.type==='voice') return renderVoice();
+    if(row.type==='safety') return renderSafety();
     sTitle.textContent=t(row.lk);
     slist.innerHTML='<div class="subwrap"><div class="placeholder">'+t(row.note)+'</div></div>';
+  }
+
+  // ── Vokter's rules: render the auditable constitution + a fail-closed banner. CSP-safe
+  // (mdToHtml is the escape-first markdown renderer; no raw HTML reaches the DOM).
+  async function renderSafety(){
+    sTitle.textContent=t('rowSafety');
+    const wrap=_sub();
+    try{ const s=await (await fetch('/api/safety')).json();
+      if(!s || !s.ok){ const b=document.createElement('div'); b.className='swarn'; b.textContent=t('safetyBannerBad'); wrap.appendChild(b); }
+    }catch{}
+    const body=document.createElement('div'); body.className='md'; wrap.appendChild(body);
+    try{ const md=await (await fetch('/api/safety/constitution')).text(); body.innerHTML=mdToHtml(md); }
+    catch{ body.textContent=t('noReachShort'); }
   }
   function renderLang(){
     sTitle.textContent=t('rowLanguage');
@@ -749,7 +766,7 @@
         const row=document.createElement('div');row.className='drow';
         row.innerHTML='<span class="dn"></span><span class="dc">'+t('passages',{n:d.chunks})+'</span><button class="del" aria-label="Delete">&times;</button>';
         row.querySelector('.dn').textContent=d.doc;
-        row.querySelector('.del').onclick=async()=>{ await fetch('/api/docs/'+encodeURIComponent(d.doc),{method:'DELETE'}); renderDocs(); toast(t('deleted')); };
+        row.querySelector('.del').onclick=async()=>{ if(!confirm(t('docDeleteConfirm',{doc:d.doc}))) return; await fetch('/api/docs/'+encodeURIComponent(d.doc)+'?confirm=true',{method:'DELETE'}); renderDocs(); toast(t('deleted')); };
         wrap.appendChild(row);
       });
     }catch{ wrap.innerHTML='<div class="placeholder">'+t('noReachShort')+'</div>'; }
@@ -799,7 +816,7 @@
     };
     delBtn.onclick=async()=>{
       if(!confirm(t('emailDeleteConfirm'))) return;
-      try{ const j=await (await fetch('/api/email/all',{method:'DELETE'})).json();
+      try{ const j=await (await fetch('/api/email/all?confirm=true',{method:'DELETE'})).json();
         toast(t('emailDeleted',{n:j.emails_removed})); await refresh();
       }catch{ toast(t('noReachShort')); }
     };
@@ -866,7 +883,7 @@
           const tg=document.createElement('button'); tg.className='sbtn mini ghost'; tg.textContent=task.enabled?t('taskPause'):t('taskResume');
           tg.onclick=async()=>{ tg.disabled=true; try{ await fetch('/api/schedule/'+task.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:!task.enabled})}); }catch{} refresh(); };
           const del=document.createElement('button'); del.className='del'; del.setAttribute('aria-label',t('removeAria')); del.textContent='×';
-          del.onclick=async()=>{ if(!confirm(t('taskDeleteConfirm',{name:task.name}))) return; try{ await fetch('/api/schedule/'+task.id,{method:'DELETE'}); }catch{} refresh(); };
+          del.onclick=async()=>{ if(!confirm(t('taskDeleteConfirm',{name:task.name}))) return; try{ await fetch('/api/schedule/'+task.id+'?confirm=true',{method:'DELETE'}); }catch{} refresh(); };
           acts2.appendChild(tg); acts2.appendChild(del);
           row.appendChild(dn); row.appendChild(dc); row.appendChild(acts2); list.appendChild(row);
         });
@@ -876,7 +893,7 @@
       const name=nameI.value.trim(), goal=goalI.value.trim(), interval=intI.value.trim();
       if(!name||!goal||!interval){ toast(t('taskFill')); return; }
       createBtn.disabled=true;
-      try{ const r=await fetch('/api/schedule',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,goal,interval})});
+      try{ const r=await fetch('/api/schedule?confirm=true',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,goal,interval})});
         if(r.ok){ nameI.value='';goalI.value='';intI.value=''; refresh(); } else{ toast(t('taskCreateErr')); }
       }catch{ toast(t('noReachShort')); }
       createBtn.disabled=false;
