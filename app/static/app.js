@@ -772,11 +772,13 @@
     }catch{ wrap.innerHTML='<div class="placeholder">'+t('noReachShort')+'</div>'; }
   }
 
-  // These four panels talk to admin endpoints that are NOT gated on the human-session
-  // token (only /api/ask and /api/memory/suggest are), so they use plain fetch — same as
-  // the old wired UI did. All user-controlled values are written via textContent, never
-  // interpolated into innerHTML: the shell CSP only exists in Electron, so this is the real
-  // XSS guard for the browser/Docker path.
+  // These four panels talk to admin endpoints (email/docs/subscriptions) that are NOT gated
+  // on the human-session token, so they use plain fetch — same as the old wired UI did. (The
+  // human-session-gated endpoints are /api/ask, /api/memory/suggest and the /api/memory CRUD;
+  // those are proxied through the Electron main process, which attaches the token — not these
+  // panels.) All user-controlled values are written via textContent, never interpolated into
+  // innerHTML: the shell CSP only exists in Electron, so this is the real XSS guard for the
+  // browser/Docker path.
   function _fmtInterval(sec){
     const m=Math.floor(sec/60);
     if(m<60) return m+'m';
