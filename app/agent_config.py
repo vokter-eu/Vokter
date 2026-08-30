@@ -23,11 +23,11 @@ DEFAULTS: dict[str, str] = {
                                       # Advanced/opt-in; the default stays the bundled engine.
     "max_history": "20",
     "rag_chunks":  "4",
-    "rag_min_score": "0.57",          # cosine floor to treat a chunk as RELEVANT.
-                                      # Measured (nomic-embed-text): greetings/off-topic
-                                      # peak ~0.55, thematic-but-paraphrased questions
-                                      # floor ~0.59 → 0.57 keeps paraphrased matches
-                                      # (protect RAG) while dropping chit-chat. Tunable.
+    "rag_min_score": "0.53",          # cosine floor to treat a chunk as RELEVANT.
+                                      # Calibrated for bge-m3 (was 0.57 for nomic-embed-text).
+                                      # bge-m3 doc-search: relevant ~0.72 vs distractor ~0.28
+                                      # (margin +0.44), so 0.53 comfortably keeps real matches
+                                      # and drops chit-chat. Tunable via config.
     "onboarded":   "0",               # "1" once the first-run welcome wizard is done
 }
 

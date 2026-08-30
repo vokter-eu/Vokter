@@ -45,7 +45,14 @@ CHAT_MODEL  = os.getenv("VOKTER_CHAT_MODEL",  "qwen2.5:3b")  # default: the CPU 
                                                             # es/ca. gemma3:4b (quality, slow on
                                                             # weak CPU) and llama3.2:3b (lightest)
                                                             # remain pickable in the UI.
-EMBED_MODEL = os.getenv("VOKTER_EMBED_MODEL", "nomic-embed-text")  # embedder unchanged
+EMBED_MODEL = os.getenv("VOKTER_EMBED_MODEL", "bge-m3")  # multilingual embedder (1024-dim).
+                                                          # Replaced nomic-embed-text: measured to
+                                                          # FIX short/implicit non-English retrieval
+                                                          # (ES team fact 0.487→0.540, ranks #1) and
+                                                          # to separate off-topic cleanly (~0.37 vs
+                                                          # nomic's ~0.53), which is what makes the
+                                                          # relevance floor work. Sovereign-mirrored
+                                                          # GGUF (Q4_K_M), sideloaded — not from HF.
 DB_PATH     = os.getenv("VOKTER_DB") or _default_db_path()
 DATA_DIR    = os.path.dirname(DB_PATH) or "/data"
 DB_KEY      = os.getenv("VOKTER_DB_KEY",      "")
@@ -78,7 +85,12 @@ VECTOR_TOP_N = int(os.getenv("VOKTER_VECTOR_TOP_N", "20"))
 # message. MEMORY_MIN_SCORE is the semantic floor a non-core fact must clear to be pulled
 # in on similarity (a genuine keyword hit gets in regardless).
 MEMORY_TOP_K    = int(os.getenv("VOKTER_MEMORY_TOP_K", "5"))
-MEMORY_MIN_SCORE = float(os.getenv("VOKTER_MEMORY_MIN_SCORE", "0.57"))
+# 0.53 calibrated for bge-m3 (was 0.57 for nomic). Larger bilingual sample: real matches
+# score min 0.537 (the hard implicit ES team case) … 0.763; off-topic peaks at 0.521 → a
+# clean band (0.521, 0.537), floor 0.53. The band is thin (0.016) because the implicit team
+# fact is the hardest true positive, so the FTS keyword arm is the safety net for exact terms.
+# Env-overridable to retune if real use shows it too strict (matches lost) or loose (noise).
+MEMORY_MIN_SCORE = float(os.getenv("VOKTER_MEMORY_MIN_SCORE", "0.53"))
 # max messages kept per conversation (= 10 turns)
 # WARNING: process-local dict — do NOT run with multiple uvicorn workers
 MAX_HISTORY   = 20
