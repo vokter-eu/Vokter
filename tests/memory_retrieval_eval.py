@@ -124,8 +124,10 @@ async def seed():
 
 async def main():
     await seed()
-    floor = 0.57
-    print(f"\nseeded {len(FACTS)} facts + {len(DOCS)} docs (+{FILLER} filler chunks)\n")
+    from config import MEMORY_MIN_SCORE
+    floor = MEMORY_MIN_SCORE     # track the shipped floor (0.53 for bge-m3, was 0.57 for nomic)
+    print(f"\nseeded {len(FACTS)} facts + {len(DOCS)} docs (+{FILLER} filler chunks)  "
+          f"[embed_model via config, floor={floor}]\n")
     print("=" * 92)
 
     before_dump = memory.system_block()
