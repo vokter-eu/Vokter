@@ -12,6 +12,7 @@ import time
 from contextlib import closing
 
 from db import get_db
+from embedding import pack_embedding
 from engine import get_engine, ChatRequest
 
 # Explicit, predictable triggers — NOT fuzzy NLP. The user always knows when a
@@ -205,6 +206,34 @@ async def extract_candidate(message: str, context: list[str] | None = None,
     # Keep only non-empty strings, trimmed; then drop any example echo (see above).
     facts = [f.strip() for f in facts if isinstance(f, str) and f.strip()]
     return _drop_example_echoes(facts)
+
+
+async def embed_pending(batch: int = 128) -> int:
+    """Direction A backfill — embed facts that have no vector yet (embedding IS NULL)
+    and store it as a packed float32 BLOB. Idempotent: run once at boot AND fire-and-
+    forget after each add(), so a fact added mid-session is embedded within seconds
+    rather than at the next restart. Needs Ollama; on the first embed failure it stops
+    quietly (Ollama down / model not pulled) — the fact stays keyword-retrievable via
+    FTS meanwhile, so retrieval degrades cleanly instead of breaking. Returns the count
+    embedded this pass. The UPDATE re-fires the FTS sync trigger harmlessly (same text)."""
+    from rag import embed   # local import — rag pulls the engine adapter (heavier)
+    with closing(get_db()) as db:
+        rows = db.execute(
+            "SELECT id, content FROM memory WHERE embedding IS NULL ORDER BY id LIMIT ?",
+            (batch,),
+        ).fetchall()
+    done = 0
+    for mid, content in rows:
+        try:
+            vec = await embed(content)
+        except Exception:
+            break   # engine unavailable → leave NULL, retry on the next pass/boot
+        with closing(get_db()) as db:
+            db.execute("UPDATE memory SET embedding=? WHERE id=?",
+                       (pack_embedding(vec), mid))
+            db.commit()
+        done += 1
+    return done
 
 
 def forget_all() -> int:

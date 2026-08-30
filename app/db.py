@@ -140,17 +140,68 @@ def get_db():
     # Phase 1: personal memory — facts the user explicitly asks Vokter to remember
     # ("remember that ..."). Lives in THIS encrypted DB (same keychain-backed key),
     # never leaves the device, fully user-visible/editable/deletable (see
-    # memory_routes + the "What Vokter knows about you" view). `embedding` is
-    # reserved for a later phase's top-k retrieval; Phase 1 includes all facts, so
-    # it stays NULL for now.
+    # memory_routes + the "What Vokter knows about you" view).
+    #   embedding: Direction A top-k retrieval — a packed float32 BLOB, NULL until the
+    #     background pass embeds the fact (keyword-retrievable via FTS meanwhile).
+    #   core: 1 = an identity fact (name/allergies/family) always in the prompt; 0 = a
+    #     preference retrieved only when the message is relevant (see memory.relevant_block).
     conn.execute(
         """CREATE TABLE IF NOT EXISTS memory (
                id         INTEGER PRIMARY KEY AUTOINCREMENT,
                content    TEXT NOT NULL,                -- the fact, in the user's words
                source     TEXT NOT NULL DEFAULT 'told',  -- told | learned (Phase 2)
                created_at REAL NOT NULL,
-               embedding  TEXT,                          -- reserved (Phase 3 retrieval)
+               embedding  BLOB,                          -- packed float32; NULL until embedded
+               core       INTEGER NOT NULL DEFAULT 0,    -- 1 = identity fact, always injected
                confidence REAL NOT NULL DEFAULT 1.0
            )"""
     )
+    # Migrate memory tables created before Direction A (embedding was TEXT, no core).
+    # The embedding column already exists (reserved, all-NULL) so it needs no change —
+    # SQLite stores a BLOB regardless of the column's TEXT affinity. Only `core` is new.
+    mcols = [r[1] for r in conn.execute("PRAGMA table_info(memory)").fetchall()]
+    if "core" not in mcols:
+        conn.execute("ALTER TABLE memory ADD COLUMN core INTEGER NOT NULL DEFAULT 0")
+
+    # A key/value marker table so the one-time heavy migrations (migrations.run_once)
+    # know what has already run and never repeat it.
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS meta (
+               key   TEXT PRIMARY KEY,
+               value TEXT NOT NULL
+           )"""
+    )
+
+    # FTS5 external-content mirrors of chunks + memory — the keyword half of hybrid
+    # retrieval (Direction A / A2). `content=` points each mirror at its base table so
+    # the text isn't duplicated; triggers keep them in lock-step. Existing rows are
+    # populated once by migrations.run_once ('rebuild') — triggers only fire on new writes.
+    conn.execute(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5("
+        "content, doc UNINDEXED, content='chunks', content_rowid='id')"
+    )
+    conn.execute(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts USING fts5("
+        "content, content='memory', content_rowid='id')"
+    )
+    # Sync triggers. For an external-content FTS5 table a DELETE (and the delete half of
+    # an UPDATE) MUST use the special 'delete' command with the OLD text — a plain DELETE
+    # from the FTS table silently corrupts the index. INSERT is a plain insert.
+    for base, fts in (("chunks", "chunks_fts"), ("memory", "memory_fts")):
+        conn.execute(
+            f"CREATE TRIGGER IF NOT EXISTS {base}_ai AFTER INSERT ON {base} BEGIN"
+            f"  INSERT INTO {fts}(rowid, content) VALUES (new.id, new.content);"
+            f" END"
+        )
+        conn.execute(
+            f"CREATE TRIGGER IF NOT EXISTS {base}_ad AFTER DELETE ON {base} BEGIN"
+            f"  INSERT INTO {fts}({fts}, rowid, content) VALUES ('delete', old.id, old.content);"
+            f" END"
+        )
+        conn.execute(
+            f"CREATE TRIGGER IF NOT EXISTS {base}_au AFTER UPDATE ON {base} BEGIN"
+            f"  INSERT INTO {fts}({fts}, rowid, content) VALUES ('delete', old.id, old.content);"
+            f"  INSERT INTO {fts}(rowid, content) VALUES (new.id, new.content);"
+            f" END"
+        )
     return conn

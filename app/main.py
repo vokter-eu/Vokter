@@ -34,6 +34,7 @@ from hardware import router as hardware_router
 from safety import router as safety_router
 from memory_routes import router as memory_router
 from agent_routes import router as agent_router
+import memory
 from negotiation_routes import router as negotiation_router
 from a2a_server import router as a2a_router
 from config import VOKTER_VERSION, A2A_URL, ADMIN_TOKEN
@@ -60,8 +61,17 @@ async def lifespan(_app: FastAPI):
             "documents, email) would be UNPROTECTED. Set VOKTER_ADMIN_TOKEN, and "
             "reverse-proxy only /a2a and /.well-known."
         )
+    # Direction A schema migration — one-time, idempotent, Ollama-free, so it is safe to
+    # run synchronously before serving: repack document embeddings JSON→BLOB and populate
+    # the FTS5 mirrors over existing rows. Fenced by meta markers → near-free on later boots.
+    import migrations
+    migrations.run_once()
     sched_task  = asyncio.create_task(scheduler_loop())
     nostr_task  = asyncio.create_task(nostr_listener.start())
+    # Direction A embedding backfill — compute vectors for any facts that lack one. Needs
+    # Ollama, so it runs in the background (fire-and-forget) and can never block or fail
+    # boot; until a fact is embedded it stays keyword-retrievable via FTS (clean degrade).
+    backfill_task = asyncio.create_task(memory.embed_pending())
     # Stage 3 trigger 3 — opportunistic voice fetch. Best-effort in a daemon thread: if the
     # current language's voice is missing and there's network, it downloads; if not, the
     # backend comes up regardless. Never awaited, never raised → cannot block boot.
@@ -72,7 +82,7 @@ async def lifespan(_app: FastAPI):
     warm_task = asyncio.create_task(warm_up())
     yield
     # Cancel background tasks
-    for t in (sched_task, nostr_task, warm_task):
+    for t in (sched_task, nostr_task, warm_task, backfill_task):
         t.cancel()
         try:
             await t
