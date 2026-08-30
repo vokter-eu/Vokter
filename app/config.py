@@ -64,6 +64,21 @@ except OSError as exc:
 CHUNK_SIZE    = 900
 CHUNK_OVERLAP = 150
 TOP_K         = 4
+# Direction A / A2 — hybrid retrieval (vector + FTS5 keyword) fused with Reciprocal
+# Rank Fusion. Per arm a candidate at rank r contributes w / (RRF_K + r); the two arms
+# are summed. RRF_K=60 is the canonical constant (Cormack et al. 2009); equal weights
+# means "trust the semantic and the keyword arm the same". VECTOR_TOP_N caps the
+# candidate pool each arm contributes before fusion.
+RRF_K        = int(os.getenv("VOKTER_RRF_K", "60"))
+RRF_W_VEC    = float(os.getenv("VOKTER_RRF_W_VEC", "1"))
+RRF_W_KW     = float(os.getenv("VOKTER_RRF_W_KW", "1"))
+VECTOR_TOP_N = int(os.getenv("VOKTER_VECTOR_TOP_N", "20"))
+# Direction A / A1 — personal-memory retrieval. Instead of dumping every fact into the
+# prompt, inject core (identity) facts always + up to MEMORY_TOP_K facts relevant to the
+# message. MEMORY_MIN_SCORE is the semantic floor a non-core fact must clear to be pulled
+# in on similarity (a genuine keyword hit gets in regardless).
+MEMORY_TOP_K    = int(os.getenv("VOKTER_MEMORY_TOP_K", "5"))
+MEMORY_MIN_SCORE = float(os.getenv("VOKTER_MEMORY_MIN_SCORE", "0.57"))
 # max messages kept per conversation (= 10 turns)
 # WARNING: process-local dict — do NOT run with multiple uvicorn workers
 MAX_HISTORY   = 20
