@@ -21,6 +21,7 @@ Non-negotiables honoured here:
   * No third parties — the only outbound traffic is the one-time model download
     from Ollama's registry (same as before) and local loopback between pieces.
 """
+import hashlib
 import json
 import os
 import secrets
@@ -95,7 +96,27 @@ OLLAMA_PORT = int(os.environ.get("VOKTER_DESKTOP_OLLAMA_PORT", "11435"))
 # also shouldn't collide with a dev server on the conventional 8080.
 BACKEND_PORT = int(os.environ.get("VOKTER_DESKTOP_BACKEND_PORT", "8081"))
 CHAT_MODEL  = os.environ.get("VOKTER_CHAT_MODEL",  "qwen2.5:3b")  # first-run pull default (see
-EMBED_MODEL = os.environ.get("VOKTER_EMBED_MODEL", "nomic-embed-text")  # config.py rationale)
+EMBED_MODEL = os.environ.get("VOKTER_EMBED_MODEL", "bge-m3")  # config.py rationale)
+
+# Sovereign mirror for GGUF models we host ourselves (same host as the Catalan chat model —
+# see app/hardware.py MODEL_ASSETS_BASE). The embedder is a MIRROR model: its GGUF is fetched
+# from OUR release and sideloaded into Ollama at first run, NOT pulled from the Ollama registry
+# or HuggingFace (the HF pull hits an auth-realm bug, and sovereignty forbids the dependency).
+MODEL_ASSETS_BASE = os.environ.get(
+    "VOKTER_MODEL_ASSETS_BASE",
+    "https://github.com/vokter-eu/Vokter/releases/download/models-v1",
+).rstrip("/")
+# Models provisioned by SIDELOAD (download our GGUF → verify sha256 → create in Ollama) instead
+# of a registry pull. bge-m3 is an EMBEDDING GGUF (bert arch): passthrough template, NO chat
+# stop/num_ctx. sha256/size pin OUR hosted copy (Q4_K_M, 1024-dim). Matches app/hardware.py.
+MIRROR_MODELS = {
+    "bge-m3": {
+        "gguf":     "bge-m3-Q4_K_M.gguf",
+        "sha256":   "6d39681b26c61279ac1f82db35a04a05009e94c415b51c858ff571489a82fc06",
+        "size":     437778496,
+        "template": "{{ .Prompt }}",
+    },
+}
 
 OLLAMA_HOST = f"127.0.0.1:{OLLAMA_PORT}"
 OLLAMA_URL  = f"http://{OLLAMA_HOST}"
@@ -479,7 +500,13 @@ def ensure_models() -> None:
             log(f"model already present, skipping pull: {model}")
             continue
         log(f"ensuring model present: {model} (first run may download a lot)")
-        _pull_streaming(model, index=i, count=len(models))
+        # A mirror model (our sovereign GGUF, e.g. the bge-m3 embedder) isn't in the Ollama
+        # registry — sideload it from our host instead of a registry pull. Same progress
+        # frames, so the loading bar is identical ('N of 2'). Everything else registry-pulls.
+        if model in MIRROR_MODELS:
+            _sideload_streaming(model, MIRROR_MODELS[model], index=i, count=len(models))
+        else:
+            _pull_streaming(model, index=i, count=len(models))
 
 
 def _model_present(model: str) -> bool:
@@ -543,6 +570,106 @@ def _pull_streaming(model: str, index: int, count: int) -> None:
     if not saw_success:
         # stream ended without a "success" line → incomplete pull
         die(f"failed to pull model {model}: download ended before completion")
+
+
+def _emit(model, index, count, snap) -> None:
+    emit_progress({"model": model, "index": index, "count": count, **snap.as_event()})
+
+
+def _sideload_streaming(model: str, meta: dict, index: int, count: int) -> None:
+    """Provision a MIRROR model (our sovereign GGUF) into Ollama, streaming the same
+    per-model progress as _pull_streaming so the loading bar shows 'N of 2' identically.
+
+    Steps, all feeding model_pull.Snapshot events: download OUR GGUF (real %/bytes) →
+    verify sha256 → push the blob to Ollama if absent → /api/create (embedding recipe:
+    passthrough template, no stop). This is the pre-backend counterpart of the backend's
+    _sideload_gen — mirror models used to be provisioned ONLY post-boot via the picker,
+    but the DEFAULT embedder must be here, before the backend and the first retrieval.
+    die()s (loud, non-zero) on any failure, exactly like a failed registry pull."""
+    digest = "sha256:" + meta["sha256"]
+    url = f"{MODEL_ASSETS_BASE}/{meta['gguf']}"
+    total = int(meta["size"])
+    cache = DATA_DIR / "gguf-cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    tmp = cache / (meta["gguf"] + ".part")
+
+    # 1) download from OUR host, hash as we go, report a real bar (never a hung spinner)
+    h = hashlib.sha256(); done = 0; last = -1.0
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "vokter-orchestrator"})
+        with urllib.request.urlopen(req, timeout=120) as resp, open(tmp, "wb") as f:
+            # HTTP sets status=200; a file:// URL (tests/local mirror) sets it to None — both OK.
+            if getattr(resp, "status", 200) not in (200, None):
+                die(f"embedder host returned {resp.status} for {url}")
+            while True:
+                chunk = resp.read(1 << 20)
+                if not chunk:
+                    break
+                f.write(chunk); h.update(chunk); done += len(chunk)
+                pct = round(100.0 * done / total, 1) if total else 0.0
+                if pct != last:
+                    last = pct
+                    _emit(model, index, count, model_pull.Snapshot(
+                        phase=model_pull.PHASE_DOWNLOADING, completed=done, total=total,
+                        percent=pct, indeterminate=False))
+    except (urllib.error.URLError, OSError) as e:
+        die(f"failed to download embedder {model} from {url}: {e}")
+    if h.hexdigest() != meta["sha256"]:
+        try: os.remove(tmp)
+        except OSError: pass
+        die(f"embedder {model} download checksum mismatch (host tampered or truncated)")
+
+    # 2) push blob if Ollama doesn't already have it, then create the model (indeterminate)
+    _emit(model, index, count, model_pull.Snapshot(
+        phase=model_pull.PHASE_WRITING, completed=total, total=total, percent=99.0,
+        indeterminate=True))
+    try:
+        present = False
+        try:
+            with urllib.request.urlopen(urllib.request.Request(
+                    f"{OLLAMA_URL}/api/blobs/{digest}", method="HEAD"), timeout=30) as r:
+                present = getattr(r, "status", 200) == 200
+        except urllib.error.HTTPError as e:
+            present = e.code == 200        # 404 → not present → push below
+        if not present:
+            size = os.path.getsize(tmp)
+            with open(tmp, "rb") as body:
+                push = urllib.request.Request(
+                    f"{OLLAMA_URL}/api/blobs/{digest}", data=body, method="POST",
+                    headers={"Content-Type": "application/octet-stream",
+                             "Content-Length": str(size)})
+                with urllib.request.urlopen(push, timeout=1800) as r:
+                    if getattr(r, "status", 200) not in (200, 201):
+                        die(f"embedder {model} blob import failed ({r.status})")
+        create = urllib.request.Request(
+            f"{OLLAMA_URL}/api/create",
+            data=json.dumps({"model": model, "files": {meta["gguf"]: digest},
+                             "template": meta["template"], "stream": True}).encode(),
+            headers={"Content-Type": "application/json"}, method="POST")
+        saw_success = False
+        with urllib.request.urlopen(create, timeout=1800) as resp:
+            for raw in resp:
+                line = raw.decode("utf-8", "replace").strip()
+                if not line:
+                    continue
+                try:
+                    o = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if o.get("error"):
+                    die(f"embedder {model} create failed: {o['error']}")
+                if o.get("status") == "success":
+                    saw_success = True
+    except (urllib.error.URLError, OSError) as e:
+        die(f"failed to import embedder {model} into Ollama: {e}")
+    if not saw_success:
+        die(f"embedder {model} create ended before completion")
+    try: os.remove(tmp)          # Ollama has its own blob copy now
+    except OSError: pass
+    _emit(model, index, count, model_pull.Snapshot(
+        phase=model_pull.PHASE_DONE, completed=total, total=total, percent=100.0,
+        indeterminate=False))
+    log(f"sideloaded mirror model: {model}")
 
 
 def seed_voice() -> None:
