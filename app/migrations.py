@@ -18,8 +18,10 @@ Encrypted-store safety (the migration rewrites the personal store on disk):
     guarantee is a file backup taken before shipping (old code's json.loads() would
     throw on a BLOB). See ~/vokter-backups/.
 
-The embedding BACKFILL (compute vectors for facts that never had one) needs Ollama,
-so it is NOT here — it runs as a non-blocking background task at boot (embed_pending).
+The embedding work that needs Ollama is NOT here as blocking boot steps:
+  * embed_pending() (memory.py) — embed facts that have no vector yet, after each add/edit.
+  * reembed_stale()  (below)    — re-embed chunks + facts whose vector dimension doesn't
+    match the live embed model (e.g. nomic-768 → bge-m3-1024). Both run in the background.
 """
 import logging
 from contextlib import closing
@@ -82,3 +84,49 @@ def run_once() -> None:
             _meta_set(db, "fts_rebuild_v1")
             db.commit()
             log.info("[migrate] FTS5 mirrors rebuilt over existing chunks + memory")
+
+
+async def reembed_stale(batch: int = 64) -> int:
+    """Re-embed any chunk or fact whose stored vector doesn't match the CURRENT embed
+    model's dimension — NULL, or the wrong byte length (e.g. a 768-dim nomic vector after
+    the switch to bge-m3's 1024-dim). Overwrites only the derived `embedding` column;
+    content, FTS and the core flag are untouched, so this is regenerable and needs no
+    backup. Idempotent and SELF-HEALING: it converges when every row matches the live dim,
+    and simply re-runs any row a model change left stale — no marker or cursor to manage.
+
+    Non-blocking background pass (boot + after the embedder is present). Needs Ollama; if it
+    can't reach the engine it stops quietly and retries next boot. Until a row is re-embedded
+    the retrieval dim-guard skips its stale vector, so retrieval degrades to the keyword/FTS
+    arm rather than returning wrong matches. Returns the number of rows re-embedded this pass."""
+    from rag import embed   # local import — rag pulls the engine adapter (heavier)
+    try:
+        dim = len(await embed("dimension probe"))
+    except Exception:
+        return 0            # engine unavailable → nothing to do now, retry next boot
+    if not dim:
+        return 0
+    want = dim * 4          # float32 bytes for the live model's dimension
+    total = 0
+    for table in ("memory", "chunks"):
+        while True:
+            with closing(get_db()) as db:
+                rows = db.execute(
+                    f"SELECT id, content FROM {table} "
+                    f"WHERE embedding IS NULL OR length(embedding) != ? "
+                    f"ORDER BY id LIMIT ?", (want, batch),
+                ).fetchall()
+            if not rows:
+                break
+            for rid, content in rows:
+                try:
+                    vec = await embed(content)
+                except Exception:
+                    return total   # engine dropped mid-pass → stop, resume next boot
+                with closing(get_db()) as db:
+                    db.execute(f"UPDATE {table} SET embedding=? WHERE id=?",
+                               (pack_embedding(vec), rid))
+                    db.commit()
+                total += 1
+    if total:
+        log.info("[migrate] re-embedded %d stale row(s) to dim=%d (%s)", total, dim, want)
+    return total

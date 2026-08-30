@@ -68,10 +68,12 @@ async def lifespan(_app: FastAPI):
     migrations.run_once()
     sched_task  = asyncio.create_task(scheduler_loop())
     nostr_task  = asyncio.create_task(nostr_listener.start())
-    # Direction A embedding backfill — compute vectors for any facts that lack one. Needs
-    # Ollama, so it runs in the background (fire-and-forget) and can never block or fail
-    # boot; until a fact is embedded it stays keyword-retrievable via FTS (clean degrade).
-    backfill_task = asyncio.create_task(memory.embed_pending())
+    # Embedding backfill / re-embed — compute or refresh vectors for any chunk or fact whose
+    # stored vector doesn't match the live embed model's dimension (missing, or a stale
+    # nomic-768 vector after the switch to bge-m3-1024). Needs Ollama, so it runs in the
+    # background (fire-and-forget) and can never block or fail boot; until a row is (re)embedded
+    # its stale vector is dim-guarded out and it stays keyword-retrievable via FTS (clean degrade).
+    backfill_task = asyncio.create_task(migrations.reembed_stale())
     # Stage 3 trigger 3 — opportunistic voice fetch. Best-effort in a daemon thread: if the
     # current language's voice is missing and there's network, it downloads; if not, the
     # backend comes up regardless. Never awaited, never raised → cannot block boot.
