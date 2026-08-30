@@ -62,13 +62,23 @@ def _recent_user_context(conv_id: str, message: str) -> list[str]:
     return turns[-_CONTEXT_TURNS:]
 
 
+def _require_human(mark: str | None) -> None:
+    """H2 (security hardening): reading or writing personal memory is the LOCAL HUMAN only —
+    the same P2 gate as chat injection and /suggest. Closes the hole where any same-user local
+    process could read the whole memory over loopback with no token. Deny-by-default."""
+    if not is_local_human_session(mark):
+        raise HTTPException(403, "personal memory is available only to the local human session")
+
+
 @router.get("/api/memory")
-def memory_list():
+def memory_list(x_vokter_human_session: str | None = Header(default=None)):
+    _require_human(x_vokter_human_session)
     return {"memory": memory.list_all()}
 
 
 @router.post("/api/memory")
-def memory_add(item: MemoryIn):
+def memory_add(item: MemoryIn, x_vokter_human_session: str | None = Header(default=None)):
+    _require_human(x_vokter_human_session)
     content = item.content.strip()
     if not content:
         raise HTTPException(400, "empty memory")
@@ -80,7 +90,8 @@ def memory_add(item: MemoryIn):
 
 
 @router.patch("/api/memory/{mem_id}")
-def memory_edit(mem_id: int, item: MemoryIn):
+def memory_edit(mem_id: int, item: MemoryIn, x_vokter_human_session: str | None = Header(default=None)):
+    _require_human(x_vokter_human_session)
     content = item.content.strip()
     if not content:
         raise HTTPException(400, "empty memory")
@@ -90,7 +101,9 @@ def memory_edit(mem_id: int, item: MemoryIn):
 
 
 @router.delete("/api/memory/{mem_id}")
-def memory_delete(mem_id: int, confirm: bool = False):
+def memory_delete(mem_id: int, confirm: bool = False,
+                  x_vokter_human_session: str | None = Header(default=None)):
+    _require_human(x_vokter_human_session)          # token first, then the safety confirm gate
     enforce_http("memory.delete", mem_id, context=HUMAN, confirmed=confirm)
     if not memory.delete(mem_id):
         raise HTTPException(404, "no such memory")
@@ -98,7 +111,9 @@ def memory_delete(mem_id: int, confirm: bool = False):
 
 
 @router.delete("/api/memory")
-def memory_forget_all(confirm: bool = False):
+def memory_forget_all(confirm: bool = False,
+                      x_vokter_human_session: str | None = Header(default=None)):
+    _require_human(x_vokter_human_session)
     enforce_http("memory.purge", None, context=HUMAN, confirmed=confirm)
     removed = memory.forget_all()
     return {"ok": True, "forgotten": removed}
