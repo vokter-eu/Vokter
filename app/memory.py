@@ -8,12 +8,18 @@ No chat injection yet (that is 1b), no learning-from-conversation (that is Phase
 no similarity retrieval (Phase 1 includes ALL facts, so no embeddings are computed).
 """
 import json
+import re
 import time
 from contextlib import closing
 
+import numpy as np
+
+from config import MEMORY_MIN_SCORE, MEMORY_TOP_K
 from db import get_db
-from embedding import pack_embedding
+from embedding import pack_embedding, unpack_embedding
 from engine import get_engine, ChatRequest
+from fts import to_match_query
+from rag import embed, rrf
 
 # Explicit, predictable triggers — NOT fuzzy NLP. The user always knows when a
 # save happens (Vokter confirms), and can see/delete it in the review window.
@@ -45,6 +51,59 @@ def trigger_lang(text: str) -> str:
     return "es" if any(low.startswith(p) for p in _ES_PREFIXES) else "en"
 
 
+# --- Direction A / A1: "core" (identity) facts — the ones ALWAYS injected -------------
+# A deliberately NARROW allow-list of durable identity signals: own name, health/
+# allergies, and family/relationships. Everything else (favourite colour, team, one-off
+# likes) is core=0 and reaches the prompt ONLY when the message is relevant — that is
+# exactly what retires the old dump-all (see the eval's "colours on an unrelated question"
+# check). Keep this TIGHT: every entry widens what is unconditionally in the prompt. A
+# false negative is cheap (the fact is still retrieved when relevant); a false positive
+# just over-includes. Bilingual (en+es) to match the extractor, which writes in the user's
+# language. The `add()` extractor gives us no category tags, so we classify from the text.
+_CORE_STEMS = (
+    # health / allergies
+    "allerg", "alérg", "alergi", "intoleran", "celiac", "celíac", "diabet",
+    "asthma", "asma", "epilep", "hipertens", "hypertens",
+    # own name
+    "name is", "named", "nombre", "se llama", "llamad", "me llamo",
+    # family / relationships (unambiguous stems)
+    "husband", "wife", "spouse", "daughter", "brother", "sister", "mother",
+    "father", "parent", "sibling", "married", "fianc", "girlfriend", "boyfriend",
+    "grandmother", "grandfather", "esposa", "esposo", "marido", "hermano",
+    "hermana", "madre", "padre", "abuel", "sobrin", "pareja", "casad",
+    "prometid", "family", "familia",
+)
+# Short, ambiguous relationship words matched only on a WHOLE-WORD boundary, so "son"
+# never fires inside "person"/"reason" and "hija" never inside a longer token.
+_CORE_WORDS = re.compile(
+    r"\b(son|sons|dad|mom|mum|kid|kids|child|children|hijo|hija|hijos|hijas|"
+    r"mamá|papá|mujer|novia|novio|tía|tío|primo|prima|nieto|nieta)\b",
+    re.IGNORECASE | re.UNICODE,
+)
+
+
+def _is_core(content: str) -> bool:
+    """True when a fact is an identity fact (name / health / family) → always injected."""
+    low = content.lower()
+    if any(s in low for s in _CORE_STEMS):
+        return True
+    return bool(_CORE_WORDS.search(content))
+
+
+# Shared wording for the memory system-prompt block, so the always-on dump (system_block,
+# kept for the eval BEFORE baseline) and the query-aware relevant_block render identically.
+def _render_block(lines: str) -> str:
+    return (
+        "\n\nThings the user has asked you to remember about them "
+        "(personal, private to this chat). Refer to them when they are relevant "
+        "to the user's message; do not recite or list them unprompted. These are "
+        "things the USER TOLD YOU, not documents — never attribute them to a named "
+        "document, file, or source; only cite a document when its text is actually "
+        "given to you in the message:\n"
+        f"{lines}"
+    )
+
+
 def add(content: str, source: str = "told", confidence: float = 1.0) -> dict:
     """Store a fact. Returns the created row. `content` is stored VERBATIM so the
     user sees exactly what was saved. `confidence` < 1 marks a Phase-2 'learned'
@@ -52,15 +111,19 @@ def add(content: str, source: str = "told", confidence: float = 1.0) -> dict:
     on injection (a stored fact was confirmed by the user, so it counts fully)."""
     content = content.strip()
     now = time.time()
+    core = 1 if _is_core(content) else 0
     with closing(get_db()) as db:
         cur = db.execute(
-            "INSERT INTO memory(content, source, created_at, confidence) VALUES(?,?,?,?)",
-            (content, source, now, confidence),
+            "INSERT INTO memory(content, source, created_at, core, confidence) VALUES(?,?,?,?,?)",
+            (content, source, now, core, confidence),
         )
         db.commit()
         new_id = cur.lastrowid
+    # The AFTER-INSERT trigger indexes the fact in memory_fts immediately (keyword-
+    # retrievable at once). `embedding` is left NULL; embed_pending() computes the vector
+    # in the background — scheduled fire-and-forget by the async caller (memory_add / ask).
     return {"id": new_id, "content": content, "source": source,
-            "created_at": now, "confidence": confidence}
+            "created_at": now, "core": core, "confidence": confidence}
 
 
 def list_all() -> list[dict]:
@@ -75,10 +138,14 @@ def list_all() -> list[dict]:
 
 
 def edit(mem_id: int, content: str) -> bool:
-    """Correct a fact. Returns False if the id doesn't exist."""
+    """Correct a fact. Returns False if the id doesn't exist. Re-classifies core (the new
+    text may change identity status) and NULLs the embedding so embed_pending re-embeds the
+    corrected text; the AFTER-UPDATE trigger re-syncs memory_fts to the new content."""
     content = content.strip()
+    core = 1 if _is_core(content) else 0
     with closing(get_db()) as db:
-        cur = db.execute("UPDATE memory SET content=? WHERE id=?", (content, mem_id))
+        cur = db.execute("UPDATE memory SET content=?, core=?, embedding=NULL WHERE id=?",
+                         (content, core, mem_id))
         db.commit()
         return cur.rowcount > 0
 
@@ -113,15 +180,95 @@ def system_block() -> str:
     if not facts:
         return ""
     lines = "\n".join(f"- {f['content']}" for f in facts)
-    return (
-        "\n\nThings the user has asked you to remember about them "
-        "(personal, private to this chat). Refer to them when they are relevant "
-        "to the user's message; do not recite or list them unprompted. These are "
-        "things the USER TOLD YOU, not documents — never attribute them to a named "
-        "document, file, or source; only cite a document when its text is actually "
-        "given to you in the message:\n"
-        f"{lines}"
-    )
+    return _render_block(lines)
+
+
+def has_facts() -> bool:
+    """Cheap existence check — does the store hold ANY fact? Used for the fail-closed
+    `memory_withheld` signal without materialising or ranking the whole memory."""
+    with closing(get_db()) as db:
+        return db.execute("SELECT EXISTS(SELECT 1 FROM memory)").fetchone()[0] == 1
+
+
+async def _rank_relevant(query: str, noncore: list[tuple]) -> list[int]:
+    """Rank NON-core facts against `query` (hybrid vector + FTS, RRF-fused) and return up
+    to MEMORY_TOP_K ids that clear the semantic floor OR are a genuine keyword hit. Core
+    facts are handled separately (always injected), so they are excluded here."""
+    if not noncore:
+        return []
+    ncids = {cid for cid, _content, _emb in noncore}
+
+    # vector arm — cosine of the query to each embedded non-core fact
+    vec_ranked: list[int] = []
+    sim_by_id: dict[int, float] = {}
+    qn = 0.0
+    try:
+        q = np.asarray(await embed(query), dtype=np.float32)
+        qn = float(np.linalg.norm(q))
+    except Exception:
+        qn = 0.0                      # engine down → lean on the keyword arm alone
+    if qn:
+        dim = q.shape[0]
+        ids, vecs = [], []
+        for cid, _content, emb in noncore:
+            v = unpack_embedding(emb)
+            if v is not None and v.shape[0] == dim:
+                ids.append(cid)
+                vecs.append(v)
+        if vecs:
+            matrix = np.vstack(vecs)
+            sims = (matrix @ q) / (np.linalg.norm(matrix, axis=1) * qn + 1e-12)
+            order = np.argsort(-sims)[: MEMORY_TOP_K * 4]
+            vec_ranked = [ids[i] for i in order]
+            sim_by_id = {ids[i]: float(sims[i]) for i in order}
+
+    # keyword arm — FTS5 over the sanitised query, restricted to non-core rows
+    kw_ranked: list[int] = []
+    match = to_match_query(query)
+    if match:
+        with closing(get_db()) as db:
+            try:
+                kw = db.execute(
+                    "SELECT rowid FROM memory_fts WHERE memory_fts MATCH ? "
+                    "ORDER BY rank LIMIT ?", (match, MEMORY_TOP_K * 4)
+                ).fetchall()
+                kw_ranked = [r[0] for r in kw if r[0] in ncids]
+            except Exception:
+                kw_ranked = []
+
+    scores = rrf(vec_ranked, kw_ranked)
+    if not scores:
+        return []
+    kw_set = set(kw_ranked)
+    eligible = [cid for cid in scores
+                if cid in kw_set or sim_by_id.get(cid, 0.0) >= MEMORY_MIN_SCORE]
+    eligible.sort(key=lambda cid: scores[cid], reverse=True)
+    return eligible[:MEMORY_TOP_K]
+
+
+async def relevant_block(query: str) -> str:
+    """Direction A / A1 — the query-aware replacement for system_block()'s dump-all.
+
+    Injects CORE (identity) facts always + up to MEMORY_TOP_K facts RELEVANT to `query`
+    (hybrid vector+FTS, RRF-fused, gated by the semantic floor OR a keyword hit). Bounded —
+    NEVER the whole store. Same "" -when-empty and wording contract as system_block, and the
+    SAME P2 guarantee: chat.build_chat_system calls it only for the local human session, so
+    it never reaches an A2A/MCP/peer caller. An off-topic message pulls in no non-core fact,
+    so a bare greeting still injects nothing beyond the (usually few) core identity facts."""
+    with closing(get_db()) as db:
+        rows = db.execute("SELECT id, content, core, embedding FROM memory").fetchall()
+    if not rows:
+        return ""
+    content_by_id = {cid: content for cid, content, _core, _emb in rows}
+    core_ids = [cid for cid, _content, core, _emb in rows if core]
+    noncore = [(cid, content, emb) for cid, content, core, emb in rows if not core]
+
+    picked = await _rank_relevant(query, noncore)
+    ordered = core_ids + picked                      # core first, then relevant preferences
+    if not ordered:
+        return ""
+    lines = "\n".join(f"- {content_by_id[cid]}" for cid in ordered)
+    return _render_block(lines)
 
 
 # --- Phase 2 (learn from conversation) — DETECTION ONLY -----------------------
@@ -216,7 +363,6 @@ async def embed_pending(batch: int = 128) -> int:
     quietly (Ollama down / model not pulled) — the fact stays keyword-retrievable via
     FTS meanwhile, so retrieval degrades cleanly instead of breaking. Returns the count
     embedded this pass. The UPDATE re-fires the FTS sync trigger harmlessly (same text)."""
-    from rag import embed   # local import — rag pulls the engine adapter (heavier)
     with closing(get_db()) as db:
         rows = db.execute(
             "SELECT id, content FROM memory WHERE embedding IS NULL ORDER BY id LIMIT ?",

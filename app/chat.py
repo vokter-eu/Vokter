@@ -52,16 +52,22 @@ def is_local_human_session(mark: str | None) -> bool:
     return hmac.compare_digest(mark.encode(), token.encode())
 
 
-def build_chat_system(cfg: dict, human: bool) -> str:
+async def build_chat_system(cfg: dict, human: bool, query: str | None = None) -> str:
     """Assemble the chat system prompt. Personal memory (P2) is appended ONLY for the
-    local human session; withheld for every other caller (deny-by-default). Pure — no
-    network, no model — so a test can assert the invariant directly:
-      human=True  → byte-identical to Phase 1b: build_system_prompt(cfg) + memory.system_block()
-      human=False → byte-identical to a memory-less Vokter: build_system_prompt(cfg)"""
+    local human session; withheld for every other caller (deny-by-default). The P2 gate is
+    unchanged — this is the ONE point that keeps "memory reaches only the human session":
+      human=False → build_system_prompt(cfg), byte-identical to a memory-less Vokter.
+      human=True, query given → base + memory.relevant_block(query): core facts + the facts
+        RELEVANT to this message (Direction A / A1), never the whole store.
+      human=True, query=None → base + memory.system_block(): the dump-all fallback, kept so
+        callers without a query (and the eval's BEFORE baseline / the P2 gate test) still
+        get the byte-identical Phase-1b behaviour."""
     base = build_system_prompt(cfg)
-    if human:
+    if not human:
+        return base
+    if query is None:
         return base + memory.system_block()
-    return base
+    return base + await memory.relevant_block(query)
 
 
 def _load_history(conv_id: str, limit: int, human: bool) -> list[dict]:
@@ -110,6 +116,7 @@ async def ask(q: Question, x_vokter_human_session: str | None = Header(default=N
         fact = memory.parse_remember(q.question)
         if fact:
             memory.add(fact, source="told")
+            asyncio.create_task(memory.embed_pending())   # embed the new fact in the bg
             conv_id = q.conversation_id or str(uuid.uuid4())
             answer = (f"Anotado: {fact}" if memory.trigger_lang(q.question) == "es"
                       else f"Got it — I'll remember: {fact}")
@@ -129,18 +136,20 @@ async def ask(q: Question, x_vokter_human_session: str | None = Header(default=N
     model       = cfg.get("chat_model")  or CHAT_MODEL
     max_history = int(cfg.get("max_history") or MAX_HISTORY)
 
-    # RAG is now AUGMENTING, not gating: retrieve, but keep only chunks above the
-    # relevance floor. A greeting or an off-topic message matches nothing well, so
-    # `relevant` is empty and Vokter simply CONVERSES — no "upload a document" wall,
-    # the model is always called. When real matches exist we ground + cite as before.
-    scored = await retrieve(q.question, top_k=int(cfg.get("rag_chunks") or 4))
+    # RAG is now AUGMENTING, not gating: hybrid retrieve (vector + FTS keyword, RRF-fused)
+    # applies the relevance gate INTERNALLY — a candidate survives only if it clears the
+    # semantic floor OR is a genuine keyword hit. A greeting or off-topic message matches
+    # nothing, so `relevant` is empty and Vokter simply CONVERSES — no "upload a document"
+    # wall, the model is always called. When real matches exist we ground + cite as before.
     min_score = float(cfg.get("rag_min_score") or 0.57)
-    relevant = [(s, doc, content) for (s, doc, content) in scored if s >= min_score]
+    relevant = await retrieve(q.question, top_k=int(cfg.get("rag_chunks") or 4),
+                              min_score=min_score)
 
-    # Phase 1b + P2 gate: personal memory joins the SYSTEM prompt ONLY for the local
-    # human session; withheld for any other caller (build_chat_system, deny-by-default).
-    # With the human mark this is byte-identical to before.
-    system  = build_chat_system(cfg, human)
+    # Phase 1b + P2 gate + A1 retrieval: personal memory joins the SYSTEM prompt ONLY for
+    # the local human session; withheld for any other caller (build_chat_system, deny-by-
+    # default). The user's question is threaded in so memory is retrieved query-aware
+    # (core facts + relevant facts), not dumped whole.
+    system  = await build_chat_system(cfg, human, q.question)
     conv_id = q.conversation_id or str(uuid.uuid4())
     history = _load_history(conv_id, max_history, human)
 
@@ -156,7 +165,7 @@ async def ask(q: Question, x_vokter_human_session: str | None = Header(default=N
     #   boundary. A WARNING on every routine peer ask would only train alarm-fatigue. The
     #   human's own case is covered VISIBLY by the UI notice (memory_withheld) — this log
     #   is the secondary, diagnostic trace.
-    memory_withheld = (not human) and bool(memory.system_block())
+    memory_withheld = (not human) and memory.has_facts()
     if memory_withheld:
         log.info("[memory] withheld: request lacks a valid human-session mark "
                  "(personal memory not injected)")

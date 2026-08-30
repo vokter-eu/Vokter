@@ -10,6 +10,7 @@ POST   /api/memory/suggest — Phase 2b: PROPOSE facts noticed in chat (never st
 Loopback-only, like the rest of the local API. The user sees and controls ALL of
 it — nothing is hidden.
 """
+import asyncio
 import unicodedata
 from contextlib import closing
 
@@ -77,7 +78,7 @@ def memory_list(x_vokter_human_session: str | None = Header(default=None)):
 
 
 @router.post("/api/memory")
-def memory_add(item: MemoryIn, x_vokter_human_session: str | None = Header(default=None)):
+async def memory_add(item: MemoryIn, x_vokter_human_session: str | None = Header(default=None)):
     _require_human(x_vokter_human_session)
     content = item.content.strip()
     if not content:
@@ -86,17 +87,20 @@ def memory_add(item: MemoryIn, x_vokter_human_session: str | None = Header(defau
     # else falls back to 'told'. Storing here is ALWAYS an explicit user action —
     # the 2c chip's [Remember]/[Edit], or the review window's typed add.
     source = item.source if item.source in ("told", "learned") else "told"
-    return memory.add(content, source=source, confidence=item.confidence)
+    row = memory.add(content, source=source, confidence=item.confidence)
+    asyncio.create_task(memory.embed_pending())   # A1: embed the new fact in the background
+    return row
 
 
 @router.patch("/api/memory/{mem_id}")
-def memory_edit(mem_id: int, item: MemoryIn, x_vokter_human_session: str | None = Header(default=None)):
+async def memory_edit(mem_id: int, item: MemoryIn, x_vokter_human_session: str | None = Header(default=None)):
     _require_human(x_vokter_human_session)
     content = item.content.strip()
     if not content:
         raise HTTPException(400, "empty memory")
     if not memory.edit(mem_id, content):
         raise HTTPException(404, "no such memory")
+    asyncio.create_task(memory.embed_pending())   # A1: re-embed the corrected fact
     return {"ok": True, "id": mem_id, "content": content}
 
 

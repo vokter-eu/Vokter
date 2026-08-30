@@ -11,6 +11,7 @@ Prueba la invariante que importa, como función pura, sin red ni modelo:
 Ejecutar:  desktop/runtime/venv/bin/python tests/memory_gate_test.py
 (ver docs/threat-model-prompt-injection.md §7-8)
 """
+import asyncio
 import os
 import sys
 import tempfile
@@ -50,16 +51,21 @@ def test_byte_identical_and_withheld():
     cfg = agent_config.get_config()
     base = agent_config.build_system_prompt(cfg)
 
+    # build_chat_system is async + query-aware now; query=None keeps the Phase-1b dump-all
+    # (system_block) so THIS invariant — the P2 gate — is unchanged. (Query-aware retrieval
+    # is exercised by tests/memory_retrieval_eval.py, not here.)
+    run = asyncio.run
+
     # No facts yet: both paths reduce to the baseline (system_block() == "").
-    assert chat.build_chat_system(cfg, human=False) == base
-    assert chat.build_chat_system(cfg, human=True) == base + memory.system_block()
+    assert run(chat.build_chat_system(cfg, human=False)) == base
+    assert run(chat.build_chat_system(cfg, human=True)) == base + memory.system_block()
 
     # Seed a real fact (with HTML in it — proves the gate is about WHO, not sanitising).
     memory.add(FACT, source="told")
     assert FACT in memory.system_block()
 
-    human_prompt = chat.build_chat_system(cfg, human=True)
-    peer_prompt = chat.build_chat_system(cfg, human=False)
+    human_prompt = run(chat.build_chat_system(cfg, human=True))
+    peer_prompt = run(chat.build_chat_system(cfg, human=False))
 
     # Bilal's exact ask: WITH the human mark, byte-identical to today's concatenation.
     assert human_prompt == agent_config.build_system_prompt(cfg) + memory.system_block()
