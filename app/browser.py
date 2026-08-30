@@ -1,5 +1,4 @@
 import ipaddress
-import json
 import re
 import socket
 from contextlib import closing
@@ -12,6 +11,7 @@ from pydantic import BaseModel
 
 from db import get_db
 from identity import new_session_key
+from embedding import pack_embedding
 from ingestion import chunk_text
 from rag import embed
 from utils import strip_html
@@ -143,7 +143,7 @@ async def browse(req: BrowseRequest):
             vector = await embed(piece)
             db.execute(
                 "INSERT INTO chunks (doc, content, embedding) VALUES (?, ?, ?)",
-                (doc_name, piece, json.dumps(vector)),
+                (doc_name, piece, pack_embedding(vector)),
             )
         db.commit()
 

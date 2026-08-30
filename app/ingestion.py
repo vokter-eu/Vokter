@@ -1,5 +1,4 @@
 import io
-import json
 from contextlib import closing
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -7,6 +6,7 @@ from pypdf import PdfReader
 
 from config import CHUNK_SIZE, CHUNK_OVERLAP
 from db import get_db
+from embedding import pack_embedding
 from rag import embed
 
 router = APIRouter()
@@ -43,7 +43,7 @@ async def upload_doc(file: UploadFile = File(...)):
         for piece, vector in zip(chunks, vectors):
             db.execute(
                 "INSERT INTO chunks (doc, content, embedding) VALUES (?, ?, ?)",
-                (doc_name, piece, json.dumps(vector)),
+                (doc_name, piece, pack_embedding(vector)),
             )
         db.commit()
     return {"doc": doc_name, "chunks": len(chunks)}

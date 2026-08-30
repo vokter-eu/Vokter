@@ -1,7 +1,6 @@
 import email as email_lib
 import email.header
 import imaplib
-import json
 from contextlib import closing
 
 from fastapi import APIRouter, HTTPException
@@ -11,6 +10,7 @@ from config import (
     EMAIL_MAX_SYNC, EMAIL_PASSWORD, EMAIL_USER,
 )
 from db import get_db
+from embedding import pack_embedding
 from ingestion import chunk_text
 from rag import embed
 from utils import strip_html
@@ -107,7 +107,7 @@ async def sync_emails():
                         vector = await embed(piece)
                         db.execute(
                             "INSERT INTO chunks (doc, content, embedding) VALUES (?, ?, ?)",
-                            (doc_name, piece, json.dumps(vector)),
+                            (doc_name, piece, pack_embedding(vector)),
                         )
                     db.execute(
                         "INSERT OR IGNORE INTO synced_emails "
