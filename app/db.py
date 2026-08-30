@@ -7,8 +7,15 @@ def get_db():
         os.makedirs(d, exist_ok=True)
     conn = sqlite_impl.connect(DB_PATH)
     if DB_KEY:
+        # H1: SQLCipher secure-memory — lock/zero the key + decrypted pages in RAM. MUST be set
+        # BEFORE PRAGMA key. (Plain sqlite3 in keyless dev ignores unknown PRAGMAs.)
+        conn.execute("PRAGMA cipher_memory_security = ON")
         safe_key = DB_KEY.replace("'", "''")
         conn.execute(f"PRAGMA key='{safe_key}'")
+    # H1: never spill sorts / index builds / FTS5 work to plaintext temp files on disk.
+    conn.execute("PRAGMA temp_store = MEMORY")
+    # H3: scrub freed pages so 'forget' (delete) actually erases, not just unlinks.
+    conn.execute("PRAGMA secure_delete = ON")
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute(
         """CREATE TABLE IF NOT EXISTS chunks (
