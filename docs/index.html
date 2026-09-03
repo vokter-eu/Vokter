@@ -404,6 +404,12 @@
     .cap:active,.chip:active,.oscard:not(.soon):active,.btn:active{transform:none!important;box-shadow:none!important}
   }
 </style>
+<noscript><style>
+  /* No JavaScript (e.g. NoScript): the reveal/hero elements start hidden so JS can
+     animate them in. With scripts off there's no JS to reveal them, so force the whole
+     page visible and static — a sovereignty site must never render blank without JS. */
+  .reveal,.reveal.shown,.h-rise,.hero.ready .h-rise{opacity:1!important;transform:none!important}
+</style></noscript>
 </head>
 <body>
 
@@ -500,10 +506,10 @@
 
 <!-- STATS / COUNTERS -->
 <div class="stats"><div class="grid">
-  <div class="stat reveal"><div class="n"><span class="num" data-target="100">0</span><span class="u">%</span></div><div class="l" data-i18n="stat1">On your machine</div></div>
+  <div class="stat reveal"><div class="n"><span class="num" data-target="100">100</span><span class="u">%</span></div><div class="l" data-i18n="stat1">On your machine</div></div>
   <div class="stat reveal" style="transition-delay:.08s"><div class="n"><span class="num" data-target="0">0</span></div><div class="l" data-i18n="stat2">Accounts required</div></div>
   <div class="stat reveal" style="transition-delay:.16s"><div class="n"><span class="num" data-target="0">0</span></div><div class="l" data-i18n="stat3">Bytes to the cloud</div></div>
-  <div class="stat reveal" style="transition-delay:.24s"><div class="n"><span class="num" data-target="7">0</span></div><div class="l" data-i18n="stat4">Languages spoken</div></div>
+  <div class="stat reveal" style="transition-delay:.24s"><div class="n"><span class="num" data-target="7">7</span></div><div class="l" data-i18n="stat4">Languages spoken</div></div>
 </div></div>
 
 <!-- CAPABILITIES -->
@@ -594,14 +600,13 @@
     <div class="codeblock reveal">
       <div class="top"><span class="d"></span><span class="d"></span><span class="d"></span><span class="mono">bash</span></div>
       <div class="body">
-        <div><span class="p">$</span> curl -fsSL <span class="p">vokterai.com/install.sh</span> | sh</div>
-        <div class="c" data-i18n="instComment1"># verifies signature · installs locally</div>
-        <div style="margin-top:10px"><span class="p">$</span> vokter start</div>
-        <div class="c" data-i18n="instComment2"># running at localhost · offline</div>
+        <div class="c" data-i18n="instComment1"># download the .deb, then install it:</div>
+        <div><span class="p">$</span> sudo apt install <span class="p">./vokter-desktop_*.deb</span></div>
+        <div class="c" style="margin-top:10px" data-i18n="instComment2"># then launch Vokter from your apps · runs offline</div>
       </div>
     </div>
     <div>
-      <div class="oscard reveal"><div><div class="on" data-i18n="osLinux">Linux</div><div class="os-now" data-i18n="osLinuxSub">AVAILABLE NOW · .deb .rpm AppImage</div></div><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3v12M7 11l5 5 5-5M5 21h14" stroke="#4E9E78" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <a class="oscard reveal" href="https://github.com/vokter-eu/Vokter/releases/latest"><div><div class="on" data-i18n="osLinux">Linux</div><div class="os-now" data-i18n="osLinuxSub">AVAILABLE NOW · .deb (amd64)</div></div><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3v12M7 11l5 5 5-5M5 21h14" stroke="#4E9E78" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
       <div class="oscard soon reveal"><div><div class="on" data-i18n="osMac">macOS</div><div class="os-soon" data-i18n="osSoon">COMING SOON</div></div></div>
       <div class="oscard soon reveal"><div><div class="on" data-i18n="osWin">Windows</div><div class="os-soon" data-i18n="osSoon2">COMING SOON</div></div></div>
     </div>
@@ -696,8 +701,8 @@
       archBoundary:"— device boundary — nothing crosses without your consent —",
       langEyebrow:"Languages", langTitle:"Speaks your language.", langSoon:"SOON",
       instEyebrow:"Install", instTitle:"One command. No account. Nothing phones home.",
-      instComment1:"# verifies signature · installs locally", instComment2:"# running at localhost · offline",
-      osLinux:"Linux", osLinuxSub:"AVAILABLE NOW · .deb .rpm AppImage", osMac:"macOS", osSoon:"COMING SOON", osWin:"Windows", osSoon2:"COMING SOON",
+      instComment1:"# download the .deb, then install it:", instComment2:"# then launch Vokter from your apps · runs offline",
+      osLinux:"Linux", osLinuxSub:"AVAILABLE NOW · .deb (amd64)", osMac:"macOS", osSoon:"COMING SOON", osWin:"Windows", osSoon2:"COMING SOON",
       instHonest:"Honest status: Linux is stable today. macOS and Windows builds are in progress — the source is public, so you can build them yourself in the meantime.",
       manEyebrow:"From the manifesto",
       manQuote:"“In old Norse law, odel was the right that bound a family to its land — a right no lord could sever and no debt could seize. What was yours stayed yours, across generations. Vokter carries that right into the digital age: your data, your memory, held by you alone.”",
@@ -749,8 +754,8 @@
       archBoundary:"— frontera del dispositivo — nada cruza sin tu consentimiento —",
       langEyebrow:"Idiomas", langTitle:"Habla tu idioma.", langSoon:"PRONTO",
       instEyebrow:"Instalación", instTitle:"Un comando. Sin cuenta. Nada llama a casa.",
-      instComment1:"# verifica la firma · instala en local", instComment2:"# en marcha en localhost · sin conexión",
-      osLinux:"Linux", osLinuxSub:"DISPONIBLE YA · .deb .rpm AppImage", osMac:"macOS", osSoon:"PRÓXIMAMENTE", osWin:"Windows", osSoon2:"PRÓXIMAMENTE",
+      instComment1:"# descarga el .deb y luego instálalo:", instComment2:"# luego abre Vokter desde tus aplicaciones · sin conexión",
+      osLinux:"Linux", osLinuxSub:"DISPONIBLE YA · .deb (amd64)", osMac:"macOS", osSoon:"PRÓXIMAMENTE", osWin:"Windows", osSoon2:"PRÓXIMAMENTE",
       instHonest:"Estado honesto: Linux es estable hoy. Las versiones de macOS y Windows están en camino — el código es público, así que puedes compilarlas tú mismo mientras tanto.",
       manEyebrow:"Del manifiesto",
       manQuote:"“En el antiguo derecho nórdico, el odel era el derecho que unía a una familia con su tierra — un derecho que ningún señor podía romper ni ninguna deuda embargar. Lo que era tuyo seguía siendo tuyo, generación tras generación. Vokter lleva ese derecho a la era digital: tus datos, tu memoria, en tus manos y solo en las tuyas.”",
@@ -845,7 +850,9 @@
     var co=new IntersectionObserver(function(entries){
       entries.forEach(function(en){ if(en.isIntersecting){ runCount(en.target); co.unobserve(en.target); } });
     },{threshold:.6});
-    nums.forEach(function(el){ co.observe(el); });
+    // Static HTML holds the real target (so it's correct with JS off). Reset to 0 here —
+    // off-screen, before it scrolls into view — so JS-on still counts up without a flash.
+    nums.forEach(function(el){ el.textContent='0'; co.observe(el); });
   }
 })();
 </script>
