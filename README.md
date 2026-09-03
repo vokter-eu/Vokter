@@ -9,73 +9,73 @@ Vokter (Norwegian: *guardian*) is a personal, sovereign AI agent that runs on **
 > There's a right older than the internet: what is yours cannot be taken. Norwegians call it *odel*. Vokter is its digital guardian.
 > — [Read the full manifesto](https://vokterai.com/MANIFESTO.html)
 
-## What Vokter does today (v0.8.0)
+## What Vokter does today (v0.14.0)
 
 | Capability | Details |
 |---|---|
-| **Document memory** | Ingest PDF, TXT, MD — chunked, embedded, stored locally. Full RAG answers with source citations. Real deletion (embeddings included). |
-| **Encrypted database** | AES-256 at rest via SQLCipher. Set `VOKTER_DB_KEY` before first run. |
-| **Local chat** | Conversation with your documents. Persistent history per session (SQLite-backed). Context window 8 192 tokens. |
-| **Email connector** | IMAP/SSL — syncs and indexes your inbox locally. No cloud. |
-| **Local voice** | Talk to Vokter: Whisper STT (faster-whisper) + Piper TTS. Your voice never leaves the machine. |
-| **Web browsing** | Fetch and memorize web pages. Granular allowlist — you decide which domains Vokter can visit. |
-| **Task planner** | Give Vokter a goal; it breaks it into steps (browse, ask), executes them, and streams the result back. |
-| **Scheduled tasks** | Set recurring goals (every 5 m / 2 h / 1 d). Vokter runs them autonomously and stores the output. |
-| **Agent personalisation** | Name, tone (formal/neutral/friendly), mode, language, model — all configurable at runtime without restarting Docker. |
-| **Identity layer** | Master key + ephemeral session keys (HMAC-SHA256). Each external interaction gets a fresh, unlinkable key. |
+| **Document memory** | Ingest PDF, TXT, MD — chunked, embedded (bge-m3), stored locally. RAG answers with source citations. Real deletion (embeddings included). |
+| **Local chat** | Streamed conversation with your documents and memory. Persistent per-session history (SQLite-backed). |
+| **On-device voice** | Whisper speech-to-text + local text-to-speech — Kokoro (English, Spanish, French, Italian, Portuguese) and downloadable Piper voice packs (German, Dutch, Catalan). Your voice never leaves the machine. |
+| **In-app model management** | Pick and download chat models from inside the app, with a live progress bar and an active-model badge. Vokter reads your hardware and recommends a model — no config files. |
+| **Languages** | English, Spanish, French, German, Italian, Portuguese, Dutch, and Catalan (via the Salamandra model). |
+| **Email connector** | IMAP/SSL — syncs and indexes your inbox locally; drafts replies, never sends without your confirmation. |
+| **Web browsing** | Fetch and memorize web pages. Allow-list only — you decide which domains Vokter may visit; redirects to private/internal addresses are blocked. |
+| **Task planner** | Give Vokter a goal; it breaks it into steps, executes them, and streams the result back. |
+| **Scheduled tasks** | Set recurring goals; Vokter runs them autonomously and stores the output. |
+| **Encrypted at rest** | AES-256 via SQLCipher. The key is generated on first run and held in your OS keyring — it never leaves the machine. |
+| **Agent interop** | Talk to other agents over MCP (e.g. Claude Desktop) and Nostr, with ephemeral, unlinkable session keys per interaction. |
 
 ## Quick start
 
-### No-code install (recommended)
+Vokter ships as a desktop app — no Docker, no accounts, no config files.
 
-Download and double-click the installer for your OS — it sets everything up automatically:
+### Linux (available now)
 
-- 🐧 **Linux** → [Download the .deb](https://github.com/vokter-eu/Vokter/releases/latest) (`sudo apt install ./vokter-desktop_*.deb`)
-- 🍎 **macOS** → coming soon
-- 🪟 **Windows** → coming soon
+1. Download the latest `.deb` from **[github.com/vokter-eu/Vokter/releases/latest](https://github.com/vokter-eu/Vokter/releases/latest)**.
+2. Install it:
+   ```bash
+   sudo apt install ./vokter-desktop_*.deb
+   ```
+3. Launch **Vokter** from your applications menu.
 
-Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/) (free). The installer downloads the AI model, generates your encryption key, and opens Vokter at **http://localhost:8080** automatically.
+On first run, Vokter downloads its models — the **qwen2.5:3b** chat model and the **bge-m3** multilingual embedder (~2.4 GB) — and generates your encryption key automatically. Everything after that runs locally: no account, no cloud, no telemetry. Not a single byte leaves your machine.
 
-### Manual install (developers)
+**macOS** and **Windows** builds are coming soon. In the meantime the source is public — see *Build from source* below.
 
-```bash
-git clone https://github.com/vokter-eu/Vokter.git
-cd Vokter
-cp .env.example .env
-# Set VOKTER_DB_KEY in .env (generate with: openssl rand -hex 32)
-docker compose up -d --build
-docker exec -it vokter-ollama ollama pull llama3.2:3b
-docker exec -it vokter-ollama ollama pull nomic-embed-text
-```
+### Choosing a model
 
-Open **http://localhost:8080**. Upload a document and ask it anything. Not a single byte has left your machine.
+Vokter detects your hardware and recommends a model; you can pick and download others from the in-app model manager at any time:
 
-### Hardware guide
+| Your machine | Recommended model | Download |
+|---|---|---|
+| Most laptops / weaker CPU | `qwen2.5:3b` — *Light* (the default) | ~2 GB |
+| Capable CPU or GPU | `gemma3:4b` — *Balanced* | ~3 GB |
+| Strong GPU | `qwen3:30b-a3b` — *Powerful* | ~18 GB |
+| Catalan | `salamandra-2b-instruct` | ~1.5 GB |
 
-| RAM | Recommended model |
-|---|---|
-| 8 GB | `llama3.2:3b` or `qwen2.5:3b` |
-| 16 GB | `mistral` or `llama3.1:8b` |
-| NVIDIA GPU | Uncomment the `deploy` block in `docker-compose.yml` |
+The recommendation is conservative on purpose: a bigger model is only suggested when your hardware can actually run it responsively.
+
+### Build from source (developers)
+
+Vokter is fully open source (AGPL-3.0). Clone the repo and build the desktop app from `desktop/` — a PyInstaller-frozen Python backend wrapped in an Electron shell. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Configuration
 
-All settings live in `.env` (copy from `.env.example`). The most important ones:
+There are no config files or API keys. Everything lives in the app's **Settings**:
 
-| Variable | Default | Description |
-|---|---|---|
-| `VOKTER_DB_KEY` | *(must change)* | Database encryption passphrase |
-| `VOKTER_CHAT_MODEL` | `llama3.2:3b` | Ollama model for chat and planning |
-| `VOKTER_EMBED_MODEL` | `nomic-embed-text` | Ollama model for embeddings |
+- **Model** — pick and download chat models; follow Vokter's hardware-based recommendation.
+- **Language & voice** — choose your language and voice pack.
+- **Persona** — name, tone (formal / neutral / friendly), and mode.
+- **Advanced** — point Vokter at your own Ollama instance via an Engine URL (optional; a local engine is bundled by default).
 
-See `.env.example` for the full list with comments.
+Your encryption key is created on first run and stored in your OS keyring — you never have to handle it.
 
 ## Roadmap
 
-- [x] **Phase 1 — Your agent on your machine**: local LLM via Ollama, AES-256 encrypted memory, RAG chat, email connector.
-- [x] **Phase 2 — Your agent goes out into the world**: 100% local voice (Whisper STT + Piper TTS), web browsing with allowlist permissions, multi-step task planner with SSE streaming, identity layer.
+- [x] **Phase 1 — Your agent on your machine**: local LLM, AES-256 encrypted memory, RAG chat, email connector.
+- [x] **Phase 2 — Your agent goes out into the world**: 100% local voice (Whisper STT + local TTS), web browsing with allow-list permissions, multi-step task planner with streaming, identity layer.
 - [x] **Phase 4 — Your agent works while you sleep**: scheduled background tasks with configurable intervals, run history, autonomous execution via the planner pipeline.
-- [x] **Phase 5 — Make it yours**: agent personalisation (name, tone, language, model selection, conversation history). Docker-first setup with `.env.example`. SQLCipher encryption active in Docker.
+- [x] **Phase 5 — Make it yours**: desktop app (`.deb`) with in-app onboarding, model management, and agent personalisation (name, tone, language, model). SQLCipher encryption with the key held in your OS keyring.
 - [x] **Phase 6 — Your agent talks to other agents**: MCP server adapter (connect to Claude Desktop and other MCP hosts), Nostr adapter (DMs as tool calls, identity derived from master key).
 - [ ] **Phase 7 — Sovereign cloud compute (optional)**: for users without local hardware (mobile, old machines), opt-in confidential compute via TEE (Intel TDX / AMD SEV-SNP) — used without an account or identity. Remote attestation gives users cryptographic proof of privacy before sending anything. No trust required: the hardware itself signs the guarantee.
 - [ ] **Phase 8 — Vokter Infrastructure**: own European datacenter with confidential compute hardware. Third-party security audits published openly. Operator (Vokter) is architecturally unable to access user data — verifiable, not promised.
@@ -91,9 +91,9 @@ See `.env.example` for the full list with comments.
 
 ## Security
 
-- Database encrypted at rest with AES-256 (SQLCipher). Set `VOKTER_DB_KEY` — required, no fallback.
-- Runs as a non-root user inside Docker.
-- Web browsing is allowlist-only — Vokter cannot visit a domain you haven't explicitly permitted, and redirects to private/internal addresses are blocked.
+- Database encrypted at rest with AES-256 (SQLCipher). The key is generated on first run and stored in your OS keyring — it never leaves the machine.
+- Ships as a sandboxed desktop app (AppArmor profile on Linux, plus the Chromium sandbox).
+- Web browsing is allow-list only — Vokter cannot visit a domain you haven't explicitly permitted, and redirects to private/internal addresses are blocked.
 - No data is ever sent to a third-party service unless you configure an external connector (e.g. an IMAP mailbox you own).
 
 ## License
