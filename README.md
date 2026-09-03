@@ -30,9 +30,9 @@ Vokter (Norwegian: *guardian*) is a personal, sovereign AI agent that runs on **
 
 Download and double-click the installer for your OS — it sets everything up automatically:
 
-- 🍎 **Mac** → [vokter-mac.zip](https://vokterai.com/install/vokter-mac.zip) (unzip → double-click)
-- 🪟 **Windows** → [vokter-windows.bat](https://vokterai.com/install/vokter-windows.bat) (double-click)
-- 🐧 **Linux** → [vokter-linux.sh](https://vokterai.com/install/vokter-linux.sh) (`bash vokter-linux.sh`)
+- 🐧 **Linux** → [Download the .deb](https://github.com/vokter-eu/Vokter/releases/latest) (`sudo apt install ./vokter-desktop_*.deb`)
+- 🍎 **macOS** → coming soon
+- 🪟 **Windows** → coming soon
 
 Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/) (free). The installer downloads the AI model, generates your encryption key, and opens Vokter at **http://localhost:8080** automatically.
 
