@@ -52,42 +52,54 @@ def trigger_lang(text: str) -> str:
 
 
 # --- Direction A / A1: "core" (identity) facts — the ones ALWAYS injected -------------
-# A deliberately NARROW allow-list of durable identity signals: own name, health/
-# allergies, and family/relationships. Everything else (favourite colour, team, one-off
-# likes) is core=0 and reaches the prompt ONLY when the message is relevant — that is
-# exactly what retires the old dump-all (see the eval's "colours on an unrelated question"
-# check). Keep this TIGHT: every entry widens what is unconditionally in the prompt. A
-# false negative is cheap (the fact is still retrieved when relevant); a false positive
-# just over-includes. Bilingual (en+es) to match the extractor, which writes in the user's
-# language. The `add()` extractor gives us no category tags, so we classify from the text.
-_CORE_STEMS = (
-    # health / allergies
-    "allerg", "alérg", "alergi", "intoleran", "celiac", "celíac", "diabet",
-    "asthma", "asma", "epilep", "hipertens", "hypertens",
-    # own name
-    "name is", "named", "nombre", "se llama", "llamad", "me llamo",
-    # family / relationships (unambiguous stems)
-    "husband", "wife", "spouse", "daughter", "brother", "sister", "mother",
-    "father", "parent", "sibling", "married", "fianc", "girlfriend", "boyfriend",
-    "grandmother", "grandfather", "esposa", "esposo", "marido", "hermano",
-    "hermana", "madre", "padre", "abuel", "sobrin", "pareja", "casad",
-    "prometid", "family", "familia",
-)
-# Short, ambiguous relationship words matched only on a WHOLE-WORD boundary, so "son"
-# never fires inside "person"/"reason" and "hija" never inside a longer token.
-_CORE_WORDS = re.compile(
-    r"\b(son|sons|dad|mom|mum|kid|kids|child|children|hijo|hija|hijos|hijas|"
-    r"mamá|papá|mujer|novia|novio|tía|tío|primo|prima|nieto|nieta)\b",
-    re.IGNORECASE | re.UNICODE,
-)
+# A deliberately NARROW class of durable identity signals: own name, health/allergies, and
+# family/relationships. Everything else (favourite colour, team, one-off likes) is core=0 and
+# reaches the prompt ONLY when relevant — retiring the old dump-all.
+#
+# Require IDENTITY-SHAPED phrasing, not just a family/health word appearing anywhere. The old
+# matcher flagged a bare stem in any sentence, so "my brother recommended this restaurant",
+# "the wife of the CEO", "a family recipe" all became always-on forever (measured: ~37% of the
+# core block was this noise). We now demand first-person / possessive framing:
+#   * name   — self-naming only ("my name is", "me llamo"), NOT "the band's name is".
+#   * health — first-person condition (see _is_health), NOT "diabetic-friendly recipe".
+#   * family — a possessive ("my/mi + relation") or "I have <relation>", so "my daughter Emma"
+#              qualifies but "my brother recommended…" still does (a possessive about an ACTION
+#              is a residual false positive — cheap, and the budget demotes it if never relevant).
+# A false negative stays cheap: the fact is still core=0-retrieved when relevant. Bilingual
+# (en+es) to match the extractor, which writes in the user's language.
+_NAME_RE = re.compile(
+    r"\b(?:my name is|i(?:'m| am) called|me llamo|mi nombre es|nos llamamos)\b",
+    re.IGNORECASE | re.UNICODE)
+_FAMILY_POSS_RE = re.compile(
+    r"\b(?:my|our)\s+(?:husband|wife|spouse|daughter|daughters|son|sons|brother|sister|"
+    r"mother|father|mom|mum|dad|parent|parents|sibling|siblings|grandmother|grandfather|"
+    r"grandma|grandpa|fianc\w+|girlfriend|boyfriend|partner|kid|kids|child|children|"
+    r"niece|nephew)\b"
+    r"|\b(?:mi|mis|nuestr[oa]s?)\s+(?:esposa|esposo|marido|mujer|hija|hijo|hijos|hijas|"
+    r"hermano|hermana|hermanos|hermanas|madre|padre|mamá|papá|abuel[oa]s?|pareja|novia|"
+    r"novio|sobrin[oa]s?|niet[oa]s?|prim[oa]s?|tí[oa]s?|prometid[oa])\b",
+    re.IGNORECASE | re.UNICODE)
+_FAMILY_HAVE_RE = re.compile(
+    r"\bi have (?:a |an |one |two |three |four |\d+ )?(?:son|sons|daughter|daughters|"
+    r"child|children|kid|kids|brother|brothers|sister|sisters|siblings)\b"
+    r"|\btengo (?:un |una |dos |tres |cuatro |\d+ )?(?:hij[oa]s?|herman[oa]s?)\b",
+    re.IGNORECASE | re.UNICODE)
+_MARRIAGE_RE = re.compile(
+    r"\b(?:i(?:'m| am)|we(?:'re| are)) (?:married|engaged|getting married)\b"
+    r"|\bnos casamos\b|\bestoy (?:casad|prometid)",
+    re.IGNORECASE | re.UNICODE)
 
 
 def _is_core(content: str) -> bool:
-    """True when a fact is an identity fact (name / health / family) → always injected."""
-    low = content.lower()
-    if any(s in low for s in _CORE_STEMS):
-        return True
-    return bool(_CORE_WORDS.search(content))
+    """True when a fact is an identity fact (name / health / family) → always injected.
+    Identity-shaped phrasing required (see the classifiers above); health via _is_health."""
+    return bool(
+        _is_health(content)
+        or _NAME_RE.search(content)
+        or _FAMILY_POSS_RE.search(content)
+        or _FAMILY_HAVE_RE.search(content)
+        or _MARRIAGE_RE.search(content)
+    )
 
 
 # --- Core-budget cap: health is the ONE always-on category EXEMPT from the budget --------
@@ -100,7 +112,7 @@ def _is_core(content: str) -> bool:
 # still `core` via _is_core and still retrieved on relevance — it just isn't budget-exempt.
 _HEALTH_RE = re.compile(
     r"\bi(?:'m| am) (?:allergic|asthmatic|diabetic|coeliac|celiac|epileptic|hypertensive|"
-    r"lactose[- ]intolerant|intolerant to)\b"
+    r"lactose[- ]intolerant|intolerant to)(?!-?friendly)\b"
     r"|\bi have (?:asthma|diabetes|coeliac|celiac|epilepsy|hypertension|high blood pressure|"
     r"an? (?:allergy|intolerance)|allergies)\b"
     r"|\bsoy (?:alérgic|asmátic|diabétic|celíac|hipertens|epilépt|intoleran)"

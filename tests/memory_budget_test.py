@@ -72,6 +72,23 @@ print(f"5. _is_health precision OK — {len(must_be_health)} genuine flagged, "
       f"{len(must_NOT_be_health)} non-health correctly rejected (uncapped path stays clean)")
 
 # ============================================================================
+# 5b. tightened _is_core: catches identity-shaped facts, rejects word-appears-anywhere noise
+# ============================================================================
+core_yes = ["my name is Bilal", "my daughter Emma is 7", "mi hermano Jordi vive en Girona",
+            "tengo dos hijos", "I'm allergic to shellfish", "we're getting married in June"]
+core_no = ["the wife of the CEO gave the keynote", "call it a family recipe from the internet",
+           "that band's name is hard to pronounce", "named after a mountain, the model is fast",
+           "my favourite colour is teal", "I support Athletic Club de Bilbao"]
+for f in core_yes:
+    if not memory._is_core(f):
+        _fail(f"tightened _is_core missed a genuine identity fact: {f!r}")
+for f in core_no:
+    if memory._is_core(f):
+        _fail(f"tightened _is_core still over-classifies (word-appears-anywhere): {f!r}")
+print(f"5b. tightened _is_core OK — {len(core_yes)} identity caught, "
+      f"{len(core_no)} word-in-passing rejected (killed the always-on noise)")
+
+# ============================================================================
 # 1. over budget → oldest non-health/non-pinned core demoted; kept set fits budget
 # ============================================================================
 # four family (core, non-health, non-pinned) facts, oldest → newest (~9 tok each)
