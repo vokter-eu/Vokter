@@ -66,6 +66,11 @@ async def lifespan(_app: FastAPI):
     # the FTS5 mirrors over existing rows. Fenced by meta markers → near-free on later boots.
     import migrations
     migrations.run_once()
+    # Bound the always-on identity block on boot too (not just on add/edit): an existing store
+    # that predates the cap, or a lowered VOKTER_CORE_BUDGET_TOKENS, gets enforced here. Cheap,
+    # idempotent, Ollama-free; demotes oldest overflow core → core=0 (still retrievable).
+    import memory
+    memory.enforce_core_budget()
     sched_task  = asyncio.create_task(scheduler_loop())
     nostr_task  = asyncio.create_task(nostr_listener.start())
     # Embedding backfill / re-embed — compute or refresh vectors for any chunk or fact whose

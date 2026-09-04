@@ -153,15 +153,24 @@ def get_db():
                created_at REAL NOT NULL,
                embedding  BLOB,                          -- packed float32; NULL until embedded
                core       INTEGER NOT NULL DEFAULT 0,    -- 1 = identity fact, always injected
+               health     INTEGER NOT NULL DEFAULT 0,    -- 1 = health/allergy: always-on, EXEMPT from the budget
+               pinned     INTEGER NOT NULL DEFAULT 0,    -- 1 = user-pinned always-on, EXEMPT from the budget
                confidence REAL NOT NULL DEFAULT 1.0
            )"""
     )
-    # Migrate memory tables created before Direction A (embedding was TEXT, no core).
-    # The embedding column already exists (reserved, all-NULL) so it needs no change —
-    # SQLite stores a BLOB regardless of the column's TEXT affinity. Only `core` is new.
+    # Migrate memory tables created before Direction A (embedding was TEXT, no core) and
+    # before the core-budget cap (no health/pinned). The embedding column already exists
+    # (reserved, all-NULL) so it needs no change — SQLite stores a BLOB regardless of the
+    # column's TEXT affinity. New scalar columns are added ALTER-guarded, default 0, so an
+    # existing store keeps working and no fact loses always-on status on upgrade (the
+    # tightened classifier only applies to future add/edit; the budget demotes, never deletes).
     mcols = [r[1] for r in conn.execute("PRAGMA table_info(memory)").fetchall()]
     if "core" not in mcols:
         conn.execute("ALTER TABLE memory ADD COLUMN core INTEGER NOT NULL DEFAULT 0")
+    if "health" not in mcols:
+        conn.execute("ALTER TABLE memory ADD COLUMN health INTEGER NOT NULL DEFAULT 0")
+    if "pinned" not in mcols:
+        conn.execute("ALTER TABLE memory ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")
 
     # A key/value marker table so the one-time heavy migrations (migrations.run_once)
     # know what has already run and never repeat it.

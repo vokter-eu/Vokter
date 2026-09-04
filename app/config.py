@@ -85,6 +85,12 @@ VECTOR_TOP_N = int(os.getenv("VOKTER_VECTOR_TOP_N", "20"))
 # message. MEMORY_MIN_SCORE is the semantic floor a non-core fact must clear to be pulled
 # in on similarity (a genuine keyword hit gets in regardless).
 MEMORY_TOP_K    = int(os.getenv("VOKTER_MEMORY_TOP_K", "5"))
+# Token budget for the ALWAYS-ON identity block (Direction A / core facts). When the
+# non-health, non-pinned core pool exceeds this, the OLDEST identity facts are demoted to
+# core=0 (still retrieved on relevance, never deleted) so the always-injected block can't
+# grow unbounded over months. Health/allergy + user-pinned facts are EXEMPT (never counted,
+# never demoted). Sized from measurement (~7 tok/fact → ~65 facts of headroom). Env-tunable.
+CORE_BUDGET_TOKENS = int(os.getenv("VOKTER_CORE_BUDGET_TOKENS", "500"))
 # 0.53 calibrated for bge-m3 (was 0.57 for nomic). Larger bilingual sample: real matches
 # score min 0.537 (the hard implicit ES team case) … 0.763; off-topic peaks at 0.521 → a
 # clean band (0.521, 0.537), floor 0.53. The band is thin (0.016) because the implicit team

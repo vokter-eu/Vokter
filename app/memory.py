@@ -14,7 +14,7 @@ from contextlib import closing
 
 import numpy as np
 
-from config import MEMORY_MIN_SCORE, MEMORY_TOP_K
+from config import CORE_BUDGET_TOKENS, MEMORY_MIN_SCORE, MEMORY_TOP_K
 from db import get_db
 from embedding import pack_embedding, unpack_embedding
 from engine import get_engine, ChatRequest
@@ -90,6 +90,91 @@ def _is_core(content: str) -> bool:
     return bool(_CORE_WORDS.search(content))
 
 
+# --- Core-budget cap: health is the ONE always-on category EXEMPT from the budget --------
+# Health/allergy facts are safety-critical and must NEVER be demoted, so they are the only
+# always-on facts the token budget can't touch. That makes this the UNCAPPED path, so its
+# PRECISION matters more than its recall: an over-included health fact sits in the prompt
+# forever, uncleanable. Hence first-person, condition-shaped phrasing only — "I'm allergic
+# to X" / "tengo diabetes", NOT a bare "allerg"/"diabet" appearing anywhere ("diabetic-
+# friendly recipe" must NOT qualify). A genuine health fact this misses is cheap: it is
+# still `core` via _is_core and still retrieved on relevance — it just isn't budget-exempt.
+_HEALTH_RE = re.compile(
+    r"\bi(?:'m| am) (?:allergic|asthmatic|diabetic|coeliac|celiac|epileptic|hypertensive|"
+    r"lactose[- ]intolerant|intolerant to)\b"
+    r"|\bi have (?:asthma|diabetes|coeliac|celiac|epilepsy|hypertension|high blood pressure|"
+    r"an? (?:allergy|intolerance)|allergies)\b"
+    r"|\bsoy (?:alérgic|asmátic|diabétic|celíac|hipertens|epilépt|intoleran)"
+    r"|\btengo (?:asma|diabetes|epilepsia|hipertensión|una? alergia|alergias|"
+    r"celiaqu|intolerancia)",
+    re.IGNORECASE | re.UNICODE,
+)
+
+
+def _is_health(content: str) -> bool:
+    """True for a first-person health/allergy fact — the budget-EXEMPT, never-demoted class."""
+    return bool(_HEALTH_RE.search(content))
+
+
+def _est_tokens(text: str) -> int:
+    """Rough token estimate (~4 chars/token) — matches the budget-sizing measurement. Only
+    used to bound the always-on block; approximate is fine (the budget has ample headroom)."""
+    return max(1, len(text) // 4)
+
+
+def enforce_core_budget() -> list[dict]:
+    """Bound the ALWAYS-ON block: if the non-health, non-pinned core pool exceeds
+    CORE_BUDGET_TOKENS, demote the OLDEST identity facts (created_at) to core=0 until it fits.
+    Demotion is core=1 → core=0: the fact is NOT deleted and stays retrievable via Direction A
+    when a message is relevant — it just stops being unconditionally injected. Health/allergy
+    and user-pinned facts are EXEMPT (never counted, never demoted). Idempotent. Returns the
+    facts demoted THIS call (for the UI's transparent 'moved from always-on' note)."""
+    demoted: list[dict] = []
+    with closing(get_db()) as db:
+        # newest first → keep the most recent within budget, demote the oldest overflow
+        rows = db.execute(
+            "SELECT id, content FROM memory "
+            "WHERE core=1 AND health=0 AND pinned=0 "
+            "ORDER BY created_at DESC, id DESC"
+        ).fetchall()
+        used = 0
+        for mid, content in rows:
+            t = _est_tokens(content)
+            if used + t <= CORE_BUDGET_TOKENS:
+                used += t
+            else:
+                db.execute("UPDATE memory SET core=0 WHERE id=?", (mid,))
+                demoted.append({"id": mid, "content": content})
+        if demoted:
+            db.commit()
+    return demoted
+
+
+def pin(mem_id: int) -> bool:
+    """User pins a fact as always-on. Sets pinned=1 AND core=1, so it is unconditionally
+    injected and EXEMPT from the budget — the escape hatch for anything the user wants kept
+    always-on regardless of age. Returns False if the id doesn't exist."""
+    with closing(get_db()) as db:
+        cur = db.execute("UPDATE memory SET pinned=1, core=1 WHERE id=?", (mem_id,))
+        db.commit()
+        return cur.rowcount > 0
+
+
+def unpin(mem_id: int) -> bool:
+    """Un-pin: the fact re-competes in the budget. core reverts to its classified value
+    (identity/health → still core, else demoted to relevance-only), then the budget is
+    re-enforced. Returns False if the id doesn't exist."""
+    with closing(get_db()) as db:
+        row = db.execute("SELECT content, health FROM memory WHERE id=?", (mem_id,)).fetchone()
+        if not row:
+            return False
+        content, health = row
+        core = 1 if (_is_core(content) or health) else 0
+        db.execute("UPDATE memory SET pinned=0, core=? WHERE id=?", (core, mem_id))
+        db.commit()
+    enforce_core_budget()
+    return True
+
+
 # Shared wording for the memory system-prompt block, so the always-on dump (system_block,
 # kept for the eval BEFORE baseline) and the query-aware relevant_block render identically.
 def _render_block(lines: str) -> str:
@@ -111,30 +196,36 @@ def add(content: str, source: str = "told", confidence: float = 1.0) -> dict:
     on injection (a stored fact was confirmed by the user, so it counts fully)."""
     content = content.strip()
     now = time.time()
-    core = 1 if _is_core(content) else 0
+    health = 1 if _is_health(content) else 0
+    core = 1 if (_is_core(content) or health) else 0   # health is always core (always-on)
     with closing(get_db()) as db:
         cur = db.execute(
-            "INSERT INTO memory(content, source, created_at, core, confidence) VALUES(?,?,?,?,?)",
-            (content, source, now, core, confidence),
+            "INSERT INTO memory(content, source, created_at, core, health, confidence) "
+            "VALUES(?,?,?,?,?,?)",
+            (content, source, now, core, health, confidence),
         )
         db.commit()
         new_id = cur.lastrowid
+    # A new core fact may push the always-on pool over budget → demote the oldest (never this
+    # newest one, never health/pinned). Cheap + idempotent.
+    demoted = enforce_core_budget()
     # The AFTER-INSERT trigger indexes the fact in memory_fts immediately (keyword-
     # retrievable at once). `embedding` is left NULL; embed_pending() computes the vector
     # in the background — scheduled fire-and-forget by the async caller (memory_add / ask).
-    return {"id": new_id, "content": content, "source": source,
-            "created_at": now, "core": core, "confidence": confidence}
+    return {"id": new_id, "content": content, "source": source, "created_at": now,
+            "core": core, "health": health, "pinned": 0, "confidence": confidence,
+            "demoted": demoted}
 
 
 def list_all() -> list[dict]:
     """Every fact Vokter holds, newest first — the whole of what it knows about you."""
     with closing(get_db()) as db:
         rows = db.execute(
-            "SELECT id, content, source, created_at, confidence FROM memory"
+            "SELECT id, content, source, created_at, confidence, core, health, pinned FROM memory"
             " ORDER BY created_at DESC, id DESC"
         ).fetchall()
     return [{"id": r[0], "content": r[1], "source": r[2], "created_at": r[3],
-             "confidence": r[4]} for r in rows]
+             "confidence": r[4], "core": r[5], "health": r[6], "pinned": r[7]} for r in rows]
 
 
 def edit(mem_id: int, content: str) -> bool:
@@ -142,12 +233,17 @@ def edit(mem_id: int, content: str) -> bool:
     text may change identity status) and NULLs the embedding so embed_pending re-embeds the
     corrected text; the AFTER-UPDATE trigger re-syncs memory_fts to the new content."""
     content = content.strip()
-    core = 1 if _is_core(content) else 0
+    health = 1 if _is_health(content) else 0
+    core = 1 if (_is_core(content) or health) else 0
     with closing(get_db()) as db:
-        cur = db.execute("UPDATE memory SET content=?, core=?, embedding=NULL WHERE id=?",
-                         (content, core, mem_id))
+        # pinned is preserved (a user pin survives an edit); health/core re-derive from text.
+        cur = db.execute("UPDATE memory SET content=?, core=?, health=?, embedding=NULL WHERE id=?",
+                         (content, core, health, mem_id))
         db.commit()
-        return cur.rowcount > 0
+        ok = cur.rowcount > 0
+    if ok:
+        enforce_core_budget()
+    return ok
 
 
 def delete(mem_id: int) -> bool:
