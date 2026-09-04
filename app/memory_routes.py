@@ -104,6 +104,26 @@ async def memory_edit(mem_id: int, item: MemoryIn, x_vokter_human_session: str |
     return {"ok": True, "id": mem_id, "content": content}
 
 
+@router.post("/api/memory/{mem_id}/pin")
+def memory_pin(mem_id: int, x_vokter_human_session: str | None = Header(default=None)):
+    """Pin a fact as always-on (core=1) and EXEMPT from the budget — the user's escape hatch
+    to keep something injected regardless of age. Human-only, like the rest of memory CRUD."""
+    _require_human(x_vokter_human_session)
+    if not memory.pin(mem_id):
+        raise HTTPException(404, "no such memory")
+    return {"ok": True, "id": mem_id, "pinned": True}
+
+
+@router.post("/api/memory/{mem_id}/unpin")
+def memory_unpin(mem_id: int, x_vokter_human_session: str | None = Header(default=None)):
+    """Un-pin: the fact re-competes in the always-on budget (reverts to its classified core
+    status, then the budget is re-enforced)."""
+    _require_human(x_vokter_human_session)
+    if not memory.unpin(mem_id):
+        raise HTTPException(404, "no such memory")
+    return {"ok": True, "id": mem_id, "pinned": False}
+
+
 @router.delete("/api/memory/{mem_id}")
 def memory_delete(mem_id: int, confirm: bool = False,
                   x_vokter_human_session: str | None = Header(default=None)):

@@ -115,11 +115,25 @@ async def ask(q: Question, x_vokter_human_session: str | None = Header(default=N
     if human:
         fact = memory.parse_remember(q.question)
         if fact:
-            memory.add(fact, source="told")
+            row = memory.add(fact, source="told")
             asyncio.create_task(memory.embed_pending())   # embed the new fact in the bg
             conv_id = q.conversation_id or str(uuid.uuid4())
-            answer = (f"Anotado: {fact}" if memory.trigger_lang(q.question) == "es"
-                      else f"Got it — I'll remember: {fact}")
+            es = memory.trigger_lang(q.question) == "es"
+            answer = (f"Anotado: {fact}" if es else f"Got it — I'll remember: {fact}")
+            # Transparency: if saving this pushed the always-on identity block over budget,
+            # tell the user which older facts moved to as-needed — they're NOT deleted, still
+            # retrieved when relevant (demote-never-delete). This is the one live add path
+            # (the chat-first UI has no memory-management view yet), so the note lives here.
+            n = len(row.get("demoted") or [])
+            if n:
+                answer += ("\n\n(" + (
+                    f"Nota: moví {n} dato{'s' if n != 1 else ''} más antiguo"
+                    f"{'s' if n != 1 else ''} de «siempre en contexto» a «según haga falta» "
+                    "para no recargar el prompt — siguen guardados y se usan cuando son relevantes."
+                    if es else
+                    f"Note: moved {n} older fact{'s' if n != 1 else ''} from always-on to "
+                    "as-needed to keep the prompt lean — still saved, and used when relevant."
+                ) + ")")
             _save_turn(conv_id, q.question, answer, human=True)  # this branch is inside `if human:`
             if q.stream:
                 # No model runs here, so there is nothing to stream — but the client asked
