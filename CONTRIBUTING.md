@@ -23,13 +23,23 @@ Issues for bugs and concrete proposals; Discussions for open ideas; small, focus
 
 ## Development setup
 
+Vokter is a desktop app: an Electron shell over a local Python (FastAPI) backend
+and a native, app-local Ollama — no Docker.
+
 ```bash
 git clone https://github.com/vokter-eu/Vokter.git
 cd Vokter
-cp .env.example .env          # set VOKTER_DB_KEY
-docker compose up -d --build
-docker exec -it vokter-ollama ollama pull llama3.2:3b
-docker exec -it vokter-ollama ollama pull nomic-embed-text
+
+# one-time system libs (Debian/Ubuntu): Python venv, ffmpeg, SQLCipher headers
+sudo apt install -y python3.12-venv ffmpeg libsqlcipher-dev
+
+# provisions the app-local runtime: a Python venv (app/requirements.txt) + native Ollama
+desktop/setup.sh
+
+# run the app from source (backend is orchestrated on a dynamic local port)
+cd desktop/electron && npm install && npm start
 ```
 
-The app reloads automatically when you edit files in `app/` if you add `--reload` to the uvicorn command in `app/Dockerfile`.
+First launch pulls the default models (qwen2.5:3b + the bge-m3 embedder). To build
+the distributable `.deb`/AppImage: freeze the backend with `desktop/freeze/build.sh`,
+then `cd desktop/electron && npm run dist`.

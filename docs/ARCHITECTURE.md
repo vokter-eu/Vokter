@@ -133,12 +133,15 @@ in Vokter changes.
   model swap.
 
 **⚠️ Embeddings caveat — the one place that is NOT free.** Changing the
-*embedding* model (`nomic-embed-text`) requires RE-INDEXING everything embedded
-with the old one: RAG document chunks *and* personal memory. Different models
-produce vectors in different spaces; a mismatch silently degrades retrieval
-(`rag.cosine` even returns 0 on a dimension mismatch). Today, with few documents,
-re-indexing is trivial; at thousands of documents it is a *migration*, not a
-swap. The chat side is 100% engine-neutral; the embedding side is not.
+*embedding* model (currently `bge-m3`, 1024-dim) requires RE-INDEXING everything
+embedded with the old one: RAG document chunks *and* personal memory. Different
+models produce vectors in different spaces; a mismatch silently degrades retrieval
+(`rag.cosine` even returns 0 on a dimension mismatch). This is now handled
+automatically by the background `migrations.reembed_stale()` pass, which re-embeds
+any row whose stored vector dimension doesn't match the live model (e.g. a stale
+768-dim vector from the old `nomic-embed-text` after the switch to `bge-m3`); until
+a row is re-embedded it degrades cleanly to keyword/FTS retrieval. The chat side is
+100% engine-neutral; the embedding side is not.
 
 **Future runner candidates:** llama.cpp (the natural second adapter — what Jan
 uses), MLX (if a Mac target ever lands). Ollama remains the best choice today:

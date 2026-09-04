@@ -15,8 +15,8 @@ import json
 
 import numpy as np
 
-# float32: half the bytes of numpy's default float64, and nomic-embed-text (and
-# every embedder we ship) is fine at f32 precision for cosine ranking.
+# float32: half the bytes of numpy's default float64, and bge-m3 (and every
+# embedder we ship) is fine at f32 precision for cosine ranking.
 DTYPE = np.float32
 
 

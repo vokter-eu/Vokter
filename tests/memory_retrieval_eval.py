@@ -13,7 +13,7 @@ Then it reports the three headline numbers Bilal asked for:
                                        missed by the vector-only BEFORE
 plus the vector-search speed delta (pure-Python cosine → numpy matrix).
 
-Run (needs Ollama on 127.0.0.1:11434 with nomic-embed-text):
+Run (needs Ollama reachable with the live embed model, bge-m3 by default):
   VOKTER_DB=$(mktemp -d)/eval.db VOKTER_OLLAMA_URL=http://127.0.0.1:11434 \
     desktop/runtime/venv/bin/python tests/memory_retrieval_eval.py
 """

@@ -1,5 +1,12 @@
 # Diagnóstico — La Voz de Vokter (TTS + STT) y el Multilingüe Europeo
 
+> ⚠️ **SUPERADO (histórico).** Este diagnóstico es de 2026-08-03 y describe la
+> arquitectura de voz *anterior* (Piper único, producción en inglés). La voz
+> **enviada en v0.15.0** es un híbrido: **Kokoro** (en/es/fr/it/pt) + **packs Piper**
+> descargables (de/nl/ca) para STT+TTS, con **Whisper** para STT — todo **on-demand**
+> (ya no se siembra en el paquete, ver `app/voice/`). Se conserva por su valor de
+> investigación/razonamiento; NO refleja el estado actual.
+
 > Estado: DIAGNÓSTICO. No se ha tocado código. Este documento fija el **estado real**
 > del subsistema de voz Y del soporte multilingüe (tres capas), trazado desde el
 > código y medido/probado en esta máquina, antes de decidir nada. Espera el OK de
