@@ -74,7 +74,9 @@ def _require_human(mark: str | None) -> None:
 @router.get("/api/memory")
 def memory_list(x_vokter_human_session: str | None = Header(default=None)):
     _require_human(x_vokter_human_session)
-    return {"memory": memory.list_all()}
+    # budget summary is computed server-side (same pool + estimator as the cap) so the UI meter
+    # can't drift from real enforcement — see memory.budget_status / enforce_core_budget.
+    return {"memory": memory.list_all(), "budget": memory.budget_status()}
 
 
 @router.post("/api/memory")

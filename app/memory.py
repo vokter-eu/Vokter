@@ -161,6 +161,18 @@ def enforce_core_budget() -> list[dict]:
     return demoted
 
 
+def budget_status() -> dict:
+    """The always-on budget as the UI shows it: {limit, used}. `used` is summed server-side
+    over the SAME pool the cap enforces (core=1, non-health, non-pinned) with the SAME
+    _est_tokens, so the meter can never drift from real enforcement. Health/pinned are exempt,
+    so they are not counted here (they don't consume the budget)."""
+    with closing(get_db()) as db:
+        rows = db.execute(
+            "SELECT content FROM memory WHERE core=1 AND health=0 AND pinned=0"
+        ).fetchall()
+    return {"limit": CORE_BUDGET_TOKENS, "used": sum(_est_tokens(r[0]) for r in rows)}
+
+
 def pin(mem_id: int) -> bool:
     """User pins a fact as always-on. Sets pinned=1 AND core=1, so it is unconditionally
     injected and EXEMPT from the budget — the escape hatch for anything the user wants kept
