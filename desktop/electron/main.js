@@ -421,6 +421,64 @@ ipcMain.handle('vokter:memory-suggest', (_event, body) => new Promise((resolve) 
   req.end();
 }));
 
+// The renderer's memory-management bridge: proxy ALL /api/memory CRUD through MAIN so the
+// human-session token never touches page JS (same discipline as vokter:ask/suggest). The page
+// sends {op,id,content,source,confidence,confirm}; MAIN WHITELISTS op → method+path — the page
+// can never choose an arbitrary path or forge a header — and attaches the token. Destructive
+// ops require confirm===true from the page (its confirm() dialog is the human gate; the backend
+// re-checks the same confirm flag). Returns {status, body}.
+ipcMain.handle('vokter:memory', (_event, reqIn) => new Promise((resolve) => {
+  if (!ready || backendPort == null) { resolve({ status: 0, body: null }); return; }
+  const r = (reqIn && typeof reqIn === 'object') ? reqIn : {};
+  const id = Number.isInteger(r.id) ? r.id : null;
+  const idNeeded = ['edit', 'pin', 'unpin', 'delete'];
+  if (idNeeded.includes(r.op) && id == null) { resolve({ status: 400, body: null }); return; }
+  let method, path, payload = null;
+  switch (r.op) {
+    case 'list':  method = 'GET';  path = '/api/memory'; break;
+    case 'add':
+      method = 'POST'; path = '/api/memory';
+      payload = JSON.stringify({
+        content: String(r.content || ''),
+        source: r.source === 'learned' ? 'learned' : 'told',
+        confidence: typeof r.confidence === 'number' ? r.confidence : 1.0,
+      });
+      break;
+    case 'edit':
+      method = 'PATCH'; path = `/api/memory/${id}`;
+      payload = JSON.stringify({ content: String(r.content || '') });
+      break;
+    case 'pin':   method = 'POST'; path = `/api/memory/${id}/pin`; break;
+    case 'unpin': method = 'POST'; path = `/api/memory/${id}/unpin`; break;
+    case 'delete':
+      if (r.confirm !== true) { resolve({ status: 400, body: null }); return; }
+      method = 'DELETE'; path = `/api/memory/${id}?confirm=true`; break;
+    case 'forgetAll':
+      if (r.confirm !== true) { resolve({ status: 400, body: null }); return; }
+      method = 'DELETE'; path = '/api/memory?confirm=true'; break;
+    default: resolve({ status: 400, body: null }); return;
+  }
+  const headers = { 'X-Vokter-Human-Session': HUMAN_SESSION_TOKEN };
+  if (payload != null) {
+    headers['Content-Type'] = 'application/json';
+    headers['Content-Length'] = Buffer.byteLength(payload);
+  }
+  const rq = http.request({ host: '127.0.0.1', port: backendPort, path, method, headers }, (res) => {
+    let data = '';
+    res.setEncoding('utf8');
+    res.on('data', (c) => { data += c; });
+    res.on('end', () => {
+      let parsed = null;
+      try { parsed = JSON.parse(data); } catch { /* non-JSON (e.g. 204) → null */ }
+      resolve({ status: res.statusCode || 0, body: parsed });
+    });
+  });
+  rq.on('error', () => resolve({ status: 0, body: null }));
+  rq.setTimeout(30000, () => { rq.destroy(); resolve({ status: 0, body: null }); });
+  if (payload != null) rq.write(payload);
+  rq.end();
+}));
+
 // The window's ONE outbound action: the user clicked [2] "Start fresh". Honour it
 // ONLY while halted at the guardrail, and ONLY once — a nervous double click must
 // not spawn two orchestrators contending for the ports and Ollama.

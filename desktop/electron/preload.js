@@ -54,4 +54,10 @@ contextBridge.exposeInMainWorld('vokter', {
   // backend gates this human-only read on that token. Resolves to {status, body}. The page
   // passes only {message, conversation_id}; it never holds the token.
   memorySuggest: (body) => ipcRenderer.invoke('vokter:memory-suggest', body),
+
+  // memory(req): proxy the /api/memory CRUD (list/add/edit/pin/unpin/delete/forgetAll) through
+  // main so the human-session token never lives in page JS — same discipline as vokter:ask. main
+  // WHITELISTS req.op → the real path (the page can't choose an arbitrary path). Resolves to
+  // {status, body}. Used only by the Memory settings view.
+  memory: (req) => ipcRenderer.invoke('vokter:memory', req),
 });
