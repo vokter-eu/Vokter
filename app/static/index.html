@@ -217,6 +217,35 @@
   .subwrap .sbtn.ghost{background:none;color:var(--green)}
   .subwrap .sbtn.ghost:hover{background:var(--tint)}
   .subwrap .sbtn.mini{padding:5px 11px;font-size:12px;border-radius:var(--r-sm)}
+  /* ── Memory view ─────────────────────────────────────── */
+  .membox{background:var(--tint);border:1px solid var(--sand);border-radius:var(--r);padding:13px 15px;margin-bottom:14px}
+  .memmeterlab{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:8px}
+  .memtag{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--green)}
+  .memnum{font-family:var(--mono,ui-monospace,monospace);font-size:12px;color:var(--ink-2)}
+  .membar{height:6px;border-radius:99px;background:var(--cream2);overflow:hidden}
+  .membar>i{display:block;height:100%;width:0;background:var(--green);border-radius:99px;transition:width .3s}
+  .membar.hot>i{background:var(--amber)}
+  .memnote{font-size:12px;line-height:1.5;color:var(--grey);margin-top:9px}
+  .memgrp{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--grey2);padding:16px 2px 4px}
+  .memgrpnote{font-size:12px;color:var(--grey2);padding:0 2px 8px}
+  .memrow{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:11px 4px;border-bottom:1px solid var(--sand)}
+  .memrow.editing{align-items:center;gap:8px}
+  .memmain{min-width:0;flex:1}
+  .memc{font-size:14px;line-height:1.5;color:var(--ink);word-break:break-word}
+  .mbadges{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
+  .mbadge{font-size:10.5px;line-height:1;padding:3px 7px;border-radius:99px;background:var(--cream2);color:var(--grey2);white-space:nowrap}
+  .mbadge.health{color:var(--green-deep);background:var(--tint)}
+  .mbadge.pin{color:var(--amber);background:var(--cream2)}
+  .memact{display:flex;align-items:center;gap:6px;flex:0 0 auto}
+  .membtn{cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;color:var(--green);background:none;border:1px solid var(--sand);border-radius:var(--r-sm);padding:5px 9px;white-space:nowrap;transition:background .12s,border-color .12s}
+  .membtn:hover{background:var(--tint);border-color:var(--green)}
+  .memicon{cursor:pointer;font-size:13px;color:var(--grey2);background:none;border:none;padding:4px 6px;border-radius:var(--r-sm)}
+  .memicon:hover{color:var(--green);background:var(--tint)}
+  .memlock{font-size:11.5px;color:var(--grey2);white-space:nowrap}
+  .memaddrow{display:flex;gap:8px;margin-top:14px}
+  .memaddrow .sin{flex:1}
+  .memforget{margin-top:16px;cursor:pointer;font-family:inherit;font-size:13px;color:var(--grey);background:none;border:none;border-top:1px solid var(--sand);width:100%;text-align:left;padding:14px 2px 2px;transition:color .12s}
+  .memforget:hover{color:#B4406A}
   .subwrap .sbtn:disabled{opacity:.5;cursor:default}
   .subwrap .sbtn:focus-visible{outline:2px solid var(--green);outline-offset:2px}
   .subwrap .sactions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}

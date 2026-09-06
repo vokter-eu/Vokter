@@ -13,6 +13,19 @@
       settingsNote:"Everything here stays on your machine. You're in control of all of it.",
       rowDocuments:"Documents", rowEmail:"Email", rowWeb:"Web access", rowTasks:"Scheduled tasks",
       rowVoice:"Voice", rowModel:"Model & tone", rowSafety:"Vokter's rules", rowLanguage:"Language", soon:"Soon",
+      rowMemory:"Memory",
+      memIntro:"What Vokter remembers about you. It all lives on your machine — you decide what it keeps.",
+      memAlwaysOn:"Always-on", memAsNeeded:"As-needed", memAsNeededNote:"Brought up only when they're relevant.",
+      memBudget:"{used} of {limit} tokens", memBudgetNote:"Always-on facts go into every message. When this fills, Vokter moves the oldest ones to as-needed — nothing is deleted. Health facts and anything you pin stay on regardless.",
+      memPin:"Keep always-on", memUnpin:"Move to as-needed", memProtected:"Protected", memHealthNote:"Health — always kept",
+      memEdit:"Edit", memEditSave:"Save", memEditCancel:"Cancel",
+      memAddPh:"Tell Vokter something to remember…", memAdd:"Remember",
+      memMoved:"Moved {n} older fact(s) to as-needed — still saved, used when relevant.",
+      memPinnedToast:"Kept always-on.", memUnpinnedToast:"Moved to as-needed.", memSaved:"Saved.", memDeletedToast:"Forgotten.",
+      memDeleteConfirm:"Permanently forget “{fact}”?",
+      memForgetAll:"Forget everything about me", memForgetAllConfirm:"Permanently forget everything Vokter knows about you?", memForgetAllConfirm2:"This deletes all {n} fact(s) for good. Continue?", memForgotAll:"Forgot everything ({n}).",
+      memSearchPh:"Search memory…", memEmpty:"Vokter doesn't know anything about you yet. Tell it in chat (\"remember that…\") or add something here.", memNoMatch:"No matching facts.",
+      memDesktopOnly:"Your memory is available only in the Vokter desktop app.",
       docDeleteConfirm:"Delete “{doc}” and everything your agent learned from it?", safetyBannerBad:"⚠ Safety rules failed to load — every guarded action is blocked or needs confirmation until this is fixed.",
       noteEmail:"Connect an inbox — indexed on this machine, never uploaded.",
       noteWeb:"Choose which sites your agent may visit.",
@@ -73,6 +86,19 @@
       settingsNote:"Todo lo que hay aquí se queda en tu máquina. Tú controlas todo.",
       rowDocuments:"Documentos", rowEmail:"Correo", rowWeb:"Acceso a la web", rowTasks:"Tareas programadas",
       rowVoice:"Voz", rowModel:"Modelo y tono", rowSafety:"Reglas de Vokter", rowLanguage:"Idioma", soon:"Pronto",
+      rowMemory:"Memoria",
+      memIntro:"Lo que Vokter recuerda de ti. Todo vive en tu máquina — tú decides qué guarda.",
+      memAlwaysOn:"Siempre presente", memAsNeeded:"Cuando haga falta", memAsNeededNote:"Se traen solo cuando son relevantes.",
+      memBudget:"{used} de {limit} tokens", memBudgetNote:"Los datos «siempre presente» van en cada mensaje. Cuando se llena, Vokter mueve los más antiguos a «cuando haga falta» — no se borra nada. Los datos de salud y lo que fijes se quedan siempre.",
+      memPin:"Mantener siempre", memUnpin:"Pasar a cuando haga falta", memProtected:"Protegido", memHealthNote:"Salud — siempre guardado",
+      memEdit:"Editar", memEditSave:"Guardar", memEditCancel:"Cancelar",
+      memAddPh:"Dile a Vokter algo para recordar…", memAdd:"Recordar",
+      memMoved:"Moví {n} dato(s) antiguo(s) a «cuando haga falta» — siguen guardados y se usan cuando son relevantes.",
+      memPinnedToast:"Guardado como siempre presente.", memUnpinnedToast:"Movido a cuando haga falta.", memSaved:"Guardado.", memDeletedToast:"Olvidado.",
+      memDeleteConfirm:"¿Olvidar permanentemente «{fact}»?",
+      memForgetAll:"Olvidar todo sobre mí", memForgetAllConfirm:"¿Olvidar permanentemente todo lo que Vokter sabe de ti?", memForgetAllConfirm2:"Esto borra los {n} dato(s) para siempre. ¿Continuar?", memForgotAll:"Olvidado todo ({n}).",
+      memSearchPh:"Buscar en la memoria…", memEmpty:"Vokter aún no sabe nada de ti. Díselo en el chat («recuerda que…») o añade algo aquí.", memNoMatch:"Sin coincidencias.",
+      memDesktopOnly:"Tu memoria solo está disponible en la app de escritorio de Vokter.",
       docDeleteConfirm:"¿Borrar «{doc}» y todo lo que tu agente aprendió de él?", safetyBannerBad:"⚠ No se pudieron cargar las reglas de seguridad — toda acción protegida queda bloqueada o requiere confirmación hasta arreglarlo.",
       noteEmail:"Conecta un buzón — se indexa en esta máquina, nunca se sube.",
       noteWeb:"Elige a qué sitios puede acceder tu agente.",
@@ -686,10 +712,12 @@
     tasks:'<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     voice:'<rect x="9" y="3" width="6" height="12" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     model:'<path d="M12 3a6 6 0 0 1 6 6c0 2.5-1.8 3.5-1.8 6H7.8C7.8 12.5 6 11.5 6 9a6 6 0 0 1 6-6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 21h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
-    language:'<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M3 12h18M12 3a14 14 0 0 1 4 9 14 14 0 0 1-4 9 14 14 0 0 1-4-9 14 14 0 0 1 4-9z" stroke="currentColor" stroke-width="1.8"/>'
+    language:'<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M3 12h18M12 3a14 14 0 0 1 4 9 14 14 0 0 1-4 9 14 14 0 0 1-4-9 14 14 0 0 1 4-9z" stroke="currentColor" stroke-width="1.8"/>',
+    memory:'<path d="M6 3h11a1 1 0 0 1 1 1v17l-6.5-4L5 21V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'
   };
   const ROWS=[
     {k:'documents',lk:'rowDocuments',type:'docs'},
+    {k:'memory',lk:'rowMemory',type:'memory'},
     {k:'email',lk:'rowEmail',type:'email'},
     {k:'web',lk:'rowWeb',type:'web'},
     {k:'tasks',lk:'rowTasks',type:'tasks'},
@@ -720,6 +748,7 @@
   function openRow(row){
     settingsFromHome=true;                 // rows are only reached from the Settings home
     if(row.type==='docs') return renderDocs();
+    if(row.type==='memory') return renderMemory();
     if(row.type==='lang') return renderLang();
     if(row.type==='email') return renderEmail();
     if(row.type==='web') return renderWeb();
@@ -1103,6 +1132,113 @@
     const first=await loadModels();
     if(first.engine_url){ cb.checked=true; advBox.style.display=''; urlIn.value=first.engine_url; }
     paintPicker(first);
+  }
+
+  // ── Memory view — the transparency window for what Vokter remembers about you ──
+  // Reads/writes go ONLY through the Electron bridge (window.vokter.memory), so the human-
+  // session token that gates /api/memory never touches page JS. In a plain browser there is no
+  // bridge → the panel shows "desktop app only" (deny-by-default), never a broken half-view.
+  async function memCall(req){
+    if(window.vokter && typeof window.vokter.memory==='function'){
+      try{ return await window.vokter.memory(req); }catch{ return {status:0,body:null}; }
+    }
+    return {status:0,body:null};
+  }
+
+  function renderMemory(){
+    sTitle.textContent=t('rowMemory');
+    const wrap=_sub();
+    const intro=document.createElement('div'); intro.className='note'; intro.textContent=t('memIntro'); wrap.appendChild(intro);
+    const meter=document.createElement('div'); meter.className='membox'; wrap.appendChild(meter);
+    const search=document.createElement('input'); search.type='text'; search.className='sin'; search.style.marginBottom='10px'; search.placeholder=t('memSearchPh'); search.setAttribute('autocomplete','off'); wrap.appendChild(search);
+    const listEl=document.createElement('div'); wrap.appendChild(listEl);
+    const addrow=document.createElement('div'); addrow.className='memaddrow';
+    const addin=document.createElement('input'); addin.type='text'; addin.className='sin'; addin.placeholder=t('memAddPh'); addin.setAttribute('autocomplete','off');
+    const addbtn=document.createElement('button'); addbtn.className='sbtn'; addbtn.textContent=t('memAdd');
+    addrow.appendChild(addin); addrow.appendChild(addbtn); wrap.appendChild(addrow);
+    const forget=document.createElement('button'); forget.className='memforget'; forget.textContent=t('memForgetAll'); wrap.appendChild(forget);
+
+    let all=[];
+    const norm=s=>(s||'').toLowerCase();
+
+    function renderMeter(bud){
+      meter.textContent='';
+      if(!bud || typeof bud.limit!=='number') return;
+      const pct=bud.limit>0?Math.min(100,Math.round(bud.used/bud.limit*100)):0;
+      const lab=document.createElement('div'); lab.className='memmeterlab';
+      const tag=document.createElement('span'); tag.className='memtag'; tag.textContent=t('memAlwaysOn'); lab.appendChild(tag);
+      const num=document.createElement('span'); num.className='memnum'; num.textContent=t('memBudget',{used:bud.used,limit:bud.limit}); lab.appendChild(num);
+      const bar=document.createElement('div'); bar.className='membar'+(pct>=85?' hot':''); const fill=document.createElement('i'); fill.style.width=pct+'%'; bar.appendChild(fill);
+      const note=document.createElement('div'); note.className='memnote'; note.textContent=t('memBudgetNote');
+      meter.appendChild(lab); meter.appendChild(bar); meter.appendChild(note);
+    }
+
+    function badge(txt,cls){ const b=document.createElement('span'); b.className='mbadge'+(cls?' '+cls:''); b.textContent=txt; return b; }
+
+    function factRow(f){
+      const row=document.createElement('div'); row.className='memrow';
+      const main=document.createElement('div'); main.className='memmain';
+      const c=document.createElement('div'); c.className='memc'; c.textContent=f.content;   // CSP: user text via textContent, never innerHTML
+      const bs=document.createElement('div'); bs.className='mbadges';
+      // always-on is conveyed by the ALWAYS-ON group header; per-row badges are only the
+      // states the header can't show — health (protected) and pinned.
+      if(f.health) bs.appendChild(badge('🛡 '+t('memProtected'),'health'));
+      if(f.pinned) bs.appendChild(badge('📌','pin'));
+      main.appendChild(c); main.appendChild(bs); row.appendChild(main);
+      const act=document.createElement('div'); act.className='memact';
+      if(f.health){ const lock=document.createElement('span'); lock.className='memlock'; lock.textContent=t('memHealthNote'); act.appendChild(lock); }
+      else if(f.pinned){ const u=document.createElement('button'); u.className='membtn'; u.textContent=t('memUnpin'); u.onclick=async()=>{ await memCall({op:'unpin',id:f.id}); toast(t('memUnpinnedToast')); load(); }; act.appendChild(u); }
+      else { const p=document.createElement('button'); p.className='membtn'; p.textContent=t('memPin'); p.onclick=async()=>{ await memCall({op:'pin',id:f.id}); toast(t('memPinnedToast')); load(); }; act.appendChild(p); }
+      const e=document.createElement('button'); e.className='memicon'; e.textContent='✎'; e.setAttribute('aria-label',t('memEdit')); e.onclick=()=>startEdit(row,f); act.appendChild(e);
+      const d=document.createElement('button'); d.className='del'; d.textContent='×'; d.setAttribute('aria-label',t('removeAria'));
+      d.onclick=async()=>{ if(!confirm(t('memDeleteConfirm',{fact:f.content}))) return; const r=await memCall({op:'delete',id:f.id,confirm:true}); if(r.status===200){ toast(t('memDeletedToast')); load(); } };
+      act.appendChild(d); row.appendChild(act);
+      return row;
+    }
+
+    function startEdit(row,f){
+      row.textContent=''; row.className='memrow editing';
+      const inp=document.createElement('input'); inp.type='text'; inp.className='sin'; inp.value=f.content;
+      const save=document.createElement('button'); save.className='sbtn'; save.textContent=t('memEditSave');
+      const cancel=document.createElement('button'); cancel.className='membtn'; cancel.textContent=t('memEditCancel');
+      row.appendChild(inp); row.appendChild(save); row.appendChild(cancel); inp.focus();
+      save.onclick=async()=>{ const v=inp.value.trim(); if(!v) return; await memCall({op:'edit',id:f.id,content:v}); toast(t('memSaved')); load(); };
+      cancel.onclick=()=>load();
+      inp.onkeydown=ev=>{ if(ev.key==='Enter') save.onclick(); else if(ev.key==='Escape') cancel.onclick(); };
+    }
+
+    function group(title,note,facts){
+      if(!facts.length) return;
+      const h=document.createElement('div'); h.className='memgrp'; h.textContent=title; listEl.appendChild(h);
+      if(note){ const n=document.createElement('div'); n.className='memgrpnote'; n.textContent=note; listEl.appendChild(n); }
+      facts.forEach(f=>listEl.appendChild(factRow(f)));
+    }
+
+    function renderList(){
+      const q=norm(search.value);
+      listEl.textContent='';
+      if(!all.length){ listEl.appendChild(_placeholder(t('memEmpty'))); return; }
+      const shown=all.filter(f=>!q || norm(f.content).indexOf(q)>=0);
+      if(!shown.length){ listEl.appendChild(_placeholder(t('memNoMatch'))); return; }
+      const always=shown.filter(f=>f.core).slice().sort((a,b)=>(b.health-a.health)||(b.pinned-a.pinned)||(b.created_at-a.created_at));
+      const asneeded=shown.filter(f=>!f.core);   // already newest-first from list_all
+      group(t('memAlwaysOn'),null,always);
+      group(t('memAsNeeded'),t('memAsNeededNote'),asneeded);
+    }
+
+    async function load(){
+      const r=await memCall({op:'list'});
+      if(!r || r.status!==200 || !r.body){ meter.textContent=''; listEl.textContent=''; listEl.appendChild(_placeholder(t('memDesktopOnly'))); return; }
+      all=r.body.memory||[];
+      renderMeter(r.body.budget);
+      renderList();
+    }
+
+    search.oninput=renderList;
+    async function doAdd(){ const v=addin.value.trim(); if(!v) return; addin.value=''; const r=await memCall({op:'add',content:v}); const dem=(r&&r.body&&r.body.demoted)||[]; if(dem.length) toast(t('memMoved',{n:dem.length})); load(); }
+    addbtn.onclick=doAdd; addin.onkeydown=e=>{ if(e.key==='Enter') doAdd(); };
+    forget.onclick=async()=>{ if(!all.length) return; if(!confirm(t('memForgetAllConfirm'))) return; if(!confirm(t('memForgetAllConfirm2',{n:all.length}))) return; const r=await memCall({op:'forgetAll',confirm:true}); if(r.status===200){ toast(t('memForgotAll',{n:(r.body&&r.body.forgotten)||0})); load(); } };
+    load();
   }
 
   // ── Shell controls: sidebar drawer, new chat, settings/docs, language, theme ──
