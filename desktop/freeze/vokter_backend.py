@@ -17,6 +17,35 @@ bind address (VOKTER_BIND/VOKTER_PORT). Two command-line modes:
 import sys
 
 
+def _harden_non_dumpable() -> None:
+    """Security TODO #4 mitigation — mark THIS process non-dumpable as early as possible.
+
+    The DB key reaches the backend as VOKTER_DB_KEY in its environment (the orchestrator sets
+    it on the child; config.py reads it at import). Env is readable by any SAME-USER process via
+    /proc/<pid>/environ and `ps eww`, and the key also lives in process memory (/proc/<pid>/mem,
+    ptrace). prctl(PR_SET_DUMPABLE, 0) flips /proc/<pid>/{environ,mem,maps} to root-owned +
+    unreadable by the same user and refuses same-user ptrace — the standard pattern for
+    secret-holding daemons (ssh-agent, gpg-agent). It closes BOTH the env and the memory window.
+
+    Called at module load so EVERY mode re-applies it (dumpable resets to 1 on each execve):
+    the server child, the --verify-key probe, and --orchestrate. Runs BEFORE config imports and
+    reads the key, so the exposure shrinks from the backend's whole runtime to a sub-second
+    startup window. Linux-only (prctl); a silent no-op elsewhere so the future Windows/mac build
+    is unaffected. Best-effort: hardening must never block boot.
+    """
+    if sys.platform != "linux":
+        return
+    try:
+        import ctypes
+        _PR_SET_DUMPABLE = 4
+        ctypes.CDLL(None, use_errno=True).prctl(_PR_SET_DUMPABLE, 0, 0, 0, 0)
+    except Exception:
+        pass
+
+
+_harden_non_dumpable()
+
+
 # Capability marker — printed FIRST so the caller can tell a binary that
 # understands --verify-key from an old one that would boot the server instead.
 # Kept in lock-step with keysource._VERIFY_MARKER.
