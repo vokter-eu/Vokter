@@ -469,6 +469,49 @@ def start_ollama() -> None:
     log("native Ollama is up")
 
 
+_boot_chat_model_cache: str | None = None
+
+
+def _boot_chat_model() -> str:
+    """The chat model THIS boot ensures + hands the backend. qwen2.5:3b (CHAT_MODEL) is the GLOBAL
+    default; this only DOWNGRADES a weak machine's FIRST run to the ultra-light tier so it doesn't
+    eat a 2 GB model it can't run well. Computed once (needs a running Ollama for the store check):
+
+      1. An ALREADY-INSTALLED candidate wins — a returning user is never surprise-pulled a second
+         model (default first, then the ultra-light tier). Covers upgrades (3b already there) and a
+         weak box's second boot (1.5b already there).
+      2. Genuine first run (no known chat model present) → hardware-appropriate: a weak CPU-only
+         machine → the ultra-light tier (qwen2.5:1.5b, ~1 GB); everyone else → the 3b default.
+
+    Reuses hwdetect — the picker's own SINGLE SOURCE OF TRUTH — so the first-run pull can't drift
+    from what Settings shows. Any failure degrades to the 3b default and is LOGGED (never silently
+    masks a broken bundle); model selection must never block boot."""
+    global _boot_chat_model_cache
+    if _boot_chat_model_cache is not None:
+        return _boot_chat_model_cache
+    chosen = CHAT_MODEL
+    try:
+        if str(APP_DIR) not in sys.path:
+            sys.path.insert(0, str(APP_DIR))      # let the stdlib-only orchestrator reach app/hwdetect
+        import hwdetect
+        ultra = next((c["model"] for c in hwdetect.CATALOG if c["tier"] == "ultralight"), None)
+        candidates = [CHAT_MODEL] + ([ultra] if ultra else [])
+        installed = next((m for m in candidates if _model_present(m)), None)
+        if installed:
+            chosen = installed                    # returning user → keep it, never surprise-pull another
+            log(f"chat model already installed → {chosen} (no first-run pick)")
+        else:
+            rec = hwdetect.recommend(hwdetect.detect())    # first run: hardware only (language chosen later)
+            if rec.get("tier") == "ultralight":
+                chosen = rec["model"]             # weak CPU-only + first run → ultra-light
+            log(f"first run, no chat model installed → hardware pick = {chosen} (tier {rec.get('tier')})")
+    except Exception as e:
+        # A broken bundle (hwdetect missing) must be VISIBLE, not a silent no-save of the saving.
+        log(f"chat-model selection failed, using default {CHAT_MODEL}: {e!r}")
+    _boot_chat_model_cache = chosen
+    return chosen
+
+
 def ensure_models() -> None:
     """Pull the chat + embedding models into the app-local store if absent,
     reporting real progress to the UI. First run downloads ~2 GB — that is
@@ -490,7 +533,7 @@ def ensure_models() -> None:
     manifest last, so a half-pull leaves no manifest → not present → resumes next
     run.
     """
-    models = (CHAT_MODEL, EMBED_MODEL)
+    models = (_boot_chat_model(), EMBED_MODEL)
     for i, model in enumerate(models, start=1):
         # Offline-safe: /api/pull still contacts the registry to check the manifest, so a
         # network blip would fail the pull and die() even when the model is already here.
@@ -703,7 +746,7 @@ def start_backend(db_key: str, flavour: str) -> None:
     env["VOKTER_DB_KEY"]     = db_key            # real encryption
     env["VOKTER_DB"]         = str(DATA_DIR / "vokter.db")
     env["VOKTER_VOICE_MODELS_DIR"] = str(DATA_DIR / "models")
-    env["VOKTER_CHAT_MODEL"]  = CHAT_MODEL
+    env["VOKTER_CHAT_MODEL"]  = _boot_chat_model()   # same pick as ensure_models (cached): backend agrees
     env["VOKTER_EMBED_MODEL"] = EMBED_MODEL
     # The frozen binary (Phase 2+) reads these instead of uvicorn CLI flags —
     # export them so every backend flavour binds where wait_http() checks.

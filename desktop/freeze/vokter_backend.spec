@@ -19,7 +19,7 @@ datas = [
 binaries = []
 # The orchestrate-mode modules are imported lazily (inside a branch), so name
 # them explicitly to guarantee they travel in the bundle.
-hiddenimports = ["orchestrator", "keysource", "keychain", "datadir", "model_pull"]
+hiddenimports = ["orchestrator", "keysource", "keychain", "datadir", "model_pull", "hwdetect"]
 
 # collect_all (never collect_data_files) for every package with native pieces:
 # kokoro-onnx (TTS) needs its phonemizer + espeak-ng data to travel together (the same
