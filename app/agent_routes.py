@@ -108,7 +108,7 @@ async def agents_reputation(id: str):
 
 @router.get("/api/agents/reliability")
 async def agents_reliability(id: str):
-    """What trust anchors (e.g. AIRadar) attest about a provider's reliability.
+    """What trust anchors attest about a provider's reliability.
 
     An OUTBOUND signal for deciding which provider to use — expired claims are
     dropped (revocation). This never grants inbound access; that is /reputation

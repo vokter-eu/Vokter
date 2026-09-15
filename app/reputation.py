@@ -51,7 +51,7 @@ ATTESTATION_LABELS = ("trusted", "blocked", "spam")
 
 
 def _anchors() -> set[str]:
-    """Hex pubkeys configured as trust anchors (e.g. AIRadar).
+    """Hex pubkeys configured as trust anchors (e.g. a reputation/directory service).
 
     An anchor's attestations weigh as if the human rated it 'trusted', WITHOUT
     writing to the local trust DB — so anchors never become weighting authors in
@@ -254,13 +254,13 @@ async def is_vouched(target_hex: str) -> bool:
     return verdict
 
 
-# ── Reliability: an OUTBOUND signal from trust anchors (e.g. AIRadar) ─────────
+# ── Reliability: an OUTBOUND signal from trust anchors ───────────────────────
 # Distinct from is_vouched/reputation_of (the inbound, NIP-32 trust layer). These
-# are AIRadar-style reliability claims about a *provider* ("good uptime"), used
+# are reliability claims about a *provider* ("good uptime"), used
 # when Vokter decides which provider to USE/contact. They deliberately grant NO
 # inbound access — "reliable endpoint" is not "may read my human's private data".
 RELIABILITY_KIND = 30421                 # parameterized-replaceable: one live event per provider
-RELIABILITY_NS   = "airadar.reliability"
+RELIABILITY_NS   = "agent.reliability"
 RELIABILITY_LABEL = "reliable"
 
 
@@ -268,7 +268,7 @@ async def reliability_of(target_hex: str) -> dict:
     """What configured trust anchors attest about a provider's reliability.
 
     Reads the anchors' kind-30421 events about target_hex, drops anything whose
-    `expiry` tag has passed (a provider AIRadar stopped vouching for lets its
+    `expiry` tag has passed (a provider an anchor stopped vouching for lets its
     event expire — that is the revocation), and returns the surviving claims.
     Anchors are opt-in (VOKTER_TRUST_ANCHORS); with none configured there is
     nothing to consult.

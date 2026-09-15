@@ -149,8 +149,8 @@ class _DMHandler(HandleNotification):
             # we are online. Public 'hello'/'introduce' is still answered below.
             if not is_public_request(plaintext):
                 # Last chance before silence: is this peer vouched by someone we
-                # weight (a 'trusted' rating or a configured trust anchor like
-                # AIRadar)? The lookup is cached + globally rate-limited, and the
+                # weight (a 'trusted' rating or a configured trust anchor)?
+                # The lookup is cached + globally rate-limited, and the
                 # elevation is for THIS interaction only — never persisted, so it
                 # can't make the peer a weighting author and cascade.
                 if await is_vouched(sender_hex):
