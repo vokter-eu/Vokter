@@ -63,7 +63,7 @@
       modelPick:"Chat model", modelCurrentDefault:"(current default)", modelActiveTitle:"Active chat model",
       modelNone:"No models installed yet — download one below.", modelLoading:"Loading…",
       dlTitle:"Download a model", dlHint:"Models run entirely on your machine. Pick a recommended one, or type any Ollama model name.",
-      mtLight:"Light", mtBalanced:"Balanced", mtPowerful:"Powerful", mtCatalan:"Catalan", recBadge:"Best for your computer",
+      mtUltralight:"Ultra-light", mtLight:"Light", mtBalanced:"Balanced", mtPowerful:"Powerful", mtCatalan:"Catalan", recBadge:"Best for your computer",
       recOnbA:"Your computer runs best with", recOnbB:"Download it?", recGet:"Download", recNo:"Not now",
       dlPh:"any Ollama model name, e.g. mistral", dlBtn:"Download", dlStop:"Stop", dlCancelled:"Download stopped.",
       dlManifest:"Preparing…", dlVerify:"Verifying…", dlDownloading:"Downloading", dlDone:"Downloaded ✓",
@@ -136,7 +136,7 @@
       modelPick:"Modelo de chat", modelCurrentDefault:"(por defecto actual)", modelActiveTitle:"Modelo de chat activo",
       modelNone:"Aún no hay modelos instalados — descarga uno abajo.", modelLoading:"Cargando…",
       dlTitle:"Descargar un modelo", dlHint:"Los modelos corren enteros en tu máquina. Elige uno recomendado o escribe cualquier nombre de modelo de Ollama.",
-      mtLight:"Ligero", mtBalanced:"Equilibrado", mtPowerful:"Potente", mtCatalan:"Catalán", recBadge:"Lo mejor para tu ordenador",
+      mtUltralight:"Ultraligero", mtLight:"Ligero", mtBalanced:"Equilibrado", mtPowerful:"Potente", mtCatalan:"Catalán", recBadge:"Lo mejor para tu ordenador",
       recOnbA:"Tu ordenador funciona mejor con", recOnbB:"¿Lo descargas?", recGet:"Descargar", recNo:"Ahora no",
       dlPh:"cualquier modelo de Ollama, p. ej. mistral", dlBtn:"Descargar", dlStop:"Parar", dlCancelled:"Descarga detenida.",
       dlManifest:"Preparando…", dlVerify:"Verificando…", dlDownloading:"Descargando", dlDone:"Descargado ✓",
@@ -611,7 +611,7 @@
       tick();
     });
   }
-  const _TIER_LK={light:'mtLight',balanced:'mtBalanced',powerful:'mtPowerful',catalan:'mtCatalan'};   // tier → friendly-label i18n key
+  const _TIER_LK={ultralight:'mtUltralight',light:'mtLight',balanced:'mtBalanced',powerful:'mtPowerful',catalan:'mtCatalan'};   // tier → friendly-label i18n key
   // Shared model pull: POST /api/models/pull, parse the SSE, report progress/status via callbacks.
   // Single source used by the Settings picker AND the onboarding recommendation (no duplicate SSE).
   async function pullModel(name,{onProgress,onStatus,signal}={}){

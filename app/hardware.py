@@ -22,6 +22,7 @@ router = APIRouter()
 # `source`: "registry" → pulled from the Ollama registry (ollama.com); "mirror" → GGUF fetched
 # from OUR host and sideloaded into Ollama (sovereign — see MIRROR_MODELS + config_routes).
 CATALOG = [
+    {"tier": "ultralight", "model": "qwen2.5:1.5b",   "size_gb": 1.0,  "source": "registry"},
     {"tier": "light",    "model": "qwen2.5:3b",       "size_gb": 2.0,  "source": "registry"},
     {"tier": "balanced", "model": "gemma3:4b",        "size_gb": 3.0,  "source": "registry"},
     {"tier": "powerful", "model": "qwen3:30b-a3b",    "size_gb": 18.0, "source": "registry"},
@@ -115,8 +116,14 @@ def detect() -> dict:
 def recommend(hw: dict, lang: str = "auto") -> dict:
     """Map detected hardware (and the reply language) → a curated model. Catalan gets Salamandra
     (BSC, Apache-2.0) — measurably better Catalan than qwen2.5:3b and non-SWA/CPU-fast; qwen2.5:3b
-    stays the default for everything else. SWA lesson baked in: never suggest gemma3:4b (SWA)
-    without a GPU or a capable CPU — it would be ~10 s/message on a weak machine."""
+    stays the GLOBAL default for everything else. SWA lesson baked in: never suggest gemma3:4b (SWA)
+    without a GPU or a capable CPU — it would be ~10 s/message on a weak machine.
+
+    Weak CPU-only machines get the ultra-light tier (qwen2.5:1.5b): measured on an i3 (2c/4t, no GPU)
+    at ~0.65 s first token vs qwen2.5:3b's ~2.25 s and ~half the download, same family (non-SWA, so
+    keep_alive/prewarm still bite) — usable-but-lighter, offered as an OPTION here, never a silent
+    global downgrade (measurement 2026-09-14). qwen2.5:3b remains more careful on health/allergy
+    recall, so it stays the default anywhere the machine can run it."""
     if lang == "ca":
         return _BY_TIER["catalan"]
     ram = hw.get("ram_gb") or 0.0
@@ -124,15 +131,20 @@ def recommend(hw: dict, lang: str = "auto") -> dict:
     gpu = hw.get("gpu")
     vram = (gpu or {}).get("vram_gb", 0.0)
 
-    if gpu is not None:                              # GPU or Apple Silicon (unified)
+    if gpu is not None:                              # GPU or Apple Silicon (unified) — 3b runs easily
         if ram >= 32 and vram >= 16:
             tier = "powerful"
         elif ram >= 16:
             tier = "balanced"
         else:
             tier = "light"
-    else:                                            # CPU-only — SWA latency matters
-        tier = "balanced" if (ram >= 16 and cores >= 8) else "light"
+    else:                                            # CPU-only — SWA + first-token latency bite hardest
+        if ram < 8 or cores <= 4:                    # weak CPU or low RAM → ultra-light (qwen2.5:1.5b)
+            tier = "ultralight"
+        elif ram >= 16 and cores >= 8:
+            tier = "balanced"
+        else:
+            tier = "light"
     return _BY_TIER[tier]
 
 
