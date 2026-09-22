@@ -36,6 +36,25 @@ _STOPWORDS = frozenset((
 ))
 
 
+def content_tokens(text: str) -> set[str]:
+    """The set of CONTENT tokens in `text` — same tokenisation/stopwords/len-guard as
+    to_match_query, exposed so the retriever can measure how much of a query a fact covers
+    (the keyword-only precision gate) WITHOUT re-implementing tokenisation. Lower-cased."""
+    return {
+        tok for raw in _TOKEN.findall(text or "")
+        if (tok := raw.lower()) not in _STOPWORDS and len(tok) > 1
+    }
+
+
+def query_coverage(query: str, content: str) -> float:
+    """Fraction of the QUERY's content tokens that appear in `content` (0.0–1.0). A query with
+    no content tokens returns 0.0 (the keyword arm wouldn't have fired for it anyway)."""
+    q = content_tokens(query)
+    if not q:
+        return 0.0
+    return len(q & content_tokens(content)) / len(q)
+
+
 def to_match_query(text: str, max_terms: int = 24) -> str | None:
     """Arbitrary text → a safe FTS5 MATCH expression, or None if it has no usable token
     (the caller then skips the keyword arm entirely). Stopwords are dropped; each surviving
