@@ -43,47 +43,80 @@ CORE_FACTS = [                      # always-on; present only for realism, NOT s
     "I am allergic to shellfish",
 ]
 NONCORE_FACTS = [
+    # pets
     "My dog is called Rex",
     "I once walked past a dog shelter downtown",       # keyword-leak distractor ("dog")
-    "I used to live in Madrid",                        # recency: STALE (older)
-    "I moved to Barcelona last month",                 # recency: CURRENT (newer)
+    # location (recency pair)
+    "I used to live in Madrid",                        # STALE (older)
+    "I moved to Barcelona last month",                 # CURRENT (newer)
+    # work
+    "I work as a data analyst at a logistics company",
+    "My office is near Sants station",
+    # ids / dates (exact-term + a keyword-collision leak)
     "My library card number is 4471-XZ",               # exact id
-    "My colleague Nomi sits at the next desk",         # exact name (non-family → non-core)
+    "Flight AB-4471 was delayed on Tuesday",           # KW-collision leak: shares "4471", low sim
     "I got married in 2019",                           # exact year (non-core phrasing)
-    "Flight AB-4471 was delayed on Tuesday",           # KEYWORD-ONLY leak: shares "4471", low sim
-    "My favourite colour is teal",                     # preference
+    "My gym membership renews every January",
+    # people (non-family → non-core)
+    "My colleague Nomi sits at the next desk",         # exact name
+    "My neighbour Tom waters my plants when I travel",
+    # sport (EN + the implicit-ES HARD TP that set the 0.53 floor)
     "I support Athletic Club de Bilbao",               # team EN (colour<->team cross distractor)
     "El usuario es del Athletic Club de Bilbao",       # HARD TP: implicit ES team, ~0.537, no kw
-    "I enjoy hiking on weekends",                      # filler preference
-    "I drink my coffee black",                         # filler preference
+    # tastes / habits (paraphrase-recall targets: queries share NO tokens with these)
+    "My favourite colour is teal",
+    "I drink my coffee black",
+    "I'm trying to eat less red meat",
+    "I love spicy Thai food",
+    "I enjoy hiking on weekends",
+    "I play the electric guitar",
+    "I'm learning to sail",
+    "I switched from Android to an iPhone this year",
 ]
 # created_at offsets (seconds ago). Madrid deliberately OLDER than Barcelona; ALL other facts
-# are backdated older still, so the recency pair isn't polluted by now-stamped filler (the
-# earlier artifact) — Barcelona is genuinely among the newest.
+# backdated older still, so the recency pair isn't polluted by now-stamped filler — Barcelona
+# is genuinely among the newest.
 _OLD = 200 * 86400
 AGE = {f: _OLD for f in NONCORE_FACTS}
 AGE["I used to live in Madrid"] = 90 * 86400           # 90 days ago (stale)
 AGE["I moved to Barcelona last month"] = 30 * 86400    # 30 days ago (current)
 
+# (query, relevant[], forbid[])  —  forbid=None marks a NO-FORCE-PICK case: the gate MUST
+# inject nothing (greeting, off-topic, OR topical-but-unstored). relevant=[]+forbid=[] is unused.
 Q = [
-    # (query, relevant[], forbid[])
+    # ── failure families ──────────────────────────────────────────────────────
     ("what is my dog's name?",        ["My dog is called Rex"],
-                                      ["I once walked past a dog shelter downtown"]),   # leak
+                                      ["I once walked past a dog shelter downtown"]),   # vector leak
+    ("tell me about my pet",          ["My dog is called Rex"],
+                                      ["I once walked past a dog shelter downtown"]),   # leak, paraphrased
     ("where do I live now?",          ["I moved to Barcelona last month",
                                        "I used to live in Madrid"], []),                # recency pair
-    ("who is Nomi?",                  ["My colleague Nomi sits at the next desk"], []), # exact name
     ("what's my library card number?",["My library card number is 4471-XZ"],
-                                      ["Flight AB-4471 was delayed on Tuesday"]),         # exact id + kw leak
+                                      ["Flight AB-4471 was delayed on Tuesday"]),       # exact id + kw leak
     ("4471-XZ",                       ["My library card number is 4471-XZ"],
-                                      ["Flight AB-4471 was delayed on Tuesday"]),         # bare id + kw leak
-    ("when did I get married?",       ["I got married in 2019"], []),                    # exact year
+                                      ["Flight AB-4471 was delayed on Tuesday"]),       # bare id + kw leak
+    # ── exact-term recall (must NOT regress) ──────────────────────────────────
+    ("who is Nomi?",                  ["My colleague Nomi sits at the next desk"], []),
+    ("when did I get married?",       ["I got married in 2019"], []),
+    ("¿de qué equipo soy?",           ["El usuario es del Athletic Club de Bilbao"], []),# HARD implicit-ES
+    # ── cross distractors (two close preferences) ─────────────────────────────
     ("what's my favourite colour?",   ["My favourite colour is teal"],
-                                      ["I support Athletic Club de Bilbao"]),            # cross distractor
+                                      ["I support Athletic Club de Bilbao"]),
     ("what team do I support?",       ["I support Athletic Club de Bilbao"],
-                                      ["My favourite colour is teal"]),                  # cross distractor
-    ("¿de qué equipo soy?",           ["El usuario es del Athletic Club de Bilbao"], []),# HARD: implicit ES, low-sim
-    ("hola, ¿qué tal?",               [], None),                                         # GATE: greeting
-    ("what's 2+2?",                   [], None),                                          # GATE: off-topic
+                                      ["My favourite colour is teal"]),
+    # ── paraphrase recall (query shares NO content tokens with the fact) ───────
+    ("what do I do for a living?",    ["I work as a data analyst at a logistics company"], []),
+    ("which instrument can I play?",  ["I play the electric guitar"], []),
+    ("am I cutting down on any foods?",["I'm trying to eat less red meat"], []),
+    ("what phone do I use?",          ["I switched from Android to an iPhone this year"], []),
+    ("who looks after my plants?",    ["My neighbour Tom waters my plants when I travel"], []),
+    # ── NO-FORCE-PICK: topical but nothing stored → gate must inject NOTHING ───
+    ("what's my favourite film?",     [], None),
+    ("what car do I drive?",          [], None),
+    ("what's my sister's name?",      [], None),
+    # ── relevance gate crown jewel ────────────────────────────────────────────
+    ("hola, ¿qué tal?",               [], None),                                        # greeting
+    ("what's 2+2?",                   [], None),                                         # off-topic
 ]
 RECENCY_PAIR = ("I moved to Barcelona last month",   # current must rank ABOVE
                 "I used to live in Madrid")          # stale
@@ -132,9 +165,11 @@ async def run(label: str) -> dict:
     print("\n" + "=" * 96)
     print(f"RUN: {label}")
     print("=" * 96)
+    GATE_QUERIES = {"hola, ¿qué tal?", "what's 2+2?"}   # greeting / off-topic (crown jewel)
     Ps, Rs = [], []
     leaks = 0
     gate_ok = True
+    noforce_violations = []     # topical-but-unstored queries that WRONGLY force-picked a fact
     exact_ok = {}
     for query, relevant, forbid in Q:
         picks = _noncore_picks(await memory.relevant_block(query))
@@ -147,7 +182,10 @@ async def run(label: str) -> dict:
         leaks += len(leaked)
         is_gate = forbid is None
         if is_gate and picks:
-            gate_ok = False
+            if query in GATE_QUERIES:
+                gate_ok = False                          # greeting/off-topic leaked → gate broke
+            else:
+                noforce_violations.append((query, picks))  # nothing stored, yet a fact injected
         # exact-term recall bookkeeping (must not regress)
         if query == "4471-XZ" or query == "what's my library card number?":
             exact_ok[query] = "My library card number is 4471-XZ" in picks
@@ -178,6 +216,8 @@ async def run(label: str) -> dict:
     print(f"  AGGREGATE  mean precision@5 = {mp:.3f}   mean recall@5 = {mr:.3f}")
     print(f"  leaks (forbidden facts injected)          : {leaks}   (target 0)")
     print(f"  relevance gate held (greeting+off-topic)  : {gate_ok}  (must be True)")
+    print(f"  no-force-pick held (topical-but-unstored) : {not noforce_violations}  "
+          f"(must be True){'  ⚠ ' + str(noforce_violations) if noforce_violations else ''}")
     # Not a knob any more — a DIAGNOSTIC of the deferred gap: recency alone can't make a current
     # fact outrank a genuinely-more-similar stale one (that's conflict-resolution / supersession,
     # deferred). With the margin gate on, the noise is stripped and this reduces to a clean
@@ -187,7 +227,8 @@ async def run(label: str) -> dict:
     print(f"  exact-term recall (must NOT regress)      : {exact_ok}")
     print("-" * 96)
     return {"precision": mp, "recall": mr, "leaks": leaks, "gate_ok": gate_ok,
-            "recency_ok": recency_ok, "exact_ok": exact_ok}
+            "noforce_ok": not noforce_violations, "recency_ok": recency_ok,
+            "exact_ok": exact_ok, "exact_all": all(exact_ok.values())}
 
 
 async def main():
