@@ -14,11 +14,12 @@ from contextlib import closing
 
 import numpy as np
 
-from config import CORE_BUDGET_TOKENS, MEMORY_MIN_SCORE, MEMORY_TOP_K
+from config import (CORE_BUDGET_TOKENS, KW_ONLY_MIN_COVERAGE, MEMORY_MIN_SCORE,
+                    MEMORY_REL_MARGIN, MEMORY_TOP_K)
 from db import get_db
 from embedding import pack_embedding, unpack_embedding
 from engine import get_engine, ChatRequest
-from fts import to_match_query
+from fts import query_coverage, to_match_query
 from rag import embed, rrf
 
 # Explicit, predictable triggers — NOT fuzzy NLP. The user always knows when a
@@ -312,11 +313,16 @@ def has_facts() -> bool:
 
 async def _rank_relevant(query: str, noncore: list[tuple]) -> list[int]:
     """Rank NON-core facts against `query` (hybrid vector + FTS, RRF-fused) and return up
-    to MEMORY_TOP_K ids that clear the semantic floor OR are a genuine keyword hit. Core
-    facts are handled separately (always injected), so they are excluded here."""
+    to MEMORY_TOP_K ids. A candidate is eligible if it clears the (possibly relative) vector
+    floor OR is a keyword hit that COVERS enough of the query (the precision gates below —
+    both no-ops at their default settings). Core facts are handled separately (always
+    injected), so they are excluded here.
+
+    `noncore` rows are (id, content, embedding)."""
     if not noncore:
         return []
-    ncids = {cid for cid, _content, _emb in noncore}
+    ncids = {cid for cid, _c, _e in noncore}
+    content_by_id = {cid: content for cid, content, _e in noncore}
 
     # vector arm — cosine of the query to each embedded non-core fact
     vec_ranked: list[int] = []
@@ -360,8 +366,26 @@ async def _rank_relevant(query: str, noncore: list[tuple]) -> list[int]:
     if not scores:
         return []
     kw_set = set(kw_ranked)
-    eligible = [cid for cid in scores
-                if cid in kw_set or sim_by_id.get(cid, 0.0) >= MEMORY_MIN_SCORE]
+    # Per-query RELATIVE floor: on a query with a clear winner, drop vector candidates whose
+    # cosine is > MEMORY_REL_MARGIN below the best eligible cosine (the leaks sit just over the
+    # absolute floor but well below the real answer). Floored at MEMORY_MIN_SCORE, and a query
+    # whose own best fact is weak keeps the low floor (its top anchors the margin low). Off (=
+    # absolute floor only) when MEMORY_REL_MARGIN <= 0.
+    top_sim = max((s for s in sim_by_id.values() if s >= MEMORY_MIN_SCORE), default=0.0)
+    vec_floor = max(MEMORY_MIN_SCORE, top_sim - MEMORY_REL_MARGIN) if MEMORY_REL_MARGIN > 0 else MEMORY_MIN_SCORE
+    # Eligibility gate (relevance gate preserved — this only ever TIGHTENS, never loosens):
+    #   * vector-supported (cosine ≥ the — possibly relative — floor) → eligible;
+    #   * keyword-only (a hit whose cosine is below the floor) → eligible ONLY if it covers
+    #     at least KW_ONLY_MIN_COVERAGE of the query's content tokens (exact-term recall:
+    #     an id/name/year query IS its content tokens, so the right fact covers ~all of them).
+    eligible = []
+    for cid in scores:
+        if sim_by_id.get(cid, 0.0) >= vec_floor:
+            eligible.append(cid)
+        elif cid in kw_set and query_coverage(query, content_by_id.get(cid, "")) >= KW_ONLY_MIN_COVERAGE:
+            eligible.append(cid)
+    if not eligible:
+        return []
     eligible.sort(key=lambda cid: scores[cid], reverse=True)
     return eligible[:MEMORY_TOP_K]
 

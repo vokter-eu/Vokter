@@ -97,6 +97,34 @@ CORE_BUDGET_TOKENS = int(os.getenv("VOKTER_CORE_BUDGET_TOKENS", "500"))
 # fact is the hardest true positive, so the FTS keyword arm is the safety net for exact terms.
 # Env-overridable to retune if real use shows it too strict (matches lost) or loose (noise).
 MEMORY_MIN_SCORE = float(os.getenv("VOKTER_MEMORY_MIN_SCORE", "0.53"))
+# Direction A precision gating — a two-part PAIR that sharpens which non-core facts reach the
+# prompt (pure re-ranking of already-eligible candidates; no schema change, no re-embed; the
+# relevance gate and P2 gate are untouched). BOTH default OFF (= current shipped behavior); the
+# mechanism is landed inactive and must be validated on the eval harness (a larger, realistic
+# labelled set) before a non-zero default is set. They work TOGETHER — measured on the harness,
+# each alone leaves a leak channel open, the pair takes precision 0.72→0.96 at recall 1.0:
+#   * MEMORY_REL_MARGIN closes the VECTOR leak path, and
+#   * KW_ONLY_MIN_COVERAGE closes the KEYWORD leak path.
+#
+#   MEMORY_REL_MARGIN — per-query RELATIVE floor. On realistic phrasing the leak facts sit just
+#   above the absolute floor (0.53–0.58), INTERLEAVED with the hardest true positives — an
+#   absolute floor can't separate them. But on a leak query the real fact sits well ABOVE the
+#   noise (e.g. 0.748 vs 0.58). So drop a vector candidate whose cosine is more than this margin
+#   below the TOP eligible cosine, floored at MEMORY_MIN_SCORE. Relative-to-this-query, so a
+#   query whose own best fact is weak (the implicit-ES hard TP ~0.537) is spared — its top
+#   anchors the margin low, min_score backstops. Failure mode to watch on the bigger eval: if
+#   NOISE is the top candidate it anchors the margin wrong; min_score remains the backstop.
+#   0 = off. Validated candidate value ≈ 0.08–0.10 on the current (small) harness.
+MEMORY_REL_MARGIN = float(os.getenv("VOKTER_MEMORY_REL_MARGIN", "0.0"))
+#   KW_ONLY_MIN_COVERAGE — with the margin gate active, a keyword hit whose cosine is below the
+#   (now higher) vector floor becomes the remaining leak channel. Keep such a keyword-only hit
+#   only if it covers at least this FRACTION of the query's content tokens. This drops the
+#   shared-token leak (an unrelated fact matching one common token / a colliding id like
+#   "Flight AB-4471" vs "library card 4471-XZ") WITHOUT flooring the keyword arm — an exact-term
+#   query (an id, a name, a year) IS its content tokens, so the right fact covers ~all of them
+#   (coverage ~1.0) and survives. 0 = off (keyword hits admitted unconditionally = current
+#   behavior); validated candidate value = 1.0 (paired with a non-zero MEMORY_REL_MARGIN).
+KW_ONLY_MIN_COVERAGE = float(os.getenv("VOKTER_KW_ONLY_MIN_COVERAGE", "0.0"))
 # max messages kept per conversation (= 10 turns)
 # WARNING: process-local dict — do NOT run with multiple uvicorn workers
 MAX_HISTORY   = 20
