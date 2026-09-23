@@ -238,7 +238,7 @@ async def main():
     print(f"\nseeded {len(CORE_FACTS)} core + {len(NONCORE_FACTS)} non-core facts")
     print(f"knobs: MEMORY_TOP_K={MEMORY_TOP_K} MIN_SCORE={MEMORY_MIN_SCORE} "
           f"REL_MARGIN={MEMORY_REL_MARGIN} KW_ONLY_MIN_COVERAGE={KW_ONLY_MIN_COVERAGE}"
-          f"  (both 0 = shipped behavior; the precision pair is validated & flipped together)")
+          f"  (default 0.05/1.0 = the validated precision pair; set both to 0 for pre-gating behavior)")
     await run(os.getenv("EVAL_LABEL", "current"))
 
 

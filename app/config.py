@@ -99,12 +99,18 @@ CORE_BUDGET_TOKENS = int(os.getenv("VOKTER_CORE_BUDGET_TOKENS", "500"))
 MEMORY_MIN_SCORE = float(os.getenv("VOKTER_MEMORY_MIN_SCORE", "0.53"))
 # Direction A precision gating — a two-part PAIR that sharpens which non-core facts reach the
 # prompt (pure re-ranking of already-eligible candidates; no schema change, no re-embed; the
-# relevance gate and P2 gate are untouched). BOTH default OFF (= current shipped behavior); the
-# mechanism is landed inactive and must be validated on the eval harness (a larger, realistic
-# labelled set) before a non-zero default is set. They work TOGETHER — measured on the harness,
-# each alone leaves a leak channel open, the pair takes precision 0.72→0.96 at recall 1.0:
+# relevance gate and P2 gate are untouched). ON by default, VALIDATED on the larger realistic
+# eval harness (tests/memory_precision_eval.py): the pair takes non-core precision@k 0.55→0.79
+# at recall 1.0, leaks 3→0, with the relevance gate, exact-term recall and the implicit-ES hard
+# TP all preserved. They work TOGETHER — each alone leaves a leak channel open:
 #   * MEMORY_REL_MARGIN closes the VECTOR leak path, and
 #   * KW_ONLY_MIN_COVERAGE closes the KEYWORD leak path.
+# Both stay env-overridable (set to 0 to restore the pre-gating absolute-floor behavior).
+# KNOWN LIMIT (tracked separately, NOT solved here): the margin gate does NOT fix the
+# "no-force-pick" case — a topical query with NOTHING stored still pulls a loosely-related fact
+# that clears the absolute floor, because the noise is its own top and anchors the margin low.
+# That is an absolute-floor problem (can't just raise 0.53 without killing the 0.537 hard TP);
+# it is the next memory-precision target and needs its own design work, not a bigger margin.
 #
 #   MEMORY_REL_MARGIN — per-query RELATIVE floor. On realistic phrasing the leak facts sit just
 #   above the absolute floor (0.53–0.58), INTERLEAVED with the hardest true positives — an
@@ -112,19 +118,18 @@ MEMORY_MIN_SCORE = float(os.getenv("VOKTER_MEMORY_MIN_SCORE", "0.53"))
 #   noise (e.g. 0.748 vs 0.58). So drop a vector candidate whose cosine is more than this margin
 #   below the TOP eligible cosine, floored at MEMORY_MIN_SCORE. Relative-to-this-query, so a
 #   query whose own best fact is weak (the implicit-ES hard TP ~0.537) is spared — its top
-#   anchors the margin low, min_score backstops. Failure mode to watch on the bigger eval: if
-#   NOISE is the top candidate it anchors the margin wrong; min_score remains the backstop.
-#   0 = off. Validated candidate value ≈ 0.08–0.10 on the current (small) harness.
-MEMORY_REL_MARGIN = float(os.getenv("VOKTER_MEMORY_REL_MARGIN", "0.0"))
+#   anchors the margin low, min_score backstops. 0 = off. Default 0.05: precision peaked at the
+#   0.04–0.06 knee on the larger eval (past it, precision falls and a leak returns).
+MEMORY_REL_MARGIN = float(os.getenv("VOKTER_MEMORY_REL_MARGIN", "0.05"))
 #   KW_ONLY_MIN_COVERAGE — with the margin gate active, a keyword hit whose cosine is below the
 #   (now higher) vector floor becomes the remaining leak channel. Keep such a keyword-only hit
 #   only if it covers at least this FRACTION of the query's content tokens. This drops the
 #   shared-token leak (an unrelated fact matching one common token / a colliding id like
 #   "Flight AB-4471" vs "library card 4471-XZ") WITHOUT flooring the keyword arm — an exact-term
 #   query (an id, a name, a year) IS its content tokens, so the right fact covers ~all of them
-#   (coverage ~1.0) and survives. 0 = off (keyword hits admitted unconditionally = current
-#   behavior); validated candidate value = 1.0 (paired with a non-zero MEMORY_REL_MARGIN).
-KW_ONLY_MIN_COVERAGE = float(os.getenv("VOKTER_KW_ONLY_MIN_COVERAGE", "0.0"))
+#   (coverage ~1.0) and survives. 0 = off (keyword hits admitted unconditionally); default 1.0
+#   (paired with the non-zero MEMORY_REL_MARGIN — this is the validated pair).
+KW_ONLY_MIN_COVERAGE = float(os.getenv("VOKTER_KW_ONLY_MIN_COVERAGE", "1.0"))
 # max messages kept per conversation (= 10 turns)
 # WARNING: process-local dict — do NOT run with multiple uvicorn workers
 MAX_HISTORY   = 20
