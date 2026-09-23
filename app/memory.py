@@ -202,15 +202,35 @@ def unpin(mem_id: int) -> bool:
 
 # Shared wording for the memory system-prompt block, so the always-on dump (system_block,
 # kept for the eval BEFORE baseline) and the query-aware relevant_block render identically.
+#
+# The trailing "how to use this list" rules are a MODEL-AGNOSTIC anti-confabulation guard, not a
+# patch for one model. Measured cause: when this block is present, a weak chat model (e.g. the
+# ultralight tier) can be PRIMED by it — on a question NONE of the facts answers, it stops
+# declining ("I don't know") and instead invents a confident personal detail (a fabricated car,
+# university, phone number), or over-surfaces an unrelated real fact it was NOT asked for. With
+# an empty block the same model declines correctly, so the block itself is the trigger. Retrieval
+# cannot cleanly stop injecting here (the no-answer distractors share bge-m3's score band with the
+# hardest true positives — an absolute/relative floor can't separate them), so the durable fix is
+# these generation-layer rules. They are a general PRINCIPLE — use only what's relevant, never
+# invent, don't over-share — so a stronger future model inherits the same guarantee. Every model
+# swap must re-verify this behaviourally (see docs/MODEL_MAINTENANCE.md §2 + the no-answer cases in
+# tests/memory_precision_eval.py). Wording stays "use only when relevant" (not "always use these"),
+# because a forceful phrasing makes a small model blurt the whole list into a plain greeting.
 def _render_block(lines: str) -> str:
     return (
-        "\n\nThings the user has asked you to remember about them "
-        "(personal, private to this chat). Refer to them when they are relevant "
-        "to the user's message; do not recite or list them unprompted. These are "
-        "things the USER TOLD YOU, not documents — never attribute them to a named "
-        "document, file, or source; only cite a document when its text is actually "
-        "given to you in the message:\n"
-        f"{lines}"
+        "\n\nThings the user has told you about themselves (personal, private to this chat), "
+        "for you to draw on ONLY when they help answer what the user actually asked:\n"
+        f"{lines}\n"
+        "How to use this list: use only the item(s) that directly answer the user's message, and "
+        "do not bring up the others. If none of them is relevant to what the user asked, answer "
+        "normally and do not refer to this list at all. If the user asks for a personal detail "
+        "that is NOT written above, tell them plainly that you don't have that information — never "
+        "invent or guess it. Do not substitute a DIFFERENT kind of detail as if it were the answer: "
+        "if they ask for one thing (say, a phone number) and the list only holds another (say, a "
+        "library or account number, or an address), that is NOT the answer — say you don't have the "
+        "specific thing they asked for, and do not read out the other detail. These are things the "
+        "USER TOLD YOU, not documents — never attribute them to a named document, file, or source; "
+        "only cite a document when its text is actually given to you in the message."
     )
 
 
