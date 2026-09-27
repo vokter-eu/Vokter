@@ -494,17 +494,30 @@ def _boot_chat_model() -> str:
         if str(APP_DIR) not in sys.path:
             sys.path.insert(0, str(APP_DIR))      # let the stdlib-only orchestrator reach app/hwdetect
         import hwdetect
-        ultra = next((c["model"] for c in hwdetect.CATALOG if c["tier"] == "ultralight"), None)
-        candidates = [CHAT_MODEL] + ([ultra] if ultra else [])
-        installed = next((m for m in candidates if _model_present(m)), None)
+        rec = hwdetect.recommend(hwdetect.detect())    # hardware pick (language chosen later)
+        have = _installed_models()                     # ONE /api/tags round-trip for all checks below
+        # Returning user: keep the model they already have — never surprise-pull another. Prefer the
+        # hardware-RECOMMENDED model first, so a box that upgraded to 14b in onboarding boots on 14b
+        # (and prewarms it) rather than the leftover 3b bootstrap; then the global default, then any
+        # other curated model present. (chat.py already uses the persisted chat_model; this keeps the
+        # orchestrator's pull + prewarm env in agreement with it.)
+        ordered: list[str] = []
+        for m in [rec.get("model"), CHAT_MODEL, *(c["model"] for c in hwdetect.CATALOG)]:
+            if m and m not in ordered:
+                ordered.append(m)
+        installed = next((m for m in ordered if _model_present(m, have)), None)
         if installed:
             chosen = installed                    # returning user → keep it, never surprise-pull another
             log(f"chat model already installed → {chosen} (no first-run pick)")
         else:
-            rec = hwdetect.recommend(hwdetect.detect())    # first run: hardware only (language chosen later)
-            if rec.get("tier") == "ultralight":
-                chosen = rec["model"]             # weak CPU-only + first run → ultra-light
-            log(f"first run, no chat model installed → hardware pick = {chosen} (tier {rec.get('tier')})")
+            # Genuine first run: pull a SMALL BOOTSTRAP so the app is usable fast and we NEVER
+            # silently pull a big model. Weak box → ultra-light tier; everyone else → the light
+            # default (3b, ~2 GB). Onboarding then offers the hardware-recommended model (e.g. 14b on
+            # a capable GPU/Apple box) as a size-disclosed, one-tap, opt-down upgrade — so the big
+            # pull only ever happens with the user's consent, never at silent boot (Fix 2 Option A).
+            chosen = rec["model"] if rec.get("tier") == "ultralight" else CHAT_MODEL
+            log(f"first run: bootstrap pull = {chosen}; onboarding will offer recommended tier "
+                f"'{rec.get('tier')}' ({rec.get('model')}) as a consent-gated upgrade")
     except Exception as e:
         # A broken bundle (hwdetect missing) must be VISIBLE, not a silent no-save of the saving.
         log(f"chat-model selection failed, using default {CHAT_MODEL}: {e!r}")
@@ -552,18 +565,28 @@ def ensure_models() -> None:
             _pull_streaming(model, index=i, count=len(models))
 
 
-def _model_present(model: str) -> bool:
-    """True if `model` is already in the local store, so starting needs no network.
-
-    Matches Ollama's implicit ':latest' tag. On any error reading the local /api/tags we
-    return False (fall through to the pull) rather than wrongly skip — the tags endpoint is
-    the same local server we just started, so this normally succeeds and keeps boot offline-safe."""
-    want = {model, model if ":" in model else f"{model}:latest"}
+def _installed_models() -> set[str]:
+    """Model names in the local store, fetched with ONE /api/tags round-trip. Empty set on any
+    error (callers fall through to a pull). Batch membership tests against this instead of calling
+    _model_present in a loop, which would re-fetch and re-parse the same list per candidate."""
     try:
         with urllib.request.urlopen(f"{OLLAMA_URL}/api/tags", timeout=10) as resp:
-            have = {m.get("name", "") for m in json.load(resp).get("models", [])}
+            return {m.get("name", "") for m in json.load(resp).get("models", [])}
     except (urllib.error.URLError, OSError, json.JSONDecodeError, ValueError):
-        return False
+        return set()
+
+
+def _model_present(model: str, have: set[str] | None = None) -> bool:
+    """True if `model` is already in the local store, so starting needs no network.
+
+    Matches Ollama's implicit ':latest' tag. Pass a pre-fetched `have` set (from _installed_models)
+    to avoid a per-call /api/tags round-trip when checking several models. On any error reading the
+    local /api/tags we return False (fall through to the pull) rather than wrongly skip — the tags
+    endpoint is the same local server we just started, so this normally succeeds and keeps boot
+    offline-safe."""
+    want = {model, model if ":" in model else f"{model}:latest"}
+    if have is None:
+        have = _installed_models()
     return bool(want & have)
 
 

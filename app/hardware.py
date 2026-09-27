@@ -12,7 +12,7 @@ import os
 
 from fastapi import APIRouter
 
-from hwdetect import CATALOG, detect, recommend
+from hwdetect import CATALOG, detect, recommend, visible_catalog  # noqa: F401 (CATALOG kept for callers)
 
 router = APIRouter()
 
@@ -43,4 +43,6 @@ def hardware(lang: str | None = None):
     from agent_config import get_config
     hw = detect()
     lang = (lang or get_config().get("language") or "auto").strip()
-    return {"hardware": hw, "recommended": recommend(hw, lang), "catalog": CATALOG}
+    # `catalog` is the HARDWARE-GATED curated list (the chips the user sees): a CPU-only box never
+    # gets the powerful (14B) chip. The free-text "any model name" field is separate/unaffected.
+    return {"hardware": hw, "recommended": recommend(hw, lang), "catalog": visible_catalog(hw)}

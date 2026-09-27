@@ -21,10 +21,15 @@ import subprocess
 CATALOG = [
     {"tier": "ultralight", "model": "qwen2.5:1.5b",   "size_gb": 1.0,  "source": "registry"},
     {"tier": "light",    "model": "qwen2.5:3b",       "size_gb": 2.0,  "source": "registry"},
-    {"tier": "balanced", "model": "gemma3:4b",        "size_gb": 3.0,  "source": "registry"},
-    {"tier": "powerful", "model": "qwen3:30b-a3b",    "size_gb": 18.0, "source": "registry"},
+    {"tier": "balanced", "model": "llama3.1:8b",      "size_gb": 4.9,  "source": "registry"},
+    {"tier": "powerful", "model": "qwen2.5:14b",      "size_gb": 9.0,  "source": "registry"},
     {"tier": "catalan",  "model": "salamandra-2b-instruct", "size_gb": 1.5, "source": "mirror"},
 ]
+# BALANCED (mid) = llama3.1:8b: NON-SWA, multilingual, and it PASSED the N=5 harness (confab 0/5,
+# no-preamble 0/10, one-language clean — incl. the English→Spanish slip that qwen2.5:7b FAILED 5/5,
+# 2026-09-27). qwen2.5:7b was rejected for that slip; gemma3:4b is out (SWA → ~10 s/msg on weak CPU,
+# golden rule); qwen3:30b-a3b was dropped from the curated list (thinking model, never gated) — all
+# three remain reachable via the free-text "any Ollama model" field. See [[project_vokter_model_tiering]].
 _BY_TIER = {c["tier"]: c for c in CATALOG}
 
 
@@ -91,11 +96,62 @@ def detect() -> dict:
     }
 
 
+def _capable_gpu(hw: dict) -> bool:
+    """True when the box can run the powerful tier (qwen2.5:14b, ~9 GB) with dignity. Discrete GPU:
+    ≥16 GB DEDICATED VRAM. Apple: unified memory is SHARED with the OS, so require ≥32 GB total (a
+    16 GB Mac would be tight/swappy with a ~9 GB model) — don't let vram==ram trip the discrete
+    threshold. Pure CPU is never capable (single-digit tok/s). This is the SINGLE definition of
+    "14B fits" — recommend() and visible_catalog() both call it, so the recommendation and the
+    curated chips can never disagree about what fits (the invariant holds by construction, not by
+    copy-paste)."""
+    gpu = hw.get("gpu")
+    if gpu is None:
+        return False
+    ram = hw.get("ram_gb") or 0.0
+    vram = gpu.get("vram_gb", 0.0)
+    return (gpu.get("kind") != "apple" and vram >= 16) or (gpu.get("kind") == "apple" and ram >= 32)
+
+
+def _can_run_balanced(hw: dict) -> bool:
+    """True when the box can run the balanced tier (llama3.1:8b, ~4.9 GB) with dignity: ANY GPU/Apple
+    (an 8B fits even a modest 8 GB card / 16 GB Mac), or a strong CPU (≥16 GB AND ≥8 cores). A weak
+    CPU-only box (a 4-core i3, low RAM) stays on light/ultralight. Single definition, shared by
+    recommend() and visible_catalog() so the recommendation and the curated chips can't drift."""
+    if _capable_gpu(hw):
+        return True                                     # capable-for-14B implies capable-for-8B
+    if hw.get("gpu") is not None:
+        return True                                     # any GPU/Apple runs an 8B fine
+    return (hw.get("ram_gb") or 0.0) >= 16 and (hw.get("cpu_cores") or 1) >= 8
+
+
+def visible_catalog(hw: dict) -> list[dict]:
+    """The curated model chips a user should SEE in the picker — gated to what THEIR machine can run
+    with dignity, instead of showing everyone every tier. Rationale (product): a big model on a
+    normal/weak box is a bad first experience (scary download, eats/thrashes RAM). So:
+      * ultralight (qwen2.5:1.5b), light (qwen2.5:3b = DEFAULT) and catalan (salamandra) → ALWAYS
+        shown: small, non-SWA, run everywhere with dignity.
+      * balanced (llama3.1:8b, ~4.9 GB) → any GPU/Apple or a strong CPU (see _can_run_balanced).
+      * powerful (qwen2.5:14b, ~9 GB) → only where a GPU/Apple runs it well (see _capable_gpu); a
+        CPU-only box (incl. a 4-core i3) never sees it.
+    The free-text "any Ollama model name" field (power-user, at-own-risk) is SEPARATE and unaffected
+    — a technical user who wants a huge model can still type it. Uses the SAME gates as recommend()
+    (_can_run_balanced / _capable_gpu), so chips and recommendation can never disagree about fit."""
+    tiers = {"ultralight", "light", "catalan"}          # always safe to offer, run everywhere
+    if _can_run_balanced(hw):
+        tiers.add("balanced")                           # 8 B: any GPU/Apple or a strong CPU
+    if _capable_gpu(hw):
+        tiers.add("powerful")                           # 14 B: only where a GPU/Apple runs it well
+    return [c for c in CATALOG if c["tier"] in tiers]
+
+
 def recommend(hw: dict, lang: str = "auto") -> dict:
     """Map detected hardware (and the reply language) → a curated model. Catalan gets Salamandra
     (BSC, Apache-2.0) — measurably better Catalan than qwen2.5:3b and non-SWA/CPU-fast; qwen2.5:3b
-    stays the GLOBAL default for everything else. SWA lesson baked in: never suggest gemma3:4b (SWA)
-    without a GPU or a capable CPU — it would be ~10 s/message on a weak machine.
+    stays the GLOBAL default for everything else. A capable GPU/Apple box is auto-recommended the
+    powerful tier (qwen2.5:14b, non-SWA); CPU-only boxes NEVER get it (single-digit tok/s). A mid box
+    (any GPU/Apple, or a strong CPU ≥16 GB/≥8c) gets the balanced tier (llama3.1:8b, non-SWA); a
+    CPU-only box CAPS at balanced. NOTHING here blocks a user: every path returns a model the machine
+    can run, and the free-text field remains for power users.
 
     Weak CPU-only machines get the ultra-light tier (qwen2.5:1.5b): measured on an i3 (2c/4t, no GPU)
     at ~0.65 s first token vs qwen2.5:3b's ~2.25 s and ~half the download, same family (non-SWA, so
@@ -106,21 +162,13 @@ def recommend(hw: dict, lang: str = "auto") -> dict:
         return _BY_TIER["catalan"]
     ram = hw.get("ram_gb") or 0.0
     cores = hw.get("cpu_cores") or 1
-    gpu = hw.get("gpu")
-    vram = (gpu or {}).get("vram_gb", 0.0)
 
-    if gpu is not None:                              # GPU or Apple Silicon (unified) — 3b runs easily
-        if ram >= 32 and vram >= 16:
-            tier = "powerful"
-        elif ram >= 16:
-            tier = "balanced"
-        else:
-            tier = "light"
-    else:                                            # CPU-only — SWA + first-token latency bite hardest
-        if ram < 8 or cores <= 4:                    # weak CPU or low RAM → ultra-light (qwen2.5:1.5b)
-            tier = "ultralight"
-        elif ram >= 16 and cores >= 8:
-            tier = "balanced"
-        else:
-            tier = "light"
+    if _capable_gpu(hw):                              # GPU/Apple that runs 14B with dignity
+        tier = "powerful"
+    elif _can_run_balanced(hw):                      # modest GPU/Apple, or strong CPU → 8B (CPU caps here)
+        tier = "balanced"
+    elif ram < 8 or cores <= 4:                      # weak CPU-only or low RAM → ultra-light (qwen2.5:1.5b)
+        tier = "ultralight"
+    else:                                            # normal CPU-only → the 3b default
+        tier = "light"
     return _BY_TIER[tier]

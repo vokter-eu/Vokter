@@ -65,6 +65,7 @@
       dlTitle:"Download a model", dlHint:"Models run entirely on your machine. Pick a recommended one, or type any Ollama model name.",
       mtUltralight:"Ultra-light", mtLight:"Light", mtBalanced:"Balanced", mtPowerful:"Powerful", mtCatalan:"Catalan", recBadge:"Best for your computer",
       recOnbA:"Your computer runs best with", recOnbB:"Download it?", recGet:"Download", recNo:"Not now",
+      expBasic:"Vokter runs on your machine — replies will be modest, but private and free.", expCapable:"Your machine can run Vokter's sharper model for better replies.", expRunningBest:"You're running Vokter's sharper model — private and free.", expOk:"Got it",
       dlPh:"any Ollama model name, e.g. mistral", dlBtn:"Download", dlStop:"Stop", dlCancelled:"Download stopped.",
       dlManifest:"Preparing…", dlVerify:"Verifying…", dlDownloading:"Downloading", dlDone:"Downloaded ✓",
       dlErr:"Download failed", dlBusy:"A download is already running.", dlNameNeeded:"Type a model name first.",
@@ -138,6 +139,7 @@
       dlTitle:"Descargar un modelo", dlHint:"Los modelos corren enteros en tu máquina. Elige uno recomendado o escribe cualquier nombre de modelo de Ollama.",
       mtUltralight:"Ultraligero", mtLight:"Ligero", mtBalanced:"Equilibrado", mtPowerful:"Potente", mtCatalan:"Catalán", recBadge:"Lo mejor para tu ordenador",
       recOnbA:"Tu ordenador funciona mejor con", recOnbB:"¿Lo descargas?", recGet:"Descargar", recNo:"Ahora no",
+      expBasic:"Vokter funciona en tu equipo — las respuestas serán modestas, pero privadas y gratis.", expCapable:"Tu equipo puede ejecutar el modelo más potente de Vokter para respuestas mejores.", expRunningBest:"Estás usando el modelo más potente de Vokter — privado y gratis.", expOk:"Entendido",
       dlPh:"cualquier modelo de Ollama, p. ej. mistral", dlBtn:"Descargar", dlStop:"Parar", dlCancelled:"Descarga detenida.",
       dlManifest:"Preparando…", dlVerify:"Verificando…", dlDownloading:"Descargando", dlDone:"Descargado ✓",
       dlErr:"Falló la descarga", dlBusy:"Ya hay una descarga en curso.", dlNameNeeded:"Escribe primero un nombre de modelo.",
@@ -1295,30 +1297,50 @@
     let hw, models;
     try{ [hw,models]=await Promise.all([(await fetch('/api/hardware')).json(),(await fetch('/api/models')).json()]); }catch{ return; }
     const rec=hw.recommended||{}, installed=(models.models||[]);
-    if(!rec.model || installed.includes(rec.model)) return;      // already have the best → no nag
-    const label=t(_TIER_LK[rec.tier]||'');
+    if(!rec.model) return;                            // no recommendation (backend error) → show nothing
+    const tier=rec.tier||'light';
+    const haveRec = installed.includes(rec.model);
+    // Honest, tier-matched expectation line — shown for EVERY machine (adapt, never block): a capable
+    // box not yet upgraded is told it can run the sharper model; one already on it gets a positive
+    // confirmation; a modest box is told replies are basic but private + free. Never locked out.
     const card=document.createElement('div'); card.className='reccard';
-    const txt=document.createElement('div'); txt.className='smeta'; txt.textContent=t('recOnbA')+' '+label+' (~'+rec.size_gb+'GB). '+t('recOnbB');
-    const bar=document.createElement('div'); bar.className='dlbar'; bar.style.display='none'; const fill=document.createElement('div'); fill.className='dlfill'; bar.appendChild(fill);
-    const st=document.createElement('div'); st.className='smeta';
-    const acts=document.createElement('div'); acts.className='recacts';
-    const dl=document.createElement('button'); dl.className='sbtn'; dl.textContent=t('recGet');
-    const no=document.createElement('button'); no.className='sbtn ghost'; no.textContent=t('recNo');
-    acts.appendChild(dl); acts.appendChild(no);
-    card.appendChild(txt); card.appendChild(bar); card.appendChild(st); card.appendChild(acts); host.appendChild(card);
-    no.onclick=()=>{ try{ localStorage.setItem('vokter_rec_dismissed','1'); }catch{} card.remove(); };
-    dl.onclick=async()=>{
-      dl.disabled=true; no.disabled=true; bar.style.display=''; fill.style.width='0%'; st.textContent=t('dlManifest');
-      try{
-        await pullModel(rec.model,{
-          onProgress:(pct,indet)=>{ fill.classList.toggle('indet',!!indet); if(!indet) fill.style.width=Math.max(0,Math.min(100,pct))+'%'; },
-          onStatus:(s,o)=>{ st.textContent = s==='done'?t('dlDone') : s.includes('verif')?t('dlVerify') : s.includes('manifest')?t('dlManifest')
-            : t('dlDownloading')+((o&&o.indeterminate)?'…':' · '+Math.round((o&&o.percent)||0)+'%'); }});
-        try{ await fetch('/api/config',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_model:rec.model})}); }catch{}
-        try{ localStorage.setItem('vokter_rec_dismissed','1'); }catch{}
-        st.textContent=t('dlDone'); refreshModelBadge(); setTimeout(()=>card.remove(),1500);
-      }catch(e){ st.textContent=t('dlErr'); dl.disabled=false; no.disabled=false; }
-    };
+    const dismiss=()=>{ try{ localStorage.setItem('vokter_rec_dismissed','1'); }catch{} card.remove(); };
+    const note=document.createElement('div'); note.className='smeta';
+    const upgradable = (tier==='powerful' || tier==='balanced');   // a sharper model fits this box
+    note.textContent = t(upgradable ? (haveRec ? 'expRunningBest' : 'expCapable') : 'expBasic');
+    card.appendChild(note);
+    if(!haveRec){
+      // Recommended model not installed yet → offer it: size disclosed, one tap, opt-down ("Not now").
+      const label=t(_TIER_LK[rec.tier]||'');
+      const txt=document.createElement('div'); txt.className='smeta'; txt.textContent=t('recOnbA')+' '+label+' (~'+rec.size_gb+'GB). '+t('recOnbB');
+      const bar=document.createElement('div'); bar.className='dlbar'; bar.style.display='none'; const fill=document.createElement('div'); fill.className='dlfill'; bar.appendChild(fill);
+      const st=document.createElement('div'); st.className='smeta';
+      const acts=document.createElement('div'); acts.className='recacts';
+      const dl=document.createElement('button'); dl.className='sbtn'; dl.textContent=t('recGet');
+      const no=document.createElement('button'); no.className='sbtn ghost'; no.textContent=t('recNo');
+      acts.appendChild(dl); acts.appendChild(no);
+      card.appendChild(txt); card.appendChild(bar); card.appendChild(st); card.appendChild(acts);
+      no.onclick=dismiss;
+      dl.onclick=async()=>{
+        dl.disabled=true; no.disabled=true; bar.style.display=''; fill.style.width='0%'; st.textContent=t('dlManifest');
+        try{
+          await pullModel(rec.model,{
+            onProgress:(pct,indet)=>{ fill.classList.toggle('indet',!!indet); if(!indet) fill.style.width=Math.max(0,Math.min(100,pct))+'%'; },
+            onStatus:(s,o)=>{ st.textContent = s==='done'?t('dlDone') : s.includes('verif')?t('dlVerify') : s.includes('manifest')?t('dlManifest')
+              : t('dlDownloading')+((o&&o.indeterminate)?'…':' · '+Math.round((o&&o.percent)||0)+'%'); }});
+          try{ await fetch('/api/config',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_model:rec.model})}); }catch{}
+          try{ localStorage.setItem('vokter_rec_dismissed','1'); }catch{}
+          st.textContent=t('dlDone'); refreshModelBadge(); setTimeout(()=>card.remove(),1500);
+        }catch(e){ st.textContent=t('dlErr'); dl.disabled=false; no.disabled=false; }
+      };
+    } else {
+      // Already on the hardware-appropriate model → just the honest note + an acknowledgment.
+      const acts=document.createElement('div'); acts.className='recacts';
+      const ok=document.createElement('button'); ok.className='sbtn ghost'; ok.textContent=t('expOk');
+      acts.appendChild(ok); card.appendChild(acts);
+      ok.onclick=dismiss;
+    }
+    host.appendChild(card);
   }
 
   applyStatic();

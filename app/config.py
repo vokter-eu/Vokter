@@ -42,9 +42,11 @@ CHAT_MODEL  = os.getenv("VOKTER_CHAT_MODEL",  "qwen2.5:3b")  # default: the CPU 
                                                             # first-token ~1s vs gemma's ~10s on
                                                             # a weak CPU), doesn't dump stored
                                                             # memory like llama3.2:3b, decent
-                                                            # es/ca. gemma3:4b (quality, slow on
-                                                            # weak CPU) and llama3.2:3b (lightest)
-                                                            # remain pickable in the UI.
+                                                            # es/ca. Curated chips = qwen2.5 tiers +
+                                                            # llama3.1:8b (balanced) + Salamandra (see
+                                                            # hwdetect CATALOG); any other model
+                                                            # (gemma3:4b, llama3.2:3b, …) is reachable
+                                                            # via the free-text "any Ollama model" field.
 EMBED_MODEL = os.getenv("VOKTER_EMBED_MODEL", "bge-m3")  # multilingual embedder (1024-dim).
                                                           # Replaced nomic-embed-text: measured to
                                                           # FIX short/implicit non-English retrieval
