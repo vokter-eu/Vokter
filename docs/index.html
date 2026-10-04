@@ -121,8 +121,6 @@
   .hero h1 .hl:nth-child(3){transition-delay:.36s}
   .hero-sub.h-rise{transition-delay:.5s}
   .hero-cta.h-rise{transition-delay:.6s}
-  .hero-foot{display:flex;align-items:flex-end;justify-content:space-between;gap:40px;
-    margin-top:clamp(38px,6vh,64px);flex-wrap:wrap}
   .hero-sub{font-size:19px;line-height:1.55;color:var(--ash);max-width:430px}
   .hero-cta{display:flex;flex-direction:column;gap:16px;align-items:flex-start}
   .hero-btns{display:flex;gap:14px;flex-wrap:wrap}
@@ -130,30 +128,49 @@
   .hero-seal{position:absolute;right:-6%;top:50%;transform:translateY(-50%);width:min(52vw,620px);
     opacity:.05;z-index:1;pointer-events:none}
   @media(max-width:760px){.hero-seal{opacity:.04;right:-30%}}
+  /* two-column hero: lead copy + the living feed. h1 steps down from the old single-column
+     giant so it shares the row with the feed panel without overpowering it. */
+  .hero-grid{display:grid;grid-template-columns:minmax(0,1.04fr) minmax(0,.96fr);
+    gap:clamp(34px,5vw,76px);align-items:center}
+  .hero h1{font-size:clamp(42px,6.3vw,90px)}
+  .hero-lead .hero-sub{max-width:460px;margin-top:clamp(26px,4vh,40px)}
+  .hero-lead .hero-cta{margin-top:clamp(26px,4vh,38px)}
+
+  /* ── living "working now" feed ───────────────────────────
+     Looks like a quiet product surface, not a hero graphic. Rotates to feel alive. */
+  .hero-feed{background:var(--vault);border:1px solid var(--line);border-radius:12px;overflow:hidden;
+    box-shadow:0 34px 70px -34px rgba(0,0,0,.85),0 0 0 1px var(--line-soft)}
+  .feed-top{display:flex;align-items:center;gap:9px;padding:14px 18px;border-bottom:1px solid var(--line-soft);
+    font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ash)}
+  .feed-top .dot{width:7px;height:7px;border-radius:50%;background:var(--moss-lit);
+    box-shadow:0 0 0 0 rgba(78,158,120,.5);animation:feedPulse 2.6s ease-out infinite}
+  .feed-live{margin-left:auto;color:var(--moss-lit);font-size:10px;letter-spacing:.1em}
+  @keyframes feedPulse{0%{box-shadow:0 0 0 0 rgba(78,158,120,.45)}
+    70%{box-shadow:0 0 0 8px rgba(78,158,120,0)}100%{box-shadow:0 0 0 0 rgba(78,158,120,0)}}
+  .feed-list{list-style:none;margin:0;padding:8px}
+  .feed-row{display:flex;align-items:flex-start;gap:12px;padding:13px 12px;border-radius:8px}
+  .feed-row + .feed-row{border-top:1px solid var(--line-soft)}
+  .feed-ic{flex:0 0 auto;width:31px;height:31px;border-radius:8px;background:rgba(45,106,79,.14);
+    border:1px solid rgba(78,158,120,.22);display:flex;align-items:center;justify-content:center;
+    color:var(--moss-lit);margin-top:1px}
+  .feed-tx{min-width:0}
+  .feed-tx .t{display:block;font-size:13.5px;line-height:1.45;color:var(--cream)}
+  .feed-tx .m{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:10px;
+    letter-spacing:.03em;color:var(--ash-dim);margin-top:5px}
+  .feed-tx .m .od{color:var(--moss-lit)}
+  .feed-tx .m .od::after{content:"·";margin-left:9px;color:var(--ash-dim)}
+  .feed-cap{padding:14px 18px;border-top:1px solid var(--line-soft);font-family:var(--mono);
+    font-size:10.5px;line-height:1.65;color:var(--ash-dim)}
+  .feed-row--enter{animation:feedEnter .6s cubic-bezier(.16,.84,.32,1) both}
+  @keyframes feedEnter{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
+  @media(max-width:900px){
+    .hero-grid{grid-template-columns:1fr;gap:clamp(34px,6vh,48px)}
+    .hero h1{font-size:clamp(46px,10vw,74px)}
+    .hero-lead .hero-sub{max-width:520px}
+  }
 
 
-  /* ── the three rights (editorial, numbered) ──────────── */
-  .rights{padding:clamp(70px,11vh,130px) 0 40px}
-  .rights-head{margin-bottom:clamp(50px,8vh,90px)}
-  .rights-head .eyebrow{margin-bottom:20px}
-  .rights-head h2{font-family:var(--display);font-weight:400;font-size:clamp(30px,4.4vw,52px);
-    line-height:1.04;letter-spacing:-.02em;max-width:15ch}
-  .right{display:grid;grid-template-columns:minmax(0,.42fr) minmax(0,.58fr);gap:clamp(30px,5vw,84px);
-    padding:clamp(48px,7vh,84px) 0;border-top:1px solid var(--line);align-items:start}
-  .right-num{font-family:var(--display);font-weight:300;font-size:clamp(96px,15vw,230px);
-    line-height:.8;letter-spacing:-.04em;color:transparent;-webkit-text-stroke:1px var(--moss);
-    text-stroke:1px var(--moss);opacity:.9}
-  /* the ghost numeral sweeps in from the left with its own emphasis + a lively settle */
-  .right-num.reveal{transform:translateX(-58px) translateY(34px) scale(.78);
-    transition:opacity .9s ease,transform 1.05s cubic-bezier(.34,1.42,.5,1)}
-  .right-num.reveal.shown{transform:none;opacity:.9}
-  .right-tag{font-family:var(--mono);font-size:11.5px;letter-spacing:.26em;text-transform:uppercase;
-    color:var(--moss-lit);margin-bottom:18px}
-  .right h3{font-family:var(--display);font-weight:400;font-size:clamp(28px,3.6vw,44px);
-    line-height:1.05;letter-spacing:-.02em;margin-bottom:20px}
-  .right p{font-size:17px;line-height:1.65;color:var(--ash);max-width:52ch}
-  .right .detail{margin-top:26px}
-  /* small proof artifact inside right 01 */
+  /* ── proof artifact — the live local-document card (how it works) ─────── */
   .proof{background:var(--vault);border:1px solid var(--line);border-radius:6px;overflow:hidden;
     max-width:420px}
   .proof-top{display:flex;align-items:center;gap:7px;padding:12px 16px;border-bottom:1px solid var(--line-soft)}
@@ -171,9 +188,6 @@
     border-radius:4px;padding:10px 12px}
   .proof .cite .fn{font-size:12px;font-weight:600}
   .proof .cite .fm{font-family:var(--mono);font-size:9.5px;color:var(--ash-dim)}
-  .detail-note{font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:var(--ash-dim);
-    line-height:1.7}
-  .detail-note b{color:var(--cream);font-weight:600}
 
   /* ── stats / counters ────────────────────────────────── */
   .stats{border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--vault)}
@@ -210,6 +224,98 @@
   .cap h3{font-family:var(--display);font-weight:400;font-size:24px;margin-bottom:9px;letter-spacing:-.01em}
   .cap p{font-size:14.5px;line-height:1.6;color:var(--ash);margin-bottom:22px}
   .cap .vig{margin-top:auto;background:var(--void);border:1px solid var(--line-soft);border-radius:5px;padding:13px}
+  /* "available now" badge on the today heading */
+  .todayhead{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .nowbadge{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--moss-lit);border:1px solid var(--moss);border-radius:2px;padding:5px 11px;
+    display:inline-flex;align-items:center;gap:7px}
+  .nowbadge::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--moss-lit)}
+
+  /* ── roadmap (clearly future) — dimmer, dashed, no hover lift ─────────── */
+  .roadmap-eye{color:var(--ash)}
+  .rmgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:48px}
+  .rmitem{border:1px dashed var(--line);border-radius:8px;background:transparent;padding:22px 22px 20px}
+  .rmitem .rt{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+  .rmitem .rt span:first-child{font-size:15.5px;font-weight:600;color:var(--cream);line-height:1.3}
+  .rtag{flex:0 0 auto;font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--ash-dim);border:1px solid var(--line);border-radius:2px;padding:3px 8px}
+  .rmitem p{font-size:13.5px;line-height:1.6;color:var(--ash-dim);max-width:none}
+  @media(max-width:820px){.rmgrid{grid-template-columns:1fr;gap:12px}}
+
+  /* ── how it works: steps + the live local-document artifact ───────────── */
+  .howgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    gap:clamp(34px,5vw,68px);align-items:center;margin-top:52px}
+  .steps{list-style:none;margin:0;padding:0}
+  .step{display:grid;grid-template-columns:auto 1fr;gap:22px;padding:26px 0;
+    border-top:1px solid var(--line);align-items:start}
+  .step:first-child{border-top:none;padding-top:0}
+  .stepn{font-family:var(--display);font-weight:300;font-size:38px;line-height:.9;
+    color:transparent;-webkit-text-stroke:1px var(--moss);text-stroke:1px var(--moss)}
+  .stept{font-family:var(--display);font-weight:400;font-size:22px;letter-spacing:-.01em;
+    color:var(--cream);margin-bottom:8px;line-height:1.1}
+  .stepd{font-size:14.5px;line-height:1.6;color:var(--ash);max-width:42ch}
+  .howcard .proof{max-width:none}
+  .how-boundary{margin-top:14px;display:flex;align-items:center;justify-content:center;gap:8px;
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--moss-lit)}
+  @media(max-width:820px){.howgrid{grid-template-columns:1fr;gap:38px}.stepd{max-width:none}}
+
+  /* ── comparison table (generic categories; Vokter column highlighted) ──── */
+  .cmp-wrap{margin-top:48px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--void)}
+  .cmp{width:100%;border-collapse:collapse}
+  .cmp th,.cmp td{padding:16px 18px;border-top:1px solid var(--line);text-align:center;vertical-align:middle}
+  .cmp thead th{border-top:none;background:var(--vault2);font-family:var(--mono);font-size:10.5px;
+    letter-spacing:.07em;text-transform:uppercase;color:var(--ash);font-weight:400;line-height:1.4}
+  .cmp thead .cmp-vok{color:var(--moss-lit)}
+  .cmp tbody th[scope=row]{text-align:left;font-weight:600;color:var(--cream);font-size:14px;max-width:0;width:40%}
+  .cmp .vok{background:rgba(45,106,79,.07)}
+  .cmp .mk{font-size:17px;font-weight:600;line-height:1}
+  .cmp .mk.yes{color:var(--moss-lit)}
+  .cmp .mk.no{color:var(--ash-dim)}
+  .cmp .mk.part{font-size:10px;font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--amber)}
+  .cmp .cl{display:none}   /* per-cell column label — mobile only */
+  @media(max-width:640px){
+    .cmp thead{display:none}
+    .cmp,.cmp tbody,.cmp tr,.cmp th,.cmp td{display:block;width:100%}
+    .cmp tbody th[scope=row]{width:auto;max-width:none;padding:16px 18px 8px;font-size:15px;border-top:1px solid var(--line)}
+    .cmp tr:first-child th[scope=row]{border-top:none}
+    .cmp td{display:flex;align-items:center;justify-content:space-between;text-align:left;
+      padding:9px 18px;border-top:none}
+    .cmp td .cl{display:inline;font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ash)}
+    .cmp .vok{background:rgba(45,106,79,.09)}
+  }
+
+  /* ── pricing: free is the moat, stated plainly ────────────────────────── */
+  .price{text-align:center;max-width:720px;margin:40px auto 0}
+  .price-big{font-family:var(--display);font-weight:400;font-size:clamp(56px,11vw,120px);
+    line-height:1;letter-spacing:-.03em;margin-bottom:26px}
+  .price-big .accent{font-style:italic;color:var(--moss-lit)}
+  .price-sub{font-size:18px;line-height:1.6;color:var(--cream);max-width:560px;margin:0 auto 30px}
+  .price-points{display:flex;justify-content:center;flex-wrap:wrap;gap:12px;margin-bottom:34px}
+  .price-points span{border:1px solid var(--line);border-radius:2px;padding:10px 18px;font-size:14px;
+    font-weight:500;background:var(--void)}
+  .price-why{font-size:15px;line-height:1.7;color:var(--ash);max-width:600px;margin:0 auto 20px}
+  .price-foot{font-family:var(--mono);font-size:12px;letter-spacing:.08em;color:var(--moss-lit);margin-bottom:20px}
+  .price-note{font-family:var(--mono);font-size:11px;line-height:1.65;color:var(--ash-dim);
+    max-width:560px;margin:0 auto;border-top:1px solid var(--line-soft);padding-top:18px}
+
+  /* community-translation invite under the language chips */
+  .lang-invite{grid-column:1/-1;margin-top:26px;font-size:14px;color:var(--ash)}
+  .lang-invite a{color:var(--moss-lit);text-decoration:underline}
+
+  /* ── FAQ accordion (native <details>, works with JS off) ──────────────── */
+  .faq{max-width:840px;margin-top:44px;border-top:1px solid var(--line)}
+  .faq details{border-bottom:1px solid var(--line)}
+  .faq summary{list-style:none;cursor:pointer;padding:22px 2px;display:flex;align-items:center;
+    justify-content:space-between;gap:24px;font-family:var(--display);font-weight:400;
+    font-size:clamp(18px,2.4vw,23px);letter-spacing:-.01em;color:var(--cream)}
+  .faq summary::-webkit-details-marker{display:none}
+  .faq summary::after{content:"+";font-family:var(--mono);font-size:24px;font-weight:300;
+    color:var(--moss-lit);line-height:1;flex:0 0 auto;transition:transform .3s ease}
+  .faq details[open] summary::after{content:"–"}
+  .faq summary:hover{color:var(--moss-lit)}
+  .faq .fa{padding:0 2px 26px;font-size:15px;line-height:1.72;color:var(--ash);max-width:72ch}
+  .faq .fa a{color:var(--moss-lit);text-decoration:underline}
+  @media(prefers-reduced-motion:reduce){.faq summary::after{transition:none}}
 
   /* ── vault / protection ──────────────────────────────── */
   .vaultsec{background:var(--vault)}
@@ -227,7 +333,7 @@
   .diagram{border:1px solid var(--line);border-radius:8px;background:var(--vault);padding:clamp(28px,4vw,48px);
     position:relative;margin-top:44px}
   .diagram .tag{font-family:var(--mono);font-size:11px;letter-spacing:.14em;position:absolute;top:16px}
-  .archrow{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:38px}
+  .archrow{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:38px}
   .abox{text-align:center;padding:18px 14px;border:1px solid var(--line);border-radius:6px;background:var(--void)}
   .abox.lead-box{grid-column:1/-1;border:1px solid var(--moss);background:rgba(45,106,79,.07)}
   .abox .bt{font-weight:600;font-size:14px;color:var(--cream)}
@@ -313,17 +419,11 @@
      each block for the width it targets rather than just reflowing desktop. */
   @media(max-width:820px){
     .wrap,.navin,.hero .in,.footin,.man .in,.finalcta .in{padding-left:24px;padding-right:24px}
-    /* numbered rows → numeral stacked over content, tightened so they read as a pair */
-    .right{grid-template-columns:1fr;gap:12px;padding:clamp(44px,6.5vh,76px) 0}
-    .right-num{font-size:clamp(78px,22vw,132px)}
-    .right h3{font-size:clamp(26px,6.2vw,40px)}
-    .right p{font-size:16.5px;max-width:none}
     .proof{max-width:100%}
     /* single-column grids with breathing room */
     .protgrid,.langgrid,.instgrid,.footgrid{grid-template-columns:1fr;gap:34px}
     .caps,.archrow{grid-template-columns:1fr;gap:14px}
     /* hero stacks; CTA + buttons go full-width for confident tap targets */
-    .hero-foot{flex-direction:column;align-items:stretch;gap:26px}
     .hero-cta{align-items:stretch}
     .hero-btns .btn{flex:1 1 auto;justify-content:center}
     .seal{margin:4px auto 0}
@@ -337,7 +437,6 @@
     .reveal{transform:translateY(26px) scale(.99)}
     .h-rise{transform:translateY(28px)}
     .hero-eye.h-rise{transform:translateY(16px)}
-    .right-num.reveal{transform:translateX(-26px) translateY(18px) scale(.84)}
     .stat.reveal .n{transform:scale(.9)}
   }
   /* touch devices have no :hover — give cards/buttons a light press-state so taps feel alive */
@@ -367,12 +466,6 @@
     .hero-sub{font-size:17px}
     .hero-btns{flex-direction:column}
     .hero-btns .btn{width:100%}
-    /* CREED brand line — a confident two-line statement */
-    /* NUMBERED — editorial numeral, considered spacing above its content */
-    .right{gap:8px}
-    .right-num{font-size:clamp(66px,20vw,104px)}
-    .right-tag{margin-bottom:14px}
-    .right h3{font-size:clamp(25px,6.8vw,32px);margin-bottom:16px}
     /* STATS — full-width rows, larger numerals, generous padding */
     .stats .grid{grid-template-columns:1fr}
     .stat{border-right:none;border-bottom:1px solid var(--line);padding:32px 26px}
@@ -381,6 +474,11 @@
     .stat .l{margin-top:14px}
     /* CARDS + headings + closing */
     .cap{padding:26px 24px}
+    /* PRICING + FAQ — phone sizing so nothing overflows at 360px */
+    .price-big{font-size:clamp(42px,13.5vw,60px)}
+    .price-sub{font-size:16px}
+    .price-points span{padding:9px 14px;font-size:13px}
+    .faq summary{font-size:19px;padding:18px 2px}
     .man blockquote{font-size:23px}
     .man .in{padding-left:24px;padding-right:24px}
     .finalcta .btns{flex-direction:column;align-items:stretch}
@@ -397,11 +495,13 @@
        transform — the motions reduced-motion is meant to stop. */
     .reveal,.reveal.shown{transform:none!important;transition:opacity .6s ease!important}
     .h-rise,.hero.ready .h-rise{transform:none!important;transition:opacity .6s ease!important}
-    .right-num.reveal,.right-num.reveal.shown{transform:none!important}
     .stat.reveal .n,.stat.reveal.shown .n{transform:none!important}
     .cap:hover,.chip:hover,.oscard:not(.soon):hover,
     .btn-solid:hover,.btn-ghost:hover,
     .cap:active,.chip:active,.oscard:not(.soon):active,.btn:active{transform:none!important;box-shadow:none!important}
+    /* feed: no pulse, no slide-in — the JS also stops rotating under reduced-motion */
+    .feed-top .dot{animation:none!important}
+    .feed-row--enter{animation:none!important}
   }
 </style>
 <noscript><style>
@@ -417,10 +517,10 @@
   <div class="navin">
     <a class="brand" href="#top" aria-label="Vokter home"><svg viewBox="0 0 48 56" fill="none"><path d="M24 2.5 41.5 9.2V26.5C41.5 39.5 33.7 48.7 24 53.5 14.3 48.7 6.5 39.5 6.5 26.5V9.2Z" fill="none" stroke="#4E9E78" stroke-width="2.6" stroke-linejoin="round"/><circle cx="24" cy="27" r="4.2" fill="#4E9E78"/></svg><b>Vokter</b></a>
     <div class="navlinks">
-      <a href="#rights" data-i18n="navRights">The rights</a>
-      <a href="#prot" data-i18n="navProtected">How it's protected</a>
-      <a href="https://github.com/vokter-eu/Vokter/blob/main/MANIFESTO.md" data-i18n="navManifesto">Manifesto</a>
-      <a href="https://github.com/vokter-eu/Vokter" data-i18n="navOpen">Open source</a>
+      <a href="#today" data-i18n="navToday">What it does</a>
+      <a href="#how" data-i18n="navHow">How it works</a>
+      <a href="#pricing" data-i18n="navPricing">Pricing</a>
+      <a href="#faq" data-i18n="navFaq">FAQ</a>
     </div>
     <div class="navright">
       <button class="langtoggle" id="langToggle" aria-label="Switch language">ES</button>
@@ -429,9 +529,10 @@
     </div>
   </div>
   <div class="navmenu" id="navmenu">
-    <a href="#rights" data-i18n="navRights">The rights</a>
-    <a href="#prot" data-i18n="navProtected">How it's protected</a>
-    <a href="https://github.com/vokter-eu/Vokter/blob/main/MANIFESTO.md" data-i18n="navManifesto">Manifesto</a>
+    <a href="#today" data-i18n="navToday">What it does</a>
+    <a href="#how" data-i18n="navHow">How it works</a>
+    <a href="#pricing" data-i18n="navPricing">Pricing</a>
+    <a href="#faq" data-i18n="navFaq">FAQ</a>
     <a href="https://github.com/vokter-eu/Vokter" data-i18n="navOpen">Open source</a>
   </div>
 </nav>
@@ -441,65 +542,140 @@
 <header class="hero">
   <svg class="hero-seal" viewBox="0 0 48 56" fill="none" aria-hidden="true"><path d="M24 2.5 41.5 9.2V26.5C41.5 39.5 33.7 48.7 24 53.5 14.3 48.7 6.5 39.5 6.5 26.5V9.2Z" fill="none" stroke="#4E9E78" stroke-width="1" stroke-linejoin="round"/><circle cx="24" cy="27" r="4.2" fill="#4E9E78"/></svg>
   <div class="in">
-    <div class="eyebrow hero-eye h-rise" data-i18n="heroEyebrow">Sovereign AI · Runs on your machine</div>
-    <h1>
-      <span class="hl h-rise" data-i18n="hero1">Your agent.</span>
-      <span class="hl h-rise" data-i18n="hero2">Your data.</span>
-      <span class="hl h-rise accent" data-i18n="hero4">By right.</span>
-    </h1>
-    <div class="hero-foot">
-      <p class="hero-sub h-rise" data-i18n="heroSub">A sovereign AI assistant that runs on your machine. No cloud, no account, no telemetry.</p>
-      <div class="hero-cta h-rise">
-        <div class="hero-btns">
-          <a class="btn btn-solid" href="https://github.com/vokter-eu/Vokter/releases/latest" data-i18n="heroDl">Download for Linux</a>
-          <a class="btn btn-ghost" href="https://github.com/vokter-eu/Vokter"><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.5v-2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 5 18.3 5.3 18.3 5.3c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.6.8.5A11.5 11.5 0 0 0 23.5 12C23.5 5.7 18.3.5 12 .5z"/></svg><span data-i18n="heroGh">Source on GitHub</span></a>
+    <div class="hero-grid">
+      <div class="hero-lead">
+        <div class="eyebrow hero-eye h-rise" data-i18n="heroKicker">Your agent. Your data. By right.</div>
+        <h1>
+          <span class="hl h-rise" data-i18n="hero1">A private assistant</span>
+          <span class="hl h-rise" data-i18n="hero2">that lives on</span>
+          <span class="hl h-rise accent" data-i18n="hero3">your computer.</span>
+        </h1>
+        <p class="hero-sub h-rise" data-i18n="heroSub">Reads your documents, remembers what matters, keeps your reminders — entirely on your own device. No cloud, no account, no telemetry.</p>
+        <div class="hero-cta h-rise">
+          <div class="hero-btns">
+            <a class="btn btn-solid" href="https://github.com/vokter-eu/Vokter/releases/latest" data-i18n="heroDl">Download for Linux</a>
+            <a class="btn btn-ghost" href="https://github.com/vokter-eu/Vokter"><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.5v-2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 5 18.3 5.3 18.3 5.3c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.6.8.5A11.5 11.5 0 0 0 23.5 12C23.5 5.7 18.3.5 12 .5z"/></svg><span data-i18n="heroGh">Source on GitHub</span></a>
+          </div>
+          <div class="metaline" data-i18n="heroMeta">AGPL-3.0 · No account · No telemetry · No cloud</div>
         </div>
-        <div class="metaline" data-i18n="heroMeta">AGPL-3.0 · No account · No telemetry · No cloud</div>
       </div>
+
+      <!-- LIVING "WORKING NOW" FEED — illustrative demo of your own Vokter. No telemetry:
+           the content is built from T[lang] (single source), rendered + rotated by JS. With
+           JS off, the static rows below stay visible; under reduced-motion it doesn't rotate. -->
+      <aside class="hero-feed h-rise" aria-label="Example of Vokter working on your device">
+        <div class="feed-top">
+          <span class="dot" aria-hidden="true"></span>
+          <span>vokter · <span data-i18n="feedTitle">working now</span></span>
+          <span class="feed-live"><span data-i18n="feedLive">on your device</span></span>
+        </div>
+        <ul class="feed-list" id="feedList">
+          <li class="feed-row"><span class="feed-ic" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></span><span class="feed-tx"><span class="t" data-i18n="feedI1">Summarised your tenancy contract — 3 key dates</span><span class="m"><span class="od" data-i18n="feedOn">on your device</span><span data-i18n="feedT1">just now</span></span></span></li>
+          <li class="feed-row"><span class="feed-ic" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><span class="feed-tx"><span class="t" data-i18n="feedI2">Reminded you about your ITV — due in 9 days</span><span class="m"><span class="od" data-i18n="feedOn">on your device</span><span data-i18n="feedT2">2 min ago</span></span></span></li>
+          <li class="feed-row"><span class="feed-ic" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="m20 20-3.5-3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><span class="feed-tx"><span class="t" data-i18n="feedI3">Found the deposit clause in your lease (p.4)</span><span class="m"><span class="od" data-i18n="feedOn">on your device</span><span data-i18n="feedT3">11 min ago</span></span></span></li>
+          <li class="feed-row"><span class="feed-ic" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="m4 7 8 6 8-6" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></span><span class="feed-tx"><span class="t" data-i18n="feedI4">Drafted your reply to the landlord — awaiting your OK</span><span class="m"><span class="od" data-i18n="feedOn">on your device</span><span data-i18n="feedT4">25 min ago</span></span></span></li>
+          <li class="feed-row"><span class="feed-ic" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 7h6M9 11h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span><span class="feed-tx"><span class="t" data-i18n="feedI5">Pulled the total from 6 invoices — €2,480</span><span class="m"><span class="od" data-i18n="feedOn">on your device</span><span data-i18n="feedT5">1 h ago</span></span></span></li>
+        </ul>
+        <div class="feed-cap" data-i18n="feedCap">This is your Vokter, on your machine. We can't count it — nothing phones home.</div>
+      </aside>
     </div>
   </div>
 </header>
 
 
-<!-- THE THREE RIGHTS -->
-<section id="rights"><div class="wrap rights">
-  <div class="rights-head reveal">
-    <div class="eyebrow" data-i18n="rightsEyebrow">From the odel right</div>
-    <h2 data-i18n="rightsTitle">What is yours — and stays yours.</h2>
-  </div>
+<!-- MEET VOKTER -->
+<section id="meet"><div class="wrap sec">
+  <div class="eyebrow sec-eye reveal" data-i18n="meetEyebrow">Meet Vokter</div>
+  <h2 class="reveal" data-i18n="meetTitle">Your assistant. On your machine. Answering to you alone.</h2>
+  <p class="lead reveal" data-i18n="meetLead">Vokter is a private AI that lives on your computer — it knows you, works with your documents, and keeps your reminders, fully offline. No account, no cloud, no telemetry. What it does today is real and shipping in the app. Where it's going is on the roadmap below — clearly marked, and never oversold.</p>
+</div></section>
 
-  <div class="right">
-    <div class="right-num reveal" aria-hidden="true">01</div>
-    <div>
-      <div class="right-tag reveal" data-i18n="r01tag">Your agent</div>
-      <h3 class="reveal" data-i18n="r01title">It runs for you, and only you.</h3>
-      <p class="reveal" data-i18n="r01body">Vokter lives on your device. It works offline, answers to no server, and takes no orders from the cloud. The agent is yours — not rented, not shared, not watching.</p>
-      <div class="detail reveal">
-        <div class="proof">
-          <div class="proof-top"><span class="d"></span><span class="d"></span><span class="d"></span><span class="mono" style="font-size:11px;color:var(--ash-dim);margin-left:8px" data-i18n="demoSession">vokter · local session</span><span class="proof-live"><i></i><span data-i18n="demoOffline">offline</span></span></div>
-          <div class="proof-body">
-            <div class="lbl" data-i18n="demoYou">You</div>
-            <div class="q" data-i18n="demoQ">When does my lease end, and how much notice do I owe?</div>
-            <div class="lbl g" data-i18n="demoVokter">Vokter</div>
-            <div class="a" data-i18n="demoA">Your lease ends 31 August 2026, and you owe 60 days' notice to move out.</div>
-            <div class="cite"><svg width="14" height="16" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="#4E9E78" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="#4E9E78" stroke-width="1.8" stroke-linejoin="round"/></svg><div><div class="fn" data-i18n="demoDoc">Lease agreement.pdf</div><div class="fm" data-i18n="demoDocMeta">p.4 · clause 11 · never left the disk</div></div></div>
-          </div>
-        </div>
+<!-- WHAT IT DOES TODAY -->
+<section id="today" class="vaultsec"><div class="wrap sec">
+  <div class="eyebrow sec-eye reveal" data-i18n="todayEyebrow">What it does today</div>
+  <h2 class="reveal todayhead" data-i18n="todayTitle">Real today — shipping in the app.<span class="nowbadge" data-i18n="todayNow">Available now</span></h2>
+  <p class="lead reveal" data-i18n="todayLead">Everything here works in the current release, on your own machine.</p>
+  <div class="caps">
+    <div class="cap reveal">
+      <div class="cl" data-i18n="t1Label">Memory</div>
+      <h3 data-i18n="t1Title">Chat that knows you</h3>
+      <p data-i18n="t1Body">Tell it what matters. It remembers across conversations — and forgets for real when you say so.</p>
+      <div class="vig" style="display:flex;gap:10px;align-items:flex-start"><svg width="15" height="16" viewBox="0 0 24 24" fill="none" style="margin-top:1px"><path d="M12 3a4 4 0 0 1 4 4v1a3 3 0 0 1 0 6 4 4 0 0 1-8 0 3 3 0 0 1 0-6V7a4 4 0 0 1 4-4Z" stroke="#4E9E78" stroke-width="1.6" stroke-linejoin="round"/></svg><div><div style="font-size:12.5px;font-weight:600;color:var(--cream)" data-i18n="t1Vig">Remembers: freelancer · VAT due quarterly</div><div class="mono" style="font-size:10px;color:var(--ash-dim);margin-top:3px" data-i18n="t1VigMeta">kept on your disk</div></div></div>
+    </div>
+    <div class="cap reveal" style="transition-delay:.08s">
+      <div class="cl" data-i18n="t2Label">Documents</div>
+      <h3 data-i18n="t2Title">Chat with your documents</h3>
+      <p data-i18n="t2Body">Drop in a file and ask. Answers come back with citations, straight from your own pages.</p>
+      <div class="vig" style="display:flex;gap:10px;align-items:center"><svg width="15" height="17" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="#4E9E78" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="#4E9E78" stroke-width="1.8" stroke-linejoin="round"/></svg><div><div style="font-size:12.5px;font-weight:600;color:var(--cream)" data-i18n="t2Vig">Lease agreement.pdf</div><div class="mono" style="font-size:10px;color:var(--moss-lit);margin-top:3px" data-i18n="t2VigMeta">answer cited · p.4, clause 11</div></div></div>
+    </div>
+    <div class="cap reveal" style="transition-delay:.16s">
+      <div class="cl" data-i18n="t3Label">Reminders</div>
+      <h3 data-i18n="t3Title">Reminders &amp; tasks</h3>
+      <p data-i18n="t3Body">Deadlines like your ITV, lease or renewals — kept, and surfaced right when they matter.</p>
+      <div class="vig" style="display:flex;gap:10px;align-items:center"><svg width="15" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="#4E9E78" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="#4E9E78" stroke-width="1.7" stroke-linecap="round"/></svg><div><div style="font-size:12.5px;font-weight:600;color:var(--cream)" data-i18n="t3Vig">ITV — vehicle inspection</div><div class="mono" style="font-size:10px;color:var(--moss-lit);margin-top:3px" data-i18n="t3VigMeta">due in 9 days</div></div></div>
+    </div>
+    <div class="cap reveal">
+      <div class="cl" data-i18n="t4Label">Voice</div>
+      <h3 data-i18n="t4Title">Talk to it out loud</h3>
+      <p data-i18n="t4Body">Speech in, speech out — fully on-device. Your voice never leaves the machine.</p>
+      <div class="vig" style="display:flex;align-items:center;gap:4px;height:44px">
+        <span style="width:5px;height:14px;background:var(--moss);border-radius:3px"></span><span style="width:5px;height:26px;background:var(--moss);border-radius:3px"></span><span style="width:5px;height:34px;background:var(--amber);border-radius:3px"></span><span style="width:5px;height:20px;background:var(--moss);border-radius:3px"></span><span style="width:5px;height:28px;background:var(--moss);border-radius:3px"></span><span style="width:5px;height:12px;background:var(--moss);border-radius:3px"></span><span class="mono" style="font-size:10px;color:var(--ash-dim);margin-left:auto" data-i18n="t4Vig">on-device</span>
       </div>
     </div>
+    <div class="cap reveal" style="transition-delay:.08s">
+      <div class="cl" data-i18n="t5Label">Storage</div>
+      <h3 data-i18n="t5Title">Encrypted on your disk</h3>
+      <p data-i18n="t5Body">Files and memory are encrypted at rest. The key lives in your OS keyring and never leaves it.</p>
+      <div class="vig" style="display:flex;gap:10px;align-items:center"><svg width="15" height="16" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="1.5" stroke="#4E9E78" stroke-width="1.6"/><path d="M8 11V8a4 4 0 0 1 8 0v3" stroke="#4E9E78" stroke-width="1.6"/></svg><div><div style="font-size:12.5px;font-weight:600;color:var(--cream)" data-i18n="t5Vig">Encrypted at rest</div><div class="mono" style="font-size:10px;color:var(--ash-dim);margin-top:3px" data-i18n="t5VigMeta">key in your keyring, never sent</div></div></div>
+    </div>
+    <div class="cap reveal" style="transition-delay:.16s">
+      <div class="cl" data-i18n="t6Label">Offline</div>
+      <h3 data-i18n="t6Title">Works offline</h3>
+      <p data-i18n="t6Body">No internet needed after install. Pull the cable — it still answers.</p>
+      <div class="vig" style="display:flex;gap:10px;align-items:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 3l18 18" stroke="#4E9E78" stroke-width="1.6" stroke-linecap="round"/><path d="M5 12.5a10 10 0 0 1 4-2.6M2 8.8a15 15 0 0 1 5-3.1m10 .2a15 15 0 0 1 5 2.9m-3 3.7a10 10 0 0 0-3-2" stroke="#4E9E78" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="18" r="1.3" fill="#4E9E78"/></svg><div><div style="font-size:12.5px;font-weight:600;color:var(--cream)" data-i18n="t6Vig">No connection needed</div><div class="mono" style="font-size:10px;color:var(--ash-dim);margin-top:3px" data-i18n="t6VigMeta">still working</div></div></div>
+    </div>
   </div>
+</div></section>
 
-  <div class="right">
-    <div class="right-num reveal" aria-hidden="true">02</div>
-    <div>
-      <div class="right-tag reveal" data-i18n="r02tag">Your data</div>
-      <h3 class="reveal" data-i18n="r02title">Held by you alone.</h3>
-      <p class="reveal" data-i18n="r02body">Your files and memory are encrypted on disk. The key lives in your operating system's keyring and never leaves it. Nothing is synced, pooled, or used for training — not now, not ever.</p>
-      <div class="detail detail-note reveal">
-        <b data-i18n="r02d1">Encrypted at rest.</b> <span data-i18n="r02d1b">Key in your OS keyring, never transmitted.</span><br>
-        <b data-i18n="r02d2">Local memory.</b> <span data-i18n="r02d2b">Forgotten for real when you say so.</span><br>
-        <b data-i18n="r02d3">No training.</b> <span data-i18n="r02d3b">Your words are not a dataset.</span>
+<!-- ON THE ROADMAP -->
+<section id="roadmap"><div class="wrap sec">
+  <div class="eyebrow sec-eye reveal roadmap-eye" data-i18n="rmEyebrow">On the roadmap · Coming</div>
+  <h2 class="reveal" data-i18n="rmTitle">Where Vokter is going.</h2>
+  <p class="lead reveal" data-i18n="rmLead">Not yet — and we won't pretend otherwise. These are in the works, built in the open. None of it is live today.</p>
+  <div class="rmgrid">
+    <div class="rmitem reveal"><div class="rt"><span data-i18n="rm1Title">Acts on the web for you</span><span class="rtag" data-i18n="rmComing">Coming</span></div><p data-i18n="rm1Body">Bookings and purchases it carries out — only with your approval, step by step.</p></div>
+    <div class="rmitem reveal" style="transition-delay:.06s"><div class="rt"><span data-i18n="rm2Title">Bills &amp; price-scanning</span><span class="rtag" data-i18n="rmComing">Coming</span></div><p data-i18n="rm2Body">Manages your bills and scans overnight for a better price, so you don't have to.</p></div>
+    <div class="rmitem reveal" style="transition-delay:.12s"><div class="rt"><span data-i18n="rm3Title">Delegates to specialist agents</span><span class="rtag" data-i18n="rmComing">Coming</span></div><p data-i18n="rm3Body">Hands sub-tasks to focused agents and brings the result back to you.</p></div>
+    <div class="rmitem reveal"><div class="rt"><span data-i18n="rm4Title">Telegram &amp; messaging</span><span class="rtag" data-i18n="rmComing">Coming</span></div><p data-i18n="rm4Body">Reach it from the apps you already use, not just the desktop window.</p></div>
+    <div class="rmitem reveal" style="transition-delay:.06s"><div class="rt"><span data-i18n="rm5Title">Mobile</span><span class="rtag" data-i18n="rmComing">Coming</span></div><p data-i18n="rm5Body">Vokter in your pocket, paired to the machine back home.</p></div>
+    <div class="rmitem reveal" style="transition-delay:.12s"><div class="rt"><span data-i18n="rm6Title">Safe web actions</span><span class="rtag" data-i18n="rmComing">Coming</span></div><p data-i18n="rm6Body">How it will act without exposing you: single-use cards per purchase, emails from its own address (never as you), sign-ins that never see your password.</p></div>
+  </div>
+  <div class="honest reveal" data-i18n="rmNote">This is the plan, not the product. Everything above is on the roadmap — follow the work in the open on GitHub.</div>
+</div></section>
+
+<!-- HOW IT WORKS -->
+<section id="how"><div class="wrap sec">
+  <div class="eyebrow sec-eye reveal" data-i18n="hwEyebrow">How it works</div>
+  <h2 class="reveal" data-i18n="hwTitle">Ask. It works on your machine. You get a cited answer.</h2>
+  <p class="lead reveal" data-i18n="hwLead">The whole loop happens on your computer — your question, your documents, your answer. Nothing is sent anywhere.</p>
+  <div class="howgrid">
+    <ol class="steps">
+      <li class="step reveal"><span class="stepn" aria-hidden="true">01</span><div><div class="stept" data-i18n="hwStep1">You ask</div><div class="stepd" data-i18n="hwStep1b">Ask in plain language — about your files, your dates, your admin.</div></div></li>
+      <li class="step reveal"><span class="stepn" aria-hidden="true">02</span><div><div class="stept" data-i18n="hwStep2">It works on your machine</div><div class="stepd" data-i18n="hwStep2b">Vokter reads your local memory and your documents, right there on your computer. No server, no network call.</div></div></li>
+      <li class="step reveal"><span class="stepn" aria-hidden="true">03</span><div><div class="stept" data-i18n="hwStep3">You get a cited answer</div><div class="stepd" data-i18n="hwStep3b">It replies and shows exactly where the answer came from — a page in your own document.</div></div></li>
+    </ol>
+    <div class="howcard reveal" style="transition-delay:.1s">
+      <div class="proof">
+        <div class="proof-top"><span class="d"></span><span class="d"></span><span class="d"></span><span class="mono" style="font-size:11px;color:var(--ash-dim);margin-left:8px" data-i18n="hwSession">vokter · local session</span><span class="proof-live"><i></i><span data-i18n="hwOffline">offline</span></span></div>
+        <div class="proof-body">
+          <div class="lbl" data-i18n="hwYou">You</div>
+          <div class="q" data-i18n="hwQ">When does my lease end, and how much notice do I owe?</div>
+          <div class="lbl g" data-i18n="hwVokter">Vokter</div>
+          <div class="a" data-i18n="hwA">Your lease ends 31 August 2026, and you owe 60 days' notice to move out.</div>
+          <div class="cite"><svg width="14" height="16" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="#4E9E78" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="#4E9E78" stroke-width="1.8" stroke-linejoin="round"/></svg><div><div class="fn" data-i18n="hwDoc">Lease agreement.pdf</div><div class="fm" data-i18n="hwDocMeta">p.4 · clause 11 · never left the disk</div></div></div>
+        </div>
       </div>
+      <div class="how-boundary"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="1.5" stroke="#4E9E78" stroke-width="1.7"/><path d="M8 11V8a4 4 0 0 1 8 0v3" stroke="#4E9E78" stroke-width="1.7"/></svg><span data-i18n="hwBoundary">Nothing left your device</span></div>
     </div>
   </div>
 </div></section>
@@ -512,33 +688,6 @@
   <div class="stat reveal" style="transition-delay:.24s"><div class="n"><span class="num" data-target="7">7</span></div><div class="l" data-i18n="stat4">Languages spoken</div></div>
 </div></div>
 
-<!-- CAPABILITIES -->
-<section id="caps"><div class="wrap sec">
-  <div class="eyebrow sec-eye reveal" data-i18n="capEyebrow">What it does</div>
-  <h2 class="reveal" style="font-family:var(--display);font-weight:400;font-size:clamp(30px,4.2vw,50px);line-height:1.04;letter-spacing:-.02em" data-i18n="capTitle">Capable, and quiet about it.</h2>
-  <div class="caps">
-    <div class="cap reveal">
-      <div class="cl" data-i18n="cap1Label">Documents</div>
-      <h3 data-i18n="cap1Title">Reads your files</h3>
-      <p data-i18n="cap1Body">Drop in a document and ask. Cited answers, forgotten for real when you say so.</p>
-      <div class="vig" style="display:flex;gap:10px;align-items:center"><svg width="15" height="17" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="#4E9E78" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="#4E9E78" stroke-width="1.8" stroke-linejoin="round"/></svg><div><div style="font-size:12.5px;font-weight:600" data-i18n="cap1Vig">Lease agreement.pdf</div><div class="mono" style="font-size:10px;color:var(--ash-dim)" data-i18n="cap1VigMeta">read · 14 passages</div></div></div>
-    </div>
-    <div class="cap reveal" style="transition-delay:.08s">
-      <div class="cl" data-i18n="cap2Label">Email</div>
-      <h3 data-i18n="cap2Title">Drafts, never sends</h3>
-      <p data-i18n="cap2Body">Reads and drafts on your machine. Sends nothing without your word.</p>
-      <div class="vig"><div style="font-size:12.5px;font-weight:600;margin-bottom:3px" data-i18n="draftSubject">Re: Rental deposit</div><div style="font-size:12px;color:var(--ash);line-height:1.5" data-i18n="draftBody">Draft ready — 60 days' notice, per your lease…</div><div class="mono" style="font-size:10px;color:var(--moss-lit);margin-top:8px" data-i18n="draftMeta">awaits your confirmation</div></div>
-    </div>
-    <div class="cap reveal" style="transition-delay:.16s">
-      <div class="cl" data-i18n="cap3Label">Voice</div>
-      <h3 data-i18n="cap3Title">Speaks and listens</h3>
-      <p data-i18n="cap3Body">Speech to text and back, fully on-device. Your voice never leaves the machine.</p>
-      <div class="vig" style="display:flex;align-items:center;gap:4px;height:44px">
-        <span style="width:5px;height:14px;background:var(--moss);border-radius:3px"></span><span style="width:5px;height:26px;background:var(--moss);border-radius:3px"></span><span style="width:5px;height:34px;background:var(--amber);border-radius:3px"></span><span style="width:5px;height:20px;background:var(--moss);border-radius:3px"></span><span style="width:5px;height:28px;background:var(--moss);border-radius:3px"></span><span style="width:5px;height:12px;background:var(--moss);border-radius:3px"></span><span class="mono" style="font-size:10px;color:var(--ash-dim);margin-left:auto" data-i18n="voiceVig">on-device</span>
-      </div>
-    </div>
-  </div>
-</div></section>
 
 <!-- HOW IT'S PROTECTED -->
 <section id="prot" class="vaultsec"><div class="wrap sec">
@@ -573,13 +722,107 @@
     <div class="tag" style="left:20px;color:var(--ash)" data-i18n="archDevice">YOUR DEVICE</div>
     <div class="tag" style="right:20px;color:var(--ash-dim);display:flex;align-items:center;gap:8px"><span data-i18n="archCloud">THE CLOUD</span> <span style="color:#B4406A" data-i18n="archNoConn">✕ no connection</span></div>
     <div class="archrow">
-      <div class="abox lead-box"><div class="bt" data-i18n="archAgent">Vokter agent</div><div class="bs" data-i18n="archAgentSub">orchestrates locally · no telemetry</div></div>
-      <div class="abox"><div class="bt" data-i18n="archModel">Local model</div><div class="bs" data-i18n="archModelSub">inference</div></div>
-      <div class="abox"><div class="bt" data-i18n="archStore">Encrypted store</div><div class="bs" data-i18n="archStoreSub">docs · memory</div></div>
-      <div class="abox"><div class="bt" data-i18n="archKeyring">Keyring</div><div class="bs" data-i18n="archKeyringSub">encryption keys</div></div>
-      <div class="abox"><div class="bt" data-i18n="archNet">Guarded net</div><div class="bs" data-i18n="archNetSub">allow-list only</div></div>
+      <div class="abox lead-box"><div class="bt" data-i18n="archAgent">Vokter app</div><div class="bs" data-i18n="archAgentSub">desktop app · local backend · no telemetry</div></div>
+      <div class="abox"><div class="bt" data-i18n="archModel">Local model</div><div class="bs" data-i18n="archModelSub">bundled Ollama · on-device</div></div>
+      <div class="abox"><div class="bt" data-i18n="archStore">Encrypted store</div><div class="bs" data-i18n="archStoreSub">your documents + memory</div></div>
+      <div class="abox"><div class="bt" data-i18n="archKeyring">OS keyring</div><div class="bs" data-i18n="archKeyringSub">holds the encryption key</div></div>
     </div>
     <div class="boundary" data-i18n="archBoundary">— device boundary — nothing crosses without your consent —</div>
+  </div>
+</div></section>
+
+<!-- THREE REASONS -->
+<section id="reasons" class="vaultsec"><div class="wrap sec">
+  <div class="eyebrow sec-eye reveal" data-i18n="r3Eyebrow">Why Vokter</div>
+  <h2 class="reveal" data-i18n="r3Title">Three reasons it holds up.</h2>
+  <div class="caps">
+    <div class="cap reveal">
+      <div class="cl" data-i18n="rea1Label">01 · Yours</div>
+      <h3 data-i18n="rea1Title">It's yours</h3>
+      <p data-i18n="rea1Body">Runs on your own machine. Your data is never pooled, synced, or used to train anyone's model — there's no server to pool it on.</p>
+      <div class="vig mono" style="font-size:11px;color:var(--moss-lit)" data-i18n="rea1Vig">no server · no pool</div>
+    </div>
+    <div class="cap reveal" style="transition-delay:.08s">
+      <div class="cl" data-i18n="rea2Label">02 · Free</div>
+      <h3 data-i18n="rea2Title">Free forever</h3>
+      <p data-i18n="rea2Body">No subscription, no per-token bill, no seats. There's no cloud cost to pass on, so there's nothing to charge — the one thing a cloud product can't match.</p>
+      <div class="vig mono" style="font-size:11px;color:var(--moss-lit)" data-i18n="rea2Vig">€0 · forever</div>
+    </div>
+    <div class="cap reveal" style="transition-delay:.16s">
+      <div class="cl" data-i18n="rea3Label">03 · Open</div>
+      <h3 data-i18n="rea3Title">Open &amp; verifiable</h3>
+      <p data-i18n="rea3Body">Fully open source under AGPL-3.0. Anyone can read what it does and prove it. You don't have to trust us — you can check.</p>
+      <div class="vig mono" style="font-size:11px;color:var(--moss-lit)" data-i18n="rea3Vig">AGPL-3.0 · read the source</div>
+    </div>
+  </div>
+</div></section>
+
+<!-- COMPARISON -->
+<section id="compare"><div class="wrap sec">
+  <div class="eyebrow sec-eye reveal" data-i18n="cmpEyebrow">Why not the cloud</div>
+  <h2 class="reveal" data-i18n="cmpTitle">What only a local assistant can promise.</h2>
+  <p class="lead reveal" data-i18n="cmpLead">Cloud assistants can be excellent. But some promises depend on where the software runs — and only a local, open app can make these.</p>
+  <div class="cmp-wrap reveal">
+    <table class="cmp">
+      <thead>
+        <tr>
+          <th scope="col"></th>
+          <th scope="col" class="cmp-vok" data-i18n="cmpColVok">Vokter (local)</th>
+          <th scope="col" data-i18n="cmpColEnclave">Cloud AI (enclave)</th>
+          <th scope="col" data-i18n="cmpColHuman">Cloud AI + humans</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row" data-i18n="cmpR1">Runs on your own hardware</th>
+          <td class="vok"><span class="cl" data-i18n="cmpColVok">Vokter (local)</span><span class="mk yes" role="img" aria-label="Yes">✓</span></td>
+          <td><span class="cl" data-i18n="cmpColEnclave">Cloud AI (enclave)</span><span class="mk no" role="img" aria-label="No">✕</span></td>
+          <td><span class="cl" data-i18n="cmpColHuman">Cloud AI + humans</span><span class="mk no" role="img" aria-label="No">✕</span></td>
+        </tr>
+        <tr>
+          <th scope="row" data-i18n="cmpR2">Works fully offline</th>
+          <td class="vok"><span class="cl" data-i18n="cmpColVok">Vokter (local)</span><span class="mk yes" role="img" aria-label="Yes">✓</span></td>
+          <td><span class="cl" data-i18n="cmpColEnclave">Cloud AI (enclave)</span><span class="mk no" role="img" aria-label="No">✕</span></td>
+          <td><span class="cl" data-i18n="cmpColHuman">Cloud AI + humans</span><span class="mk no" role="img" aria-label="No">✕</span></td>
+        </tr>
+        <tr>
+          <th scope="row" data-i18n="cmpR3">No account required</th>
+          <td class="vok"><span class="cl" data-i18n="cmpColVok">Vokter (local)</span><span class="mk yes" role="img" aria-label="Yes">✓</span></td>
+          <td><span class="cl" data-i18n="cmpColEnclave">Cloud AI (enclave)</span><span class="mk no" role="img" aria-label="No">✕</span></td>
+          <td><span class="cl" data-i18n="cmpColHuman">Cloud AI + humans</span><span class="mk no" role="img" aria-label="No">✕</span></td>
+        </tr>
+        <tr>
+          <th scope="row" data-i18n="cmpR4">Free forever</th>
+          <td class="vok"><span class="cl" data-i18n="cmpColVok">Vokter (local)</span><span class="mk yes" role="img" aria-label="Yes">✓</span></td>
+          <td><span class="cl" data-i18n="cmpColEnclave">Cloud AI (enclave)</span><span class="mk no" role="img" aria-label="No">✕</span></td>
+          <td><span class="cl" data-i18n="cmpColHuman">Cloud AI + humans</span><span class="mk no" role="img" aria-label="No">✕</span></td>
+        </tr>
+        <tr>
+          <th scope="row" data-i18n="cmpR5">Open source (AGPL)</th>
+          <td class="vok"><span class="cl" data-i18n="cmpColVok">Vokter (local)</span><span class="mk yes" role="img" aria-label="Yes">✓</span></td>
+          <td><span class="cl" data-i18n="cmpColEnclave">Cloud AI (enclave)</span><span class="mk part" data-i18n="cmpPartial">Partial</span></td>
+          <td><span class="cl" data-i18n="cmpColHuman">Cloud AI + humans</span><span class="mk no" role="img" aria-label="No">✕</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="honest reveal" data-i18n="cmpNote">Encrypted-cloud assistants protect your data well — but they still run on someone else's servers, need an account, and depend on a business that can change its price or shut down. A local, open app has none of those dependencies.</div>
+</div></section>
+
+<!-- PRICING -->
+<section id="pricing" class="vaultsec"><div class="wrap sec">
+  <div class="eyebrow sec-eye reveal" style="text-align:center" data-i18n="prEyebrow">Pricing</div>
+  <div class="price reveal">
+    <div class="price-big"><span data-i18n="prBig1">Free.</span> <span class="accent" data-i18n="prBig2">Forever.</span></div>
+    <p class="price-sub" data-i18n="prSub">No account, no subscription, no per-token. The full assistant, free — and it stays that way.</p>
+    <div class="price-points">
+      <span class="reveal" data-i18n="prPoint1">No subscription</span>
+      <span class="reveal" style="transition-delay:.06s" data-i18n="prPoint2">No per-token</span>
+      <span class="reveal" style="transition-delay:.12s" data-i18n="prPoint3">No account</span>
+    </div>
+    <p class="price-why" data-i18n="prWhy">Because Vokter runs on your own machine, there's no server bill to pass on — so there's nothing to charge. Local means no cloud cost. That's the whole reason it can be free, and the one thing a cloud product can't copy.</p>
+    <div class="price-foot" data-i18n="prFoot">Runs on hardware you already own. That's the whole price.</div>
+    <div class="price-note" data-i18n="prNote">If we ever offer an optional confidential-compute bridge for very weak hardware, it'll be exactly that — optional and separate. Vokter itself stays free.</div>
   </div>
 </div></section>
 
@@ -590,10 +833,47 @@
     <span class="chip reveal">English</span><span class="chip reveal">Español</span><span class="chip reveal">Français</span><span class="chip reveal">Deutsch</span><span class="chip reveal">Italiano</span><span class="chip reveal">Português</span><span class="chip reveal">Nederlands</span>
     <span class="chip soon reveal">Català <span class="s" data-i18n="langSoon">SOON</span></span>
   </div>
+  <p class="lang-invite reveal"><span data-i18n="langInvite">Missing yours? Help translate Vokter — contributions are welcome on</span> <a href="https://github.com/vokter-eu/Vokter">GitHub</a>.</p>
 </div></div></section>
 
+<!-- MANIFESTO -->
+<section class="man"><div class="in reveal">
+  <div class="eyebrow" data-i18n="manEyebrow">From the manifesto</div>
+  <blockquote data-i18n="manQuote">“In old Norse law, odel was the right that bound a family to its land — a right no lord could sever and no debt could seize. What was yours stayed yours, across generations. Vokter carries that right into the digital age: your data, your memory, held by you alone.”</blockquote>
+  <div class="attr" data-i18n="manAttr">— THE VOKTER MANIFESTO</div>
+  <a class="link" href="https://github.com/vokter-eu/Vokter/blob/main/MANIFESTO.md"><span data-i18n="manLink">Read the full manifesto</span><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+</div></section>
+
+<!-- FAQ -->
+<section id="faq"><div class="wrap sec">
+  <div class="eyebrow sec-eye reveal" data-i18n="faqEyebrow">FAQ</div>
+  <h2 class="reveal" data-i18n="faqTitle">Questions, answered honestly.</h2>
+  <div class="faq reveal">
+    <details>
+      <summary data-i18n="faqQ1">Is it really free?</summary>
+      <div class="fa" data-i18n="faqA1">Yes — genuinely. Vokter is open source and runs on your own computer, so there's no server for us to pay for and nothing to meter. No account, no subscription, no per-token bill.</div>
+    </details>
+    <details>
+      <summary data-i18n="faqQ2">Does my data leave my computer?</summary>
+      <div class="fa" data-i18n="faqA2">No. Everything runs locally — there's no telemetry and nothing is synced to a cloud. Your files and memory are encrypted on disk, and the key lives in your OS keyring.</div>
+    </details>
+    <details>
+      <summary data-i18n="faqQ3">What can it do today, and what's coming later?</summary>
+      <div class="fa" data-i18n="faqA3">Today it's a local assistant: chat that remembers you, chat with your documents (with citations), reminders, and voice — all offline. Acting on the web, bills, delegation and mobile are on the roadmap, clearly marked above under “What it does today” and “On the roadmap”.</div>
+    </details>
+    <details>
+      <summary data-i18n="faqQ4">What hardware do I need?</summary>
+      <div class="fa" data-i18n="faqA4">Everyday laptops are fine. Vokter automatically picks a model sized to your machine — a light one on modest hardware, a more capable one if you have a stronger CPU or GPU. More power means faster, sharper answers, but you don't need a gaming rig to start.</div>
+    </details>
+    <details>
+      <summary data-i18n="faqQ5">Is it really open source?</summary>
+      <div class="fa"><span data-i18n="faqA5">Yes — AGPL-3.0. You can read every line, verify what it does, and build it yourself.</span> <a href="https://github.com/vokter-eu/Vokter" data-i18n="faqA5Link">View the source on GitHub</a>.</div>
+    </details>
+  </div>
+</div></section>
+
 <!-- INSTALL -->
-<section id="install"><div class="wrap sec">
+<section id="install" class="vaultsec"><div class="wrap sec">
   <div class="eyebrow sec-eye reveal" data-i18n="instEyebrow">Install</div>
   <h2 class="reveal" data-i18n="instTitle">One command. No account. Nothing phones home.</h2>
   <div class="instgrid">
@@ -614,14 +894,6 @@
   <div class="honest reveal" data-i18n="instHonest">Honest status: Linux is stable today. macOS and Windows builds are in progress — the source is public, so you can build them yourself in the meantime.</div>
 </div></section>
 
-<!-- MANIFESTO -->
-<section class="man"><div class="in reveal">
-  <div class="eyebrow" data-i18n="manEyebrow">From the manifesto</div>
-  <blockquote data-i18n="manQuote">“In old Norse law, odel was the right that bound a family to its land — a right no lord could sever and no debt could seize. What was yours stayed yours, across generations. Vokter carries that right into the digital age: your data, your memory, held by you alone.”</blockquote>
-  <div class="attr" data-i18n="manAttr">— THE VOKTER MANIFESTO</div>
-  <a class="link" href="https://github.com/vokter-eu/Vokter/blob/main/MANIFESTO.md"><span data-i18n="manLink">Read the full manifesto</span><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-</div></section>
-
 <!-- FINAL CTA -->
 <section class="finalcta"><div class="in">
   <svg width="46" height="54" viewBox="0 0 48 56" fill="none" class="reveal" aria-hidden="true"><path d="M24 2.5 41.5 9.2V26.5C41.5 39.5 33.7 48.7 24 53.5 14.3 48.7 6.5 39.5 6.5 26.5V9.2Z" fill="none" stroke="#4E9E78" stroke-width="2.2" stroke-linejoin="round"/><circle cx="24" cy="27" r="4.2" fill="#4E9E78"/></svg>
@@ -640,7 +912,7 @@
       <div class="row1"><svg viewBox="0 0 48 56" fill="none"><path d="M24 2.5 41.5 9.2V26.5C41.5 39.5 33.7 48.7 24 53.5 14.3 48.7 6.5 39.5 6.5 26.5V9.2Z" fill="none" stroke="#4E9E78" stroke-width="2.6" stroke-linejoin="round"/><circle cx="24" cy="27" r="4.2" fill="#4E9E78"/></svg><b>Vokter</b></div>
       <p data-i18n="footTagline">A sovereign AI assistant. What is yours cannot be taken.</p>
     </div>
-    <div class="fcol"><div class="fh" data-i18n="footProduct">PRODUCT</div><div class="lst"><a href="#rights" data-i18n="navRights">The rights</a><a href="#caps" data-i18n="fFeatures">Features</a><a href="#prot" data-i18n="navProtected">How it's protected</a><a href="https://github.com/vokter-eu/Vokter/releases/latest" data-i18n="navDownload">Download</a></div></div>
+    <div class="fcol"><div class="fh" data-i18n="footProduct">PRODUCT</div><div class="lst"><a href="#today" data-i18n="navToday">What it does</a><a href="#how" data-i18n="navHow">How it works</a><a href="#prot" data-i18n="navProtected">How it's protected</a><a href="#pricing" data-i18n="navPricing">Pricing</a><a href="https://github.com/vokter-eu/Vokter/releases/latest" data-i18n="navDownload">Download</a></div></div>
     <div class="fcol"><div class="fh" data-i18n="footOpen">OPEN SOURCE</div><div class="lst"><a href="https://github.com/vokter-eu/Vokter">GitHub</a><a href="https://github.com/vokter-eu/Vokter/blob/main/LICENSE" data-i18n="fLicense">AGPL-3.0 license</a><a href="https://github.com/vokter-eu/Vokter" data-i18n="fContribute">Contribute</a><a href="https://github.com/vokter-eu/Vokter" data-i18n="fBuild">Build from source</a></div></div>
     <div class="fcol"><div class="fh" data-i18n="footCompany">PROJECT</div><div class="lst"><a href="https://github.com/vokter-eu/Vokter/blob/main/MANIFESTO.md" data-i18n="navManifesto">Manifesto</a><a href="https://github.com/vokter-eu/Vokter/blob/main/README.md" data-i18n="fAbout">About</a><a href="https://github.com/vokter-eu/Vokter/issues" data-i18n="fContact">Contact</a></div></div>
   </div>
@@ -662,31 +934,71 @@
 
   const T={
     en:{
-      navRights:"The rights", navProtected:"How it's protected", navManifesto:"Manifesto", navOpen:"Open source", navDownload:"Download",
-      heroEyebrow:"Sovereign AI · Runs on your machine",
-      hero1:"Your agent.", hero2:"Your data.", hero4:"By right.",
-      heroSub:"A sovereign AI assistant that runs on your machine. No cloud, no account, no telemetry.",
+      navToday:"What it does", navHow:"How it works", navPricing:"Pricing", navFaq:"FAQ",
+      navProtected:"How it's protected", navManifesto:"Manifesto", navOpen:"Open source", navDownload:"Download",
+      heroKicker:"Your agent. Your data. By right.",
+      hero1:"A private assistant", hero2:"that lives on", hero3:"your computer.",
+      heroSub:"Reads your documents, remembers what matters, keeps your reminders — entirely on your own device. No cloud, no account, no telemetry.",
       heroDl:"Download for Linux", heroGh:"Source on GitHub", heroMeta:"AGPL-3.0 · No account · No telemetry · No cloud",
-      rightsEyebrow:"From the odel right", rightsTitle:"What is yours — and stays yours.",
-      r01tag:"Your agent", r01title:"It runs for you, and only you.",
-      r01body:"Vokter lives on your device. It works offline, answers to no server, and takes no orders from the cloud. The agent is yours — not rented, not shared, not watching.",
-      r02tag:"Your data", r02title:"Held by you alone.",
-      r02body:"Your files and memory are encrypted on disk. The key lives in your operating system's keyring and never leaves it. Nothing is synced, pooled, or used for training — not now, not ever.",
-      r02d1:"Encrypted at rest.", r02d1b:"Key in your OS keyring, never transmitted.",
-      r02d2:"Local memory.", r02d2b:"Forgotten for real when you say so.",
-      r02d3:"No training.", r02d3b:"Your words are not a dataset.",
-      demoSession:"vokter · local session", demoOffline:"offline", demoYou:"You",
-      demoQ:"When does my lease end, and how much notice do I owe?", demoVokter:"Vokter",
-      demoA:"Your lease ends 31 August 2026, and you owe 60 days' notice to move out.",
-      demoDoc:"Lease agreement.pdf", demoDocMeta:"p.4 · clause 11 · never left the disk",
+      feedTitle:"working now", feedLive:"live", feedOn:"on your device",
+      feedCap:"This is your Vokter, on your machine. We can't count it — nothing phones home.",
+      feedI1:"Summarised your tenancy contract — 3 key dates", feedT1:"just now",
+      feedI2:"Reminded you about your ITV — due in 9 days", feedT2:"2 min ago",
+      feedI3:"Found the deposit clause in your lease (p.4)", feedT3:"11 min ago",
+      feedI4:"Drafted your reply to the landlord — awaiting your OK", feedT4:"25 min ago",
+      feedI5:"Pulled the total from 6 invoices — €2,480", feedT5:"1 h ago",
+      feedI6:"Remembered: your boiler service is this Tuesday", feedT6:"2 h ago",
+      meetEyebrow:"Meet Vokter", meetTitle:"Your assistant. On your machine. Answering to you alone.",
+      meetLead:"Vokter is a private AI that lives on your computer — it knows you, works with your documents, and keeps your reminders, fully offline. No account, no cloud, no telemetry. What it does today is real and shipping in the app. Where it's going is on the roadmap below — clearly marked, and never oversold.",
+      todayEyebrow:"What it does today", todayTitle:"Real today — shipping in the app.", todayNow:"Available now",
+      todayLead:"Everything here works in the current release, on your own machine.",
+      t1Label:"Memory", t1Title:"Chat that knows you", t1Body:"Tell it what matters. It remembers across conversations — and forgets for real when you say so.", t1Vig:"Remembers: freelancer · VAT due quarterly", t1VigMeta:"kept on your disk",
+      t2Label:"Documents", t2Title:"Chat with your documents", t2Body:"Drop in a file and ask. Answers come back with citations, straight from your own pages.", t2Vig:"Lease agreement.pdf", t2VigMeta:"answer cited · p.4, clause 11",
+      t3Label:"Reminders", t3Title:"Reminders & tasks", t3Body:"Deadlines like your ITV, lease or renewals — kept, and surfaced right when they matter.", t3Vig:"ITV — vehicle inspection", t3VigMeta:"due in 9 days",
+      t4Label:"Voice", t4Title:"Talk to it out loud", t4Body:"Speech in, speech out — fully on-device. Your voice never leaves the machine.", t4Vig:"on-device",
+      t5Label:"Storage", t5Title:"Encrypted on your disk", t5Body:"Files and memory are encrypted at rest. The key lives in your OS keyring and never leaves it.", t5Vig:"Encrypted at rest", t5VigMeta:"key in your keyring, never sent",
+      t6Label:"Offline", t6Title:"Works offline", t6Body:"No internet needed after install. Pull the cable — it still answers.", t6Vig:"No connection needed", t6VigMeta:"still working",
+      rmEyebrow:"On the roadmap · Coming", rmTitle:"Where Vokter is going.", rmLead:"Not yet — and we won't pretend otherwise. These are in the works, built in the open. None of it is live today.", rmComing:"Coming",
+      rm1Title:"Acts on the web for you", rm1Body:"Bookings and purchases it carries out — only with your approval, step by step.",
+      rm2Title:"Bills & price-scanning", rm2Body:"Manages your bills and scans overnight for a better price, so you don't have to.",
+      rm3Title:"Delegates to specialist agents", rm3Body:"Hands sub-tasks to focused agents and brings the result back to you.",
+      rm4Title:"Telegram & messaging", rm4Body:"Reach it from the apps you already use, not just the desktop window.",
+      rm5Title:"Mobile", rm5Body:"Vokter in your pocket, paired to the machine back home.",
+      rm6Title:"Safe web actions", rm6Body:"How it will act without exposing you: single-use cards per purchase, emails from its own address (never as you), sign-ins that never see your password.",
+      rmNote:"This is the plan, not the product. Everything above is on the roadmap — follow the work in the open on GitHub.",
+      hwEyebrow:"How it works", hwTitle:"Ask. It works on your machine. You get a cited answer.",
+      hwLead:"The whole loop happens on your computer — your question, your documents, your answer. Nothing is sent anywhere.",
+      hwStep1:"You ask", hwStep1b:"Ask in plain language — about your files, your dates, your admin.",
+      hwStep2:"It works on your machine", hwStep2b:"Vokter reads your local memory and your documents, right there on your computer. No server, no network call.",
+      hwStep3:"You get a cited answer", hwStep3b:"It replies and shows exactly where the answer came from — a page in your own document.",
+      hwSession:"vokter · local session", hwOffline:"offline", hwYou:"You", hwVokter:"Vokter",
+      hwQ:"When does my lease end, and how much notice do I owe?",
+      hwA:"Your lease ends 31 August 2026, and you owe 60 days' notice to move out.",
+      hwDoc:"Lease agreement.pdf", hwDocMeta:"p.4 · clause 11 · never left the disk",
+      hwBoundary:"Nothing left your device",
+      r3Eyebrow:"Why Vokter", r3Title:"Three reasons it holds up.",
+      rea1Label:"01 · Yours", rea1Title:"It's yours", rea1Body:"Runs on your own machine. Your data is never pooled, synced, or used to train anyone's model — there's no server to pool it on.", rea1Vig:"no server · no pool",
+      rea2Label:"02 · Free", rea2Title:"Free forever", rea2Body:"No subscription, no per-token bill, no seats. There's no cloud cost to pass on, so there's nothing to charge — the one thing a cloud product can't match.", rea2Vig:"€0 · forever",
+      rea3Label:"03 · Open", rea3Title:"Open & verifiable", rea3Body:"Fully open source under AGPL-3.0. Anyone can read what it does and prove it. You don't have to trust us — you can check.", rea3Vig:"AGPL-3.0 · read the source",
+      cmpEyebrow:"Why not the cloud", cmpTitle:"What only a local assistant can promise.", cmpLead:"Cloud assistants can be excellent. But some promises depend on where the software runs — and only a local, open app can make these.",
+      cmpColVok:"Vokter (local)", cmpColEnclave:"Cloud AI (enclave)", cmpColHuman:"Cloud AI + humans",
+      cmpR1:"Runs on your own hardware", cmpR2:"Works fully offline", cmpR3:"No account required", cmpR4:"Free forever", cmpR5:"Open source (AGPL)", cmpPartial:"Partial",
+      cmpNote:"Encrypted-cloud assistants protect your data well — but they still run on someone else's servers, need an account, and depend on a business that can change its price or shut down. A local, open app has none of those dependencies.",
+      prEyebrow:"Pricing", prBig1:"Free.", prBig2:"Forever.",
+      prSub:"No account, no subscription, no per-token. The full assistant, free — and it stays that way.",
+      prPoint1:"No subscription", prPoint2:"No per-token", prPoint3:"No account",
+      prWhy:"Because Vokter runs on your own machine, there's no server bill to pass on — so there's nothing to charge. Local means no cloud cost. That's the whole reason it can be free, and the one thing a cloud product can't copy.",
+      prFoot:"Runs on hardware you already own. That's the whole price.",
+      prNote:"If we ever offer an optional confidential-compute bridge for very weak hardware, it'll be exactly that — optional and separate. Vokter itself stays free.",
+      langInvite:"Missing yours? Help translate Vokter — contributions are welcome on",
+      faqEyebrow:"FAQ", faqTitle:"Questions, answered honestly.",
+      faqQ1:"Is it really free?", faqA1:"Yes — genuinely. Vokter is open source and runs on your own computer, so there's no server for us to pay for and nothing to meter. No account, no subscription, no per-token bill.",
+      faqQ2:"Does my data leave my computer?", faqA2:"No. Everything runs locally — there's no telemetry and nothing is synced to a cloud. Your files and memory are encrypted on disk, and the key lives in your OS keyring.",
+      faqQ3:"What can it do today, and what's coming later?", faqA3:"Today it's a local assistant: chat that remembers you, chat with your documents (with citations), reminders, and voice — all offline. Acting on the web, bills, delegation and mobile are on the roadmap, clearly marked above under “What it does today” and “On the roadmap”.",
+      faqQ4:"What hardware do I need?", faqA4:"Everyday laptops are fine. Vokter automatically picks a model sized to your machine — a light one on modest hardware, a more capable one if you have a stronger CPU or GPU. More power means faster, sharper answers, but you don't need a gaming rig to start.",
+      faqQ5:"Is it really open source?", faqA5:"Yes — AGPL-3.0. You can read every line, verify what it does, and build it yourself.", faqA5Link:"View the source on GitHub",
       stat1:"On your machine", stat2:"Accounts required", stat3:"Bytes to the cloud", stat4:"Languages spoken",
-      capEyebrow:"What it does", capTitle:"Capable, and quiet about it.",
-      cap1Label:"Documents", cap1Title:"Reads your files", cap1Body:"Drop in a document and ask. Cited answers, forgotten for real when you say so.",
-      cap1Vig:"Lease agreement.pdf", cap1VigMeta:"read · 14 passages",
-      cap2Label:"Email", cap2Title:"Drafts, never sends", cap2Body:"Reads and drafts on your machine. Sends nothing without your word.",
-      draftSubject:"Re: Rental deposit", draftBody:"Draft ready — 60 days' notice, per your lease…", draftMeta:"awaits your confirmation",
-      cap3Label:"Voice", cap3Title:"Speaks and listens", cap3Body:"Speech to text and back, fully on-device. Your voice never leaves the machine.", voiceVig:"on-device",
-      protEyebrow:"How it's protected", protTitle:"A vault, not a pipe.",
+      protEyebrow:"Privacy in action", protTitle:"A vault, not a pipe.",
       protBody:"Most assistants are pipes to a distant server. Vokter is a vault on your desk — sealed, sandboxed, and opened only by you.",
       protSeal:"ODEL · SEALED", protConcern:"CONCERN", protHandle:"HOW VOKTER HANDLES IT",
       r1a:"Data at rest", r1b:"Encrypted on disk; key held in your OS keyring, never transmitted.",
@@ -695,9 +1007,9 @@
       r4a:"Actions", r4b:"Anything with consequence — sending, browsing, acting — is human-confirmed.",
       archEyebrow:"Architecture", archTitle:"Everything stays on one machine.", archBody:"No cloud arrows. No round trips. The boundary is your device.",
       archDevice:"YOUR DEVICE", archCloud:"THE CLOUD", archNoConn:"✕ no connection",
-      archAgent:"Vokter agent", archAgentSub:"orchestrates locally · no telemetry",
-      archModel:"Local model", archModelSub:"inference", archStore:"Encrypted store", archStoreSub:"docs · memory",
-      archKeyring:"Keyring", archKeyringSub:"encryption keys", archNet:"Guarded net", archNetSub:"allow-list only",
+      archAgent:"Vokter app", archAgentSub:"desktop app · local backend · no telemetry",
+      archModel:"Local model", archModelSub:"bundled Ollama · on-device", archStore:"Encrypted store", archStoreSub:"your documents + memory",
+      archKeyring:"OS keyring", archKeyringSub:"holds the encryption key",
       archBoundary:"— device boundary — nothing crosses without your consent —",
       langEyebrow:"Languages", langTitle:"Speaks your language.", langSoon:"SOON",
       instEyebrow:"Install", instTitle:"One command. No account. Nothing phones home.",
@@ -710,36 +1022,76 @@
       ctaLine:"Your agent. Your data.", ctaAccent:"By right.",
       ctaDl:"Download for Linux", ctaGh:"Source on GitHub", ctaMeta:"AGPL-3.0 · No account · No telemetry · No cloud",
       footTagline:"A sovereign AI assistant. What is yours cannot be taken.",
-      footProduct:"PRODUCT", fFeatures:"Features",
+      footProduct:"PRODUCT",
       footOpen:"OPEN SOURCE", fLicense:"AGPL-3.0 license", fContribute:"Contribute", fBuild:"Build from source",
       footCompany:"PROJECT", fAbout:"About", fContact:"Contact", footBadge:"NO ACCOUNT · NO TELEMETRY · NO CLOUD"
     },
     es:{
-      navRights:"Los derechos", navProtected:"Cómo se protege", navManifesto:"Manifiesto", navOpen:"Código abierto", navDownload:"Descargar",
-      heroEyebrow:"IA soberana · Funciona en tu máquina",
-      hero1:"Tu agente.", hero2:"Tus datos.", hero4:"Por derecho.",
-      heroSub:"Un asistente de IA soberano que funciona en tu máquina. Sin nube, sin cuenta, sin telemetría.",
+      navToday:"Qué hace", navHow:"Cómo funciona", navPricing:"Precio", navFaq:"Preguntas",
+      navProtected:"Cómo se protege", navManifesto:"Manifiesto", navOpen:"Código abierto", navDownload:"Descargar",
+      heroKicker:"Tu agente. Tus datos. Por derecho.",
+      hero1:"Un asistente privado", hero2:"que vive en", hero3:"tu ordenador.",
+      heroSub:"Lee tus documentos, recuerda lo que importa y guarda tus recordatorios — íntegramente en tu propio dispositivo. Sin nube, sin cuenta, sin telemetría.",
       heroDl:"Descargar para Linux", heroGh:"Código en GitHub", heroMeta:"AGPL-3.0 · Sin cuenta · Sin telemetría · Sin nube",
-      rightsEyebrow:"Del derecho odel", rightsTitle:"Lo que es tuyo — y sigue siéndolo.",
-      r01tag:"Tu agente", r01title:"Funciona para ti, y solo para ti.",
-      r01body:"Vokter vive en tu dispositivo. Funciona sin conexión, no responde a ningún servidor y no recibe órdenes de la nube. El agente es tuyo — ni alquilado, ni compartido, ni vigilándote.",
-      r02tag:"Tus datos", r02title:"En tus manos, y solo en las tuyas.",
-      r02body:"Tus archivos y tu memoria están cifrados en disco. La clave vive en el llavero de tu sistema operativo y nunca sale de ahí. Nada se sincroniza, se agrupa ni se usa para entrenar — ni ahora, ni nunca.",
-      r02d1:"Cifrado en reposo.", r02d1b:"Clave en el llavero del sistema, nunca se transmite.",
-      r02d2:"Memoria local.", r02d2b:"Olvidada de verdad cuando tú lo dices.",
-      r02d3:"Sin entrenamiento.", r02d3b:"Tus palabras no son un conjunto de datos.",
-      demoSession:"vokter · sesión local", demoOffline:"sin conexión", demoYou:"Tú",
-      demoQ:"¿Cuándo termina mi contrato y cuánto preaviso debo dar?", demoVokter:"Vokter",
-      demoA:"Tu contrato termina el 31 de agosto de 2026, y debes dar 60 días de preaviso para marcharte.",
-      demoDoc:"Contrato de alquiler.pdf", demoDocMeta:"p.4 · cláusula 11 · nunca salió del disco",
+      feedTitle:"trabajando ahora", feedLive:"en vivo", feedOn:"en tu dispositivo",
+      feedCap:"Este es tu Vokter, en tu máquina. No podemos contarlo — nada llama a casa.",
+      feedI1:"Resumió tu contrato de alquiler — 3 fechas clave", feedT1:"ahora mismo",
+      feedI2:"Te recordó la ITV — en 9 días", feedT2:"hace 2 min",
+      feedI3:"Encontró la cláusula de la fianza (p.4)", feedT3:"hace 11 min",
+      feedI4:"Redactó tu respuesta al casero — espera tu OK", feedT4:"hace 25 min",
+      feedI5:"Sumó el total de 6 facturas — 2.480 €", feedT5:"hace 1 h",
+      feedI6:"Recordó: tu revisión de la caldera es este martes", feedT6:"hace 2 h",
+      meetEyebrow:"Conoce Vokter", meetTitle:"Tu asistente. En tu máquina. Que responde solo ante ti.",
+      meetLead:"Vokter es una IA privada que vive en tu ordenador — te conoce, trabaja con tus documentos y guarda tus recordatorios, sin conexión. Sin cuenta, sin nube, sin telemetría. Lo que hace hoy es real y ya está en la app. Hacia dónde va está en la hoja de ruta de abajo — señalado con claridad y sin exagerar.",
+      todayEyebrow:"Qué hace hoy", todayTitle:"Real hoy — ya en la app.", todayNow:"Disponible ya",
+      todayLead:"Todo esto funciona en la versión actual, en tu propia máquina.",
+      t1Label:"Memoria", t1Title:"Un chat que te conoce", t1Body:"Dile lo que importa. Lo recuerda entre conversaciones — y lo olvida de verdad cuando tú lo dices.", t1Vig:"Recuerda: autónomo · IVA trimestral", t1VigMeta:"guardado en tu disco",
+      t2Label:"Documentos", t2Title:"Chatea con tus documentos", t2Body:"Suelta un archivo y pregunta. Las respuestas llegan citadas, directas de tus propias páginas.", t2Vig:"Contrato de alquiler.pdf", t2VigMeta:"respuesta citada · p.4, cláusula 11",
+      t3Label:"Recordatorios", t3Title:"Recordatorios y tareas", t3Body:"Vencimientos como la ITV, el alquiler o las renovaciones — guardados y avisados justo cuando toca.", t3Vig:"ITV — inspección del vehículo", t3VigMeta:"en 9 días",
+      t4Label:"Voz", t4Title:"Háblale en voz alta", t4Body:"Voz a texto y de vuelta — todo en el dispositivo. Tu voz nunca sale de la máquina.", t4Vig:"en el dispositivo",
+      t5Label:"Almacenamiento", t5Title:"Cifrado en tu disco", t5Body:"Archivos y memoria cifrados en reposo. La clave vive en el llavero del sistema y nunca sale de ahí.", t5Vig:"Cifrado en reposo", t5VigMeta:"clave en tu llavero, nunca se envía",
+      t6Label:"Sin conexión", t6Title:"Funciona sin conexión", t6Body:"No necesita internet tras instalarlo. Desenchufa el cable — sigue respondiendo.", t6Vig:"No necesita conexión", t6VigMeta:"sigue funcionando",
+      rmEyebrow:"En la hoja de ruta · Pronto", rmTitle:"Hacia dónde va Vokter.", rmLead:"Todavía no — y no vamos a fingir lo contrario. Está en marcha, construido en abierto. Nada de esto funciona hoy.", rmComing:"Pronto",
+      rm1Title:"Actúa en la web por ti", rm1Body:"Reservas y compras que realiza — solo con tu aprobación, paso a paso.",
+      rm2Title:"Facturas y rastreo de precios", rm2Body:"Gestiona tus facturas y busca de noche un precio mejor, para que tú no tengas que hacerlo.",
+      rm3Title:"Delega en agentes especializados", rm3Body:"Reparte subtareas a agentes específicos y te trae el resultado.",
+      rm4Title:"Telegram y mensajería", rm4Body:"Habla con él desde las apps que ya usas, no solo desde la ventana del escritorio.",
+      rm5Title:"Móvil", rm5Body:"Vokter en tu bolsillo, emparejado con la máquina de casa.",
+      rm6Title:"Acciones web seguras", rm6Body:"Cómo actuará sin exponerte: tarjetas de un solo uso por compra, correos desde su propia dirección (nunca como tú), inicios de sesión que nunca ven tu contraseña.",
+      rmNote:"Esto es el plan, no el producto. Todo lo de arriba está en la hoja de ruta — sigue el trabajo en abierto en GitHub.",
+      hwEyebrow:"Cómo funciona", hwTitle:"Preguntas. Trabaja en tu máquina. Recibes una respuesta citada.",
+      hwLead:"Todo el ciclo ocurre en tu ordenador — tu pregunta, tus documentos, tu respuesta. Nada se envía a ningún sitio.",
+      hwStep1:"Preguntas", hwStep1b:"Pregunta en lenguaje natural — sobre tus archivos, tus fechas, tu papeleo.",
+      hwStep2:"Trabaja en tu máquina", hwStep2b:"Vokter lee tu memoria local y tus documentos, ahí mismo en tu ordenador. Sin servidor, sin llamadas de red.",
+      hwStep3:"Recibes una respuesta citada", hwStep3b:"Responde y te muestra exactamente de dónde salió — una página de tu propio documento.",
+      hwSession:"vokter · sesión local", hwOffline:"sin conexión", hwYou:"Tú", hwVokter:"Vokter",
+      hwQ:"¿Cuándo termina mi contrato y cuánto preaviso debo dar?",
+      hwA:"Tu contrato termina el 31 de agosto de 2026, y debes dar 60 días de preaviso para marcharte.",
+      hwDoc:"Contrato de alquiler.pdf", hwDocMeta:"p.4 · cláusula 11 · nunca salió del disco",
+      hwBoundary:"Nada salió de tu dispositivo",
+      r3Eyebrow:"Por qué Vokter", r3Title:"Tres razones que se sostienen.",
+      rea1Label:"01 · Tuyo", rea1Title:"Es tuyo", rea1Body:"Funciona en tu propia máquina. Tus datos nunca se agrupan, sincronizan ni se usan para entrenar el modelo de nadie — no hay servidor donde agruparlos.", rea1Vig:"sin servidor · sin agrupar",
+      rea2Label:"02 · Gratis", rea2Title:"Gratis para siempre", rea2Body:"Sin suscripción, sin coste por token, sin licencias por puesto. No hay coste de nube que repercutir, así que no hay nada que cobrar — lo único que un producto en la nube no puede igualar.", rea2Vig:"0 € · para siempre",
+      rea3Label:"03 · Abierto", rea3Title:"Abierto y verificable", rea3Body:"Totalmente de código abierto bajo AGPL-3.0. Cualquiera puede leer lo que hace y comprobarlo. No tienes que confiar en nosotros — puedes verificarlo.", rea3Vig:"AGPL-3.0 · lee el código",
+      cmpEyebrow:"Por qué no la nube", cmpTitle:"Lo que solo un asistente local puede prometer.", cmpLead:"Los asistentes en la nube pueden ser excelentes. Pero algunas promesas dependen de dónde se ejecuta el software — y solo una app local y abierta puede hacerlas.",
+      cmpColVok:"Vokter (local)", cmpColEnclave:"IA en la nube (enclave)", cmpColHuman:"IA en la nube + humanos",
+      cmpR1:"Funciona en tu propio hardware", cmpR2:"Funciona del todo sin conexión", cmpR3:"No requiere cuenta", cmpR4:"Gratis para siempre", cmpR5:"Código abierto (AGPL)", cmpPartial:"Parcial",
+      cmpNote:"Los asistentes de nube cifrada protegen bien tus datos — pero siguen ejecutándose en servidores ajenos, requieren cuenta y dependen de una empresa que puede cambiar el precio o cerrar. Una app local y abierta no tiene ninguna de esas dependencias.",
+      prEyebrow:"Precio", prBig1:"Gratis.", prBig2:"Para siempre.",
+      prSub:"Sin cuenta, sin suscripción, sin coste por token. El asistente completo, gratis — y así se queda.",
+      prPoint1:"Sin suscripción", prPoint2:"Sin coste por token", prPoint3:"Sin cuenta",
+      prWhy:"Como Vokter funciona en tu propia máquina, no hay factura de servidor que repercutir — así que no hay nada que cobrar. Local significa sin coste de nube. Esa es la razón por la que puede ser gratis, y lo único que un producto en la nube no puede copiar.",
+      prFoot:"Funciona con el hardware que ya tienes. Ese es todo el precio.",
+      prNote:"Si algún día ofrecemos un puente opcional de cómputo confidencial para hardware muy limitado, será justo eso — opcional y aparte. Vokter en sí sigue siendo gratis.",
+      langInvite:"¿Falta el tuyo? Ayuda a traducir Vokter — las contribuciones son bienvenidas en",
+      faqEyebrow:"Preguntas frecuentes", faqTitle:"Preguntas, respondidas con honestidad.",
+      faqQ1:"¿Es realmente gratis?", faqA1:"Sí — de verdad. Vokter es de código abierto y funciona en tu propio ordenador, así que no hay servidor que pagar ni nada que medir. Sin cuenta, sin suscripción, sin coste por token.",
+      faqQ2:"¿Mis datos salen de mi ordenador?", faqA2:"No. Todo funciona en local — no hay telemetría y nada se sincroniza con la nube. Tus archivos y tu memoria están cifrados en disco, y la clave vive en el llavero de tu sistema.",
+      faqQ3:"¿Qué hace hoy y qué llegará después?", faqA3:"Hoy es un asistente local: un chat que te recuerda, chat con tus documentos (con citas), recordatorios y voz — todo sin conexión. Actuar en la web, las facturas, la delegación y el móvil están en la hoja de ruta, claramente señalados arriba en «Qué hace hoy» y «En la hoja de ruta».",
+      faqQ4:"¿Qué hardware necesito?", faqA4:"Un portátil normal vale. Vokter elige automáticamente un modelo a la medida de tu máquina — uno ligero en hardware modesto, uno más capaz si tienes una CPU o GPU más potente. Más potencia significa respuestas más rápidas y afinadas, pero no necesitas un equipo gaming para empezar.",
+      faqQ5:"¿Es realmente de código abierto?", faqA5:"Sí — AGPL-3.0. Puedes leer cada línea, verificar lo que hace y compilarlo tú mismo.", faqA5Link:"Ver el código en GitHub",
       stat1:"En tu máquina", stat2:"Cuentas necesarias", stat3:"Bytes a la nube", stat4:"Idiomas que habla",
-      capEyebrow:"Qué hace", capTitle:"Capaz, y sin hacer ruido.",
-      cap1Label:"Documentos", cap1Title:"Lee tus archivos", cap1Body:"Suelta un documento y pregunta. Respuestas citadas, olvidadas de verdad cuando tú lo dices.",
-      cap1Vig:"Contrato de alquiler.pdf", cap1VigMeta:"leído · 14 fragmentos",
-      cap2Label:"Correo", cap2Title:"Redacta, nunca envía", cap2Body:"Lee y redacta en tu máquina. No envía nada sin tu palabra.",
-      draftSubject:"Re: Fianza del alquiler", draftBody:"Borrador listo — 60 días de preaviso, según tu contrato…", draftMeta:"espera tu confirmación",
-      cap3Label:"Voz", cap3Title:"Habla y escucha", cap3Body:"Voz a texto y de vuelta, todo en el dispositivo. Tu voz nunca sale de la máquina.", voiceVig:"en el dispositivo",
-      protEyebrow:"Cómo se protege", protTitle:"Una bóveda, no una tubería.",
+      protEyebrow:"Privacidad en acción", protTitle:"Una bóveda, no una tubería.",
       protBody:"La mayoría de asistentes son tuberías a un servidor lejano. Vokter es una bóveda en tu mesa — sellada, aislada y que solo abres tú.",
       protSeal:"ODEL · SELLADO", protConcern:"RIESGO", protHandle:"CÓMO LO RESUELVE VOKTER",
       r1a:"Datos en reposo", r1b:"Cifrados en disco; la clave en el llavero de tu sistema, nunca se transmite.",
@@ -748,9 +1100,9 @@
       r4a:"Acciones", r4b:"Cualquier cosa con consecuencias — enviar, navegar, actuar — la confirmas tú.",
       archEyebrow:"Arquitectura", archTitle:"Todo se queda en una máquina.", archBody:"Sin flechas a la nube. Sin idas y vueltas. La frontera es tu dispositivo.",
       archDevice:"TU DISPOSITIVO", archCloud:"LA NUBE", archNoConn:"✕ sin conexión",
-      archAgent:"Agente Vokter", archAgentSub:"orquesta en local · sin telemetría",
-      archModel:"Modelo local", archModelSub:"inferencia", archStore:"Almacén cifrado", archStoreSub:"docs · memoria",
-      archKeyring:"Llavero", archKeyringSub:"claves de cifrado", archNet:"Red vigilada", archNetSub:"solo lista permitida",
+      archAgent:"App Vokter", archAgentSub:"app de escritorio · backend local · sin telemetría",
+      archModel:"Modelo local", archModelSub:"Ollama incluido · en el dispositivo", archStore:"Almacén cifrado", archStoreSub:"tus documentos + memoria",
+      archKeyring:"Llavero del sistema", archKeyringSub:"guarda la clave de cifrado",
       archBoundary:"— frontera del dispositivo — nada cruza sin tu consentimiento —",
       langEyebrow:"Idiomas", langTitle:"Habla tu idioma.", langSoon:"PRONTO",
       instEyebrow:"Instalación", instTitle:"Un comando. Sin cuenta. Nada llama a casa.",
@@ -763,7 +1115,7 @@
       ctaLine:"Tu agente. Tus datos.", ctaAccent:"Por derecho.",
       ctaDl:"Descargar para Linux", ctaGh:"Código en GitHub", ctaMeta:"AGPL-3.0 · Sin cuenta · Sin telemetría · Sin nube",
       footTagline:"Un asistente de IA soberano. Lo que es tuyo no te lo pueden quitar.",
-      footProduct:"PRODUCTO", fFeatures:"Funciones",
+      footProduct:"PRODUCTO",
       footOpen:"CÓDIGO ABIERTO", fLicense:"Licencia AGPL-3.0", fContribute:"Contribuir", fBuild:"Compilar el código",
       footCompany:"PROYECTO", fAbout:"Acerca de", fContact:"Contacto", footBadge:"SIN CUENTA · SIN TELEMETRÍA · SIN NUBE"
     }
@@ -779,7 +1131,7 @@
     document.querySelectorAll('[data-i18n]').forEach(function(el){ el.textContent=t(el.getAttribute('data-i18n')); });
     document.getElementById('langToggle').textContent=(lang==='en'?'ES':'EN');
   }
-  document.getElementById('langToggle').onclick=function(){ lang=(lang==='en'?'es':'en'); saveLang(lang); apply(); };
+  document.getElementById('langToggle').onclick=function(){ lang=(lang==='en'?'es':'en'); saveLang(lang); apply(); if(window.__renderFeed) window.__renderFeed(false); };
   apply();
 
   // ── mobile menu (hamburger) ────────────────────────────
@@ -854,6 +1206,45 @@
     // off-screen, before it scrolls into view — so JS-on still counts up without a flash.
     nums.forEach(function(el){ el.textContent='0'; co.observe(el); });
   }
+
+  // ── living "working now" feed ───────────────────────────
+  // Illustrative demo of the user's OWN Vokter (no telemetry — the strings live in T, the
+  // single source). Renders from T[lang], rotates the pool so a "new" task appears on top.
+  // Static HTML rows already cover JS-off; under reduced-motion we render once and don't rotate.
+  (function(){
+    var list=document.getElementById('feedList'); if(!list) return;
+    var IC={
+      doc:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+      bell:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+      search:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="m20 20-3.5-3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+      mail:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="m4 7 8 6 8-6" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+      receipt:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 7h6M9 11h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+      check:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="m8.5 12 2.4 2.4 4.6-4.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+    };
+    var POOL=[
+      {k:'feedI1',tk:'feedT1',ic:IC.doc},{k:'feedI2',tk:'feedT2',ic:IC.bell},
+      {k:'feedI3',tk:'feedT3',ic:IC.search},{k:'feedI4',tk:'feedT4',ic:IC.mail},
+      {k:'feedI5',tk:'feedT5',ic:IC.receipt},{k:'feedI6',tk:'feedT6',ic:IC.check}
+    ];
+    var VIS=5, idx=0;
+    function esc(s){ return String(s).replace(/[&<>]/g,function(c){return c==='&'?'&amp;':c==='<'?'&lt;':'&gt;';}); }
+    function render(markNew){
+      var html='';
+      for(var i=0;i<VIS;i++){
+        var it=POOL[(idx+i)%POOL.length];
+        html+='<li class="feed-row'+(markNew&&i===0?' feed-row--enter':'')+'">'+
+          '<span class="feed-ic" aria-hidden="true">'+it.ic+'</span>'+
+          '<span class="feed-tx"><span class="t">'+esc(t(it.k))+'</span>'+
+          '<span class="m"><span class="od">'+esc(t('feedOn'))+'</span><span>'+esc(t(it.tk))+'</span></span></span></li>';
+      }
+      list.innerHTML=html;
+    }
+    window.__renderFeed=render;   // lang toggle re-renders in the new language
+    render(false);                // replace the static markup with the JS-managed list
+    if(!reduce){
+      setInterval(function(){ idx=(idx+1)%POOL.length; render(true); }, 3200);
+    }
+  })();
 })();
 </script>
 </body>
