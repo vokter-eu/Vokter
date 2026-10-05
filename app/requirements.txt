@@ -3,6 +3,12 @@ uvicorn[standard]==0.32.*
 httpx==0.27.*
 pypdf==5.*
 python-multipart>=0.0.18
+# Image intake (Tier-1 OCR): Pillow normalises uploaded images → PNG for Tesseract.
+# The OCR ENGINE itself is the native `tesseract` binary + libtesseract/leptonica +
+# cat/spa/eng traineddata (~15 MB), vendored into the frozen bundle (NOT a pip dep) and
+# located via VOKTER_TESSERACT_CMD / VOKTER_TESSDATA_PREFIX / VOKTER_TESSERACT_LIBDIR.
+# See app/ocr.py + docs/IMAGE_UNDERSTANDING.md.
+pillow>=10,<13
 faster-whisper>=1.0,<2
 # TTS engine 1: Kokoro-82M (Apache-2.0) via kokoro-onnx — runs on the onnxruntime faster-whisper
 # already pulls in, no PyTorch. Covers en/es/fr/it/pt.

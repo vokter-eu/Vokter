@@ -304,6 +304,9 @@
   .toast{position:absolute;left:50%;bottom:98px;transform:translate(-50%,10px);background:var(--ink);color:var(--cream);font-size:13px;padding:10px 16px;border-radius:var(--r);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:80;max-width:80%;text-align:center;box-shadow:var(--shadow)}
   .toast.on{opacity:1;transform:translate(-50%,0)}
 
+  /* drag-and-drop cue: a soft inset ring while a file is dragged over the window */
+  body.dragging::after{content:"";position:fixed;inset:10px;z-index:9999;pointer-events:none;
+    border:2px dashed var(--accent,#4E9E78);border-radius:14px;background:rgba(78,158,120,.06)}
   @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 </style>
 </head>
@@ -372,10 +375,10 @@
     <div class="composer">
       <div class="modelbadge" id="modelBadge" title=""></div>
       <div class="inrow">
-        <button class="rnd plain" id="attachBtn" data-i18n-aria="addDoc" aria-label="Add a document">
+        <button class="rnd plain" id="attachBtn" data-i18n-aria="addDoc" aria-label="Add a document or image">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="m8 13 4 4a5 5 0 0 0 7-7l-7-7a3.5 3.5 0 0 0-5 5l7 7a2 2 0 0 0 3-3l-6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
-        <input type="file" id="fileInput" style="display:none" accept=".pdf,.txt,.md,.docx,.csv">
+        <input type="file" id="fileInput" style="display:none" accept=".pdf,.txt,.md,.docx,.csv,.png,.jpg,.jpeg,.webp,.bmp,.tif,.tiff,.gif">
         <input type="text" id="q" data-i18n-ph="placeholder" placeholder="Message your agent…" autocomplete="off">
         <button class="rnd mic" id="micBtn" data-i18n-aria="speak" aria-label="Speak">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="9" y="3" width="6" height="12" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>

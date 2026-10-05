@@ -20,3 +20,4 @@ desktop/runtime/
 # NOT product code; its graph/cache artifacts must never enter the public repo.
 graphify-out/
 .graphify/
+desktop/runtime/tesseract/

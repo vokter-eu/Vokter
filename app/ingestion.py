@@ -26,6 +26,11 @@ def extract_text(filename: str, raw: bytes) -> str:
     if filename.lower().endswith(".pdf"):
         reader = PdfReader(io.BytesIO(raw))
         return "\n".join(page.extract_text() or "" for page in reader.pages)
+    # Images → on-device OCR (reads text off receipts/tickets/labels; not photo
+    # understanding). Lazy import so text/PDF uploads never load the OCR engine.
+    from ocr import is_image, ocr_image
+    if is_image(filename):
+        return ocr_image(raw)
     return raw.decode("utf-8", errors="replace")
 
 

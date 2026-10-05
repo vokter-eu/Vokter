@@ -19,7 +19,8 @@ datas = [
 binaries = []
 # The orchestrate-mode modules are imported lazily (inside a branch), so name
 # them explicitly to guarantee they travel in the bundle.
-hiddenimports = ["orchestrator", "keysource", "keychain", "datadir", "model_pull", "hwdetect"]
+hiddenimports = ["orchestrator", "keysource", "keychain", "datadir", "model_pull", "hwdetect",
+                 "ocr"]  # image OCR — lazily imported inside ingestion.extract_text
 
 # collect_all (never collect_data_files) for every package with native pieces:
 # kokoro-onnx (TTS) needs its phonemizer + espeak-ng data to travel together (the same
@@ -48,6 +49,7 @@ for pkg in (
     "nostr_sdk",
     "secretstorage",
     "jeepney",
+    "PIL",   # Pillow — normalises uploaded images → PNG before Tesseract (ocr.py); has native pieces
 ):
     d, b, h = collect_all(pkg)
     datas += d

@@ -53,6 +53,10 @@
         ]
       },
       {
+        "from": "../runtime/tesseract",
+        "to": "desktop/runtime/tesseract"
+      },
+      {
         "from": "../../NOTICE",
         "to": "NOTICE"
       }

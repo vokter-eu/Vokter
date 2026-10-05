@@ -3,11 +3,12 @@
 
   const T={
     en:{
-      onDevice:"On your device", settings:"Settings", send:"Send", stopGen:"Stop generating", speak:"Speak", addDoc:"Add a document",
+      onDevice:"On your device", settings:"Settings", send:"Send", stopGen:"Stop generating", speak:"Speak", addDoc:"Add a document or image (reads text)",
       emptyTitle:"Hello. I'm yours.", emptyBody:"Only you and your agent are here. Nothing leaves this machine.",
       chipDoc:"Read a document with me", chipWhat:"What can you do?", placeholder:"Message your agent…",
       listening:"Listening…", listeningBody:"Take your time. I'm hearing you on this device only.", readAloud:"Read aloud", stopAloud:"Stop", speaking:"Generating…",
       reading:"Reading…", readDone:"Read · {n} passages, kept on your disk", readFail:"Couldn't read it",
+      readingImg:"Reading text from image…", readImgDone:"Read text · {n} passages, kept on your disk",
       noReach:"I can't reach your agent. Make sure Vokter is running on this machine, then try again.",
       serverErr:"Something went wrong.", noReachShort:"Couldn't reach your agent",
       settingsNote:"Everything here stays on your machine. You're in control of all of it.",
@@ -77,11 +78,12 @@
       chatsLabel:"Chats", noChats:"No conversations yet"
     },
     es:{
-      onDevice:"En tu dispositivo", settings:"Ajustes", send:"Enviar", stopGen:"Detener generación", speak:"Hablar", addDoc:"Añadir un documento",
+      onDevice:"En tu dispositivo", settings:"Ajustes", send:"Enviar", stopGen:"Detener generación", speak:"Hablar", addDoc:"Añadir un documento o imagen (lee el texto)",
       emptyTitle:"Hola. Soy tuyo.", emptyBody:"Aquí solo estáis tú y tu agente. Nada sale de esta máquina.",
       chipDoc:"Lee un documento conmigo", chipWhat:"¿Qué puedes hacer?", placeholder:"Escribe a tu agente…",
       listening:"Escuchando…", listeningBody:"Tómate tu tiempo. Te escucho solo en este dispositivo.", readAloud:"Leer en voz alta", stopAloud:"Parar", speaking:"Generando…",
       reading:"Leyendo…", readDone:"Leído · {n} fragmentos, guardado en tu disco", readFail:"No pude leerlo",
+      readingImg:"Leyendo el texto de la imagen…", readImgDone:"Texto leído · {n} fragmentos, guardado en tu disco",
       noReach:"No llego a tu agente. Asegúrate de que Vokter está funcionando en esta máquina e inténtalo de nuevo.",
       serverErr:"Algo ha ido mal.", noReachShort:"No llego a tu agente",
       settingsNote:"Todo lo que hay aquí se queda en tu máquina. Tú controlas todo.",
@@ -347,17 +349,43 @@
   $('attachBtn').onclick=()=>$('fileInput').click();
   $('chipDoc').onclick=()=>$('fileInput').click();
   $('chipWhat').onclick=()=>{ q.value=t('chipWhat'); send(); };
-  $('fileInput').onchange=async e=>{
-    const f=e.target.files[0]; if(!f) return;
-    const bubble=addFile(f.name); const fs=bubble.querySelector('.fs');
-    const fd=new FormData(); fd.append('file',f);
+  // Shared upload path for picker, clipboard paste, and drag-drop. Images go through the
+  // same /api/docs endpoint — the backend OCRs them (reads text; it does NOT "understand"
+  // the photo) and feeds the text into the normal chunk/embed/RAG pipeline.
+  const _IMG_RE=/\.(png|jpe?g|webp|bmp|tiff?|gif)$/i;
+  async function uploadFile(f){
+    if(!f) return;
+    const isImg = (f.type && f.type.startsWith('image/')) || _IMG_RE.test(f.name||'');
+    const name = f.name || (isImg ? 'pasted-image.png' : 'file');
+    const bubble=addFile(name); const fs=bubble.querySelector('.fs');
+    if(isImg) fs.textContent=t('readingImg');
+    const fd=new FormData(); fd.append('file', f, name);
     try{
       const r=await fetch('/api/docs',{method:'POST',body:fd}); const j=await r.json();
-      fs.textContent = r.ok ? t('readDone',{n:j.chunks}) : t('readFail')+': '+(j.detail||'error');
+      fs.textContent = r.ok ? t(isImg?'readImgDone':'readDone',{n:j.chunks}) : t('readFail')+': '+(j.detail||'error');
       if(r.ok) loadDocCount();
     }catch{ fs.textContent=t('noReachShort'); }
-    e.target.value='';
-  };
+  }
+  $('fileInput').onchange=e=>{ uploadFile(e.target.files[0]); e.target.value=''; };
+
+  // Paste an image from the clipboard (a screenshot or copied photo) → OCR it.
+  document.addEventListener('paste', e=>{
+    const items = e.clipboardData && e.clipboardData.items; if(!items) return;
+    for(const it of items){
+      if(it.type && it.type.startsWith('image/')){ const f=it.getAsFile(); if(f){ e.preventDefault(); uploadFile(f); } break; }
+    }
+  });
+
+  // Drag a file/image onto the window → OCR/ingest it (with a drop-cue outline).
+  ['dragover','dragenter'].forEach(ev=>document.addEventListener(ev, e=>{
+    if(e.dataTransfer && Array.from(e.dataTransfer.types||[]).includes('Files')){ e.preventDefault(); document.body.classList.add('dragging'); }
+  }));
+  ['dragleave','dragend'].forEach(ev=>document.addEventListener(ev, ()=>document.body.classList.remove('dragging')));
+  document.addEventListener('drop', e=>{
+    document.body.classList.remove('dragging');
+    const f=e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if(f){ e.preventDefault(); uploadFile(f); }
+  });
 
   let rec=null, chunks=[], keep=true;
   function showVoice(on){ $('voiceView').classList.toggle('on',on); }

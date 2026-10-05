@@ -85,6 +85,12 @@ OLLAMA_HOME       = DATA_DIR / "ollama-home"          # keypair etc., app-local
 # the property the 9/9 clean-machine test certified — with no hidden first-use
 # download. RESOURCE path (like venv/ollama), not writable data.
 VOICE_SEED_DIR = HERE / "runtime" / "voice-seed"      # bundled piper + whisper
+# Image OCR (Tier-1): vendored Tesseract — a READ-ONLY bundled resource under HERE,
+# like ollama/voice-seed (populated by desktop/freeze/fetch_tesseract.sh at build time).
+TESSERACT_DIR    = RUNTIME / "tesseract"
+TESSERACT_BIN    = TESSERACT_DIR / "usr" / "bin" / "tesseract"
+TESSDATA_DIR     = TESSERACT_DIR / "usr" / "share" / "tesseract-ocr" / "5" / "tessdata"
+TESSERACT_LIBDIR = TESSERACT_DIR / "usr" / "lib" / "x86_64-linux-gnu"
 DBKEY_FILE = DATA_DIR / ".db_key"                     # Phase 1 only → keychain later
 
 # --- Config (overridable via env) -------------------------------------------
@@ -771,6 +777,14 @@ def start_backend(db_key: str, flavour: str) -> None:
     env["VOKTER_VOICE_MODELS_DIR"] = str(DATA_DIR / "models")
     env["VOKTER_CHAT_MODEL"]  = _boot_chat_model()   # same pick as ensure_models (cached): backend agrees
     env["VOKTER_EMBED_MODEL"] = EMBED_MODEL
+    # Image OCR (Tier-1): point the backend at the vendored Tesseract (binary + libs +
+    # cat/spa/eng traineddata) bundled under HERE/runtime/tesseract, exactly like the
+    # bundled ollama/voice-seed resources. Absent (not yet fetched) → the backend's
+    # OCR simply degrades to "couldn't read this image"; nothing else is affected.
+    if TESSERACT_BIN.exists():
+        env["VOKTER_TESSERACT_CMD"]    = str(TESSERACT_BIN)
+        env["VOKTER_TESSDATA_PREFIX"]  = str(TESSDATA_DIR)
+        env["VOKTER_TESSERACT_LIBDIR"] = str(TESSERACT_LIBDIR)
     # The frozen binary (Phase 2+) reads these instead of uvicorn CLI flags —
     # export them so every backend flavour binds where wait_http() checks.
     env["VOKTER_BIND"] = "127.0.0.1"
