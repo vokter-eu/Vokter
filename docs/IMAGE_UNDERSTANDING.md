@@ -1,6 +1,7 @@
 # Image understanding for Vokter — plan (Tier-1 OCR now; VLM deferred)
 
-**Status:** Phase 1 (OCR text-extraction) in dev-preview; Phase 2 (VLM image Q&A) deferred to a
+**Status:** Phase 1 (OCR text-extraction) **shipped and proven on the frozen `.deb`** (see the
+frozen-build proof below); Phase 2 (VLM image Q&A) deferred to a
 capable-tier upgrade. Near-term, local-only, must fit the i3 floor + the bundled-Ollama / frozen
 `.deb` stack. This doc is the plan + the verified research behind it.
 
@@ -76,3 +77,25 @@ Catalan receipt via the real `/api/docs` pipeline path.
   `tesseract` binary + traineddata into the PyInstaller freeze (the known packaging trade-off). The
   `app/ocr.py` abstraction keeps the swap localized. *(Alternative kept on file: RapidOCR + a bundled
   Latin rec model — keeps pure-wheel packaging and fixes diacritics, but stays +56 MB from opencv.)*
+
+## Phase-1 frozen-build proof (2026-10-10) — packaged `.deb`, not dev-disk
+
+The dev-preview above ran the source tree; this proves the capability on the **packaged artifact**,
+the failure class a dev-preview can't catch (cf. v0.12.0, where the Kokoro freeze spec silently
+dropped data files and broke only in the `.deb`).
+
+- **extraResources — tesseract is physically in the `.deb`.** `dpkg-deb -c vokter-desktop_0.18.0_amd64.deb`
+  shows `./opt/Vokter/resources/desktop/runtime/tesseract/…`: the `tesseract` binary, `libtesseract.so.5`,
+  `liblept.so.5`, and `cat`/`spa`/`eng` traineddata.
+- **Orchestrator path resolution holds in the package.** Frozen `HERE = Path(sys.executable).parents[3]`
+  → `resources/desktop`, so `TESSERACT_BIN = resources/desktop/runtime/tesseract/usr/bin/tesseract`,
+  which resolves to a real file in the unpacked bundle (exactly where extraResources placed it).
+- **End-to-end on the frozen binary via live `/api/docs`.** Ran the packaged
+  `resources/desktop/freeze/dist/vokter-backend/vokter-backend` (SQLCipher DB, env pointed at the
+  **packaged** tesseract tree), POSTed a rendered Catalan+ES receipt → `200 {"chunks":1}` (full
+  pipeline: OCR → chunk → bge-m3 embed → encrypted store). Reading the stored chunk back decrypted
+  shows correct diacritics: **Plaça / pagès / inclòs / Gràcies / Cafè / Atención**.
+- **Size.** `vokter-desktop_0.18.0_amd64.deb` = **211.9 MB** vs v0.17.0 (no OCR) 200.2 MB → **+11.7 MB**.
+  That is the vendored tesseract tree (~15 MB uncompressed) **plus Pillow + its native `pillow.libs`**
+  in the frozen backend; the Phase-1 commit message's "+5.4 MB" counted only the tesseract tree and
+  omitted Pillow. Prune held (no regression; tesseract did not double).
