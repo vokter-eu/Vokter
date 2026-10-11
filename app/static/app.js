@@ -4,6 +4,9 @@
   const T={
     en:{
       onDevice:"On your device", settings:"Settings", send:"Send", stopGen:"Stop generating", speak:"Speak", addDoc:"Add a document or image (reads text)",
+      askImage:"Ask about an image", visionStaged:"Ask a question about this image…",
+      visionDownload:"One-time download to enable asking about images", visionDownloading:"Downloading the vision model",
+      visionReady:"Vision model ready — attach an image to ask about it.", visionDlFail:"Couldn't download the vision model.",
       emptyTitle:"Hello. I'm yours.", emptyBody:"Only you and your agent are here. Nothing leaves this machine.",
       chipDoc:"Read a document with me", chipWhat:"What can you do?", placeholder:"Message your agent…",
       listening:"Listening…", listeningBody:"Take your time. I'm hearing you on this device only.", readAloud:"Read aloud", stopAloud:"Stop", speaking:"Generating…",
@@ -79,6 +82,9 @@
     },
     es:{
       onDevice:"En tu dispositivo", settings:"Ajustes", send:"Enviar", stopGen:"Detener generación", speak:"Hablar", addDoc:"Añadir un documento o imagen (lee el texto)",
+      askImage:"Pregunta sobre una imagen", visionStaged:"Haz una pregunta sobre esta imagen…",
+      visionDownload:"Descarga única para poder preguntar sobre imágenes", visionDownloading:"Descargando el modelo de visión",
+      visionReady:"Modelo de visión listo — adjunta una imagen para preguntar.", visionDlFail:"No se pudo descargar el modelo de visión.",
       emptyTitle:"Hola. Soy tuyo.", emptyBody:"Aquí solo estáis tú y tu agente. Nada sale de esta máquina.",
       chipDoc:"Lee un documento conmigo", chipWhat:"¿Qué puedes hacer?", placeholder:"Escribe a tu agente…",
       listening:"Escuchando…", listeningBody:"Tómate tu tiempo. Te escucho solo en este dispositivo.", readAloud:"Leer en voz alta", stopAloud:"Parar", speaking:"Generando…",
@@ -296,8 +302,11 @@
   }
   async function send(){
     if(streaming) return;                       // in-flight guard: one generation at a time
-    const text=q.value.trim(); if(!text) return;
-    addUser(text); q.value='';
+    const text=q.value.trim();
+    const img=_askImage;                        // Phase 2: a staged image to ask about (or null)
+    if(!text && !img) return;                   // nothing to send
+    addUser(text || ('🖼️ '+t('askImage'))); q.value='';
+    if(img) clearVisionStage();                 // consume the staged image for THIS turn only
 
     // Streaming path — the Electron shell (window.vokter.askStream). Tokens arrive over
     // the onAskToken channel and paint live; the promise resolves with the authoritative
@@ -320,7 +329,7 @@
         else { think.remove(); addAgent(t('serverErr')); }
       };
       try{
-        const {status,body}=await window.vokter.askStream({question:text,conversation_id:conversationId});
+        const {status,body}=await window.vokter.askStream({question:text,conversation_id:conversationId,image:img||undefined});
         unsub(); if(raf) cancelAnimationFrame(raf);
         settle(status>=200&&status<300, body);
       }catch{
@@ -335,7 +344,7 @@
     setBusy(true); _askAborted=false; _askCtrl=new AbortController();
     const think=addThinking();
     try{
-      const r=await askBackend({question:text,conversation_id:conversationId}, _askCtrl.signal);
+      const r=await askBackend({question:text,conversation_id:conversationId,image:img||undefined}, _askCtrl.signal);
       let j; try{j=await r.json();}catch{ think.remove(); if(!_askAborted) addAgent(t('serverErr')); return; }
       think.remove();
       if(r.ok){ conversationId=j.conversation_id; addAgent(j.answer,j.sources); }
@@ -367,6 +376,80 @@
     }catch{ fs.textContent=t('noReachShort'); }
   }
   $('fileInput').onchange=e=>{ uploadFile(e.target.files[0]); e.target.value=''; };
+
+  // ── Phase 2: "ask about an image" (image Q&A via the VLM) ──────────────────────────────────
+  // Distinct from the attach-document button above (which OCRs a file into searchable text). The
+  // camera button shows when GET /api/hardware reports this machine is CAPABLE of a VLM — a
+  // weak/CPU-only box never sees it. If capable but the model isn't pulled yet, the first click
+  // offers a size-disclosed, consent-gated one-time download (reusing pullModel's SSE progress);
+  // once installed, clicking stages an image whose next Send carries it to /api/ask → the VLM.
+  // A capable box is NEVER auto-pulled: the big download only happens on this explicit click.
+  let _askImage=null;                                   // staged base64 image (data-URL stripped)
+  let _vision={capable:false,installed:false,model:null,size_gb:null};
+  let _visionPullCtrl=null;                             // in-flight consent download, for Stop
+  const _dlBtn=()=>$('visionDlBtn');
+  function clearVisionStage(){
+    _askImage=null;
+    if(_visionPullCtrl){ try{_visionPullCtrl.abort();}catch{} _visionPullCtrl=null; }
+    const img=$('visionThumb'); if(img){ img.removeAttribute('src'); img.style.display=''; }
+    const b=_dlBtn(); if(b) b.remove();                 // drop any injected download button
+    const s=$('visionStage'); if(s) s.style.display='none';
+  }
+  function stageVisionImage(f){
+    if(!f) return;
+    const b=_dlBtn(); if(b) b.remove();                 // leaving the download prompt
+    const r=new FileReader();
+    r.onload=()=>{
+      const url=String(r.result||'');
+      _askImage=url.split(',',2)[1]||'';                // store raw base64 (backend also tolerates data-URL)
+      const img=$('visionThumb'); if(img){ img.src=url; img.style.display=''; }   // thumbnail preview
+      $('visionStageText').textContent=t('visionStaged');
+      const s=$('visionStage'); if(s) s.style.display='flex';
+      try{ $('q').focus(); }catch{}
+    };
+    r.readAsDataURL(f);
+  }
+  // Capable-but-not-installed: a one-time, size-disclosed, consent-gated download. Nothing pulls
+  // until the user clicks Download; Stop aborts (the fetch closes → backend closes its Ollama pull).
+  function offerVisionDownload(){
+    const s=$('visionStage'); if(!s) return;
+    _askImage=null;
+    const img=$('visionThumb'); if(img){ img.removeAttribute('src'); img.style.display='none'; }
+    const size=_vision.size_gb?(' ('+_vision.size_gb+' GB)'):'';
+    $('visionStageText').textContent=t('visionDownload')+size;
+    let b=_dlBtn();
+    if(!b){ b=document.createElement('button'); b.id='visionDlBtn'; b.className='sbtn'; s.insertBefore(b,$('visionClear')); }
+    b.textContent=t('dlBtn'); b.disabled=false; b.onclick=()=>startVisionDownload(b);
+    s.style.display='flex';
+  }
+  async function startVisionDownload(btn){
+    _visionPullCtrl=new AbortController();
+    btn.textContent=t('dlStop'); btn.onclick=()=>{ if(_visionPullCtrl){ btn.disabled=true; _visionPullCtrl.abort(); } };
+    try{
+      await pullModel(_vision.model,{ signal:_visionPullCtrl.signal,
+        onProgress:(pct,ind)=>{ $('visionStageText').textContent=t('visionDownloading')+(ind?'…':(' '+Math.round(pct)+'%')); } });
+      _visionPullCtrl=null; _vision.installed=true;
+      const b=_dlBtn(); if(b) b.remove();
+      $('visionStageText').textContent=t('visionReady');
+      $('visionInput').click();                          // proceed straight to picking the image
+    }catch(e){
+      _visionPullCtrl=null; btn.disabled=false;
+      $('visionStageText').textContent = (e&&e.name==='AbortError') ? t('dlCancelled') : t('visionDlFail');
+      btn.textContent=t('dlBtn'); btn.onclick=()=>startVisionDownload(btn);
+    }
+  }
+  { const b=$('visionBtn'); if(b) b.onclick=()=>{ if(_vision.installed) $('visionInput').click(); else offerVisionDownload(); }; }
+  { const vi=$('visionInput'); if(vi) vi.onchange=e=>{ stageVisionImage(e.target.files[0]); e.target.value=''; }; }
+  { const x=$('visionClear'); if(x) x.onclick=clearVisionStage; }
+  // Reveal the camera button iff this machine is CAPABLE (installed or not — the click handles the
+  // download). A non-capable box never sees it (image understanding simply isn't offered there).
+  (async()=>{
+    try{
+      const hw=await (await fetch('/api/hardware')).json();
+      _vision=Object.assign(_vision, hw.vision||{});
+      if(_vision.capable){ const b=$('visionBtn'); if(b) b.style.display=''; }
+    }catch{}
+  })();
 
   // Paste an image from the clipboard (a screenshot or copied photo) → OCR it.
   document.addEventListener('paste', e=>{

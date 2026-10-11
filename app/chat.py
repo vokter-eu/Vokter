@@ -1,4 +1,6 @@
 import asyncio
+import base64
+import binascii
 import hmac
 import json
 import logging
@@ -6,6 +8,7 @@ import time
 import uuid
 from contextlib import closing
 
+import httpx
 from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -13,7 +16,8 @@ from pydantic import BaseModel
 from agent_config import build_system_prompt, get_config
 from config import CHAT_MODEL, HUMAN_SESSION_TOKEN, MAX_HISTORY
 from db import get_db
-from engine import get_engine, ChatRequest
+from engine import get_engine, ChatRequest, resolve_base_url
+from hwdetect import detect, vision_model
 from rag import retrieve
 import memory
 
@@ -26,11 +30,54 @@ class Question(BaseModel):
     conversation_id: str | None = None
     stream: bool = False              # True → SSE token stream (the Electron shell); the
                                       # plain-fetch / peer / MCP path leaves it False → JSON
+    image: str | None = None          # Phase 2: base64 image to ASK ABOUT (image Q&A via the VLM).
+                                      # Distinct from /api/docs, which OCRs an image into searchable
+                                      # text. Present → this request routes to the vision path.
 
 
 def _sse(data: dict) -> str:
     """One Server-Sent-Events frame, mirroring planner.py's wire format."""
     return f"data: {json.dumps(data)}\n\n"
+
+
+def _decode_image(b64: str) -> bytes | None:
+    """Raw bytes from a (possibly data-URL-prefixed) base64 image, or None if it isn't valid."""
+    s = b64.strip()
+    if s.startswith("data:"):
+        s = s.split(",", 1)[-1]        # strip a `data:image/png;base64,` prefix if the client sent one
+    try:
+        return base64.b64decode(s, validate=True)
+    except (binascii.Error, ValueError):
+        return None
+
+
+def _reply_es(question: str) -> bool:
+    """Should the canned vision reply be in Spanish? Follows the user's CONFIGURED reply language
+    (how Vokter is told to talk) — not memory.trigger_lang, which only matches 'recuérdame…' save
+    phrasing and would call every Spanish question English. On 'auto', a light cue on the question."""
+    lang = (get_config().get("language") or "auto").strip().lower()
+    if lang.startswith("es"):
+        return True
+    if lang.startswith("en"):
+        return False
+    ql = (question or "").lower()                 # auto → infer from the question
+    return ("¿" in ql or "¡" in ql
+            or any(w in ql for w in (" qué", " cómo", " dónde", " cuál", " imagen", " foto",
+                                     " esta", " este", " hola"))
+            or ql.startswith(("qué", "cómo", "dónde", "cuál", "hola", "describe esta")))
+
+
+async def _vision_installed(model: str) -> bool:
+    """Is the VLM actually pulled into the running Ollama? Capability (hwdetect) says the box COULD
+    run one; this says one is present to run. A miss → we never call a missing model, we decline."""
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            r = await client.get(f"{resolve_base_url()}/api/tags")
+            names = {m.get("name", "") for m in (r.json().get("models") or [])}
+    except Exception:
+        return False
+    # match "qwen2.5vl:7b" against "qwen2.5vl:7b" and the bare "qwen2.5vl" (→ :latest) forms
+    return model in names or any(n.split(":", 1)[0] == model.split(":", 1)[0] for n in names)
 
 
 def is_local_human_session(mark: str | None) -> bool:
@@ -100,9 +147,110 @@ def _save_turn(conv_id: str, question: str, answer: str, human: bool) -> None:
         db.commit()
 
 
+def _canned(q: "Question", conv_id: str, answer: str, human: bool):
+    """Return a fixed answer in the shape the caller asked for (SSE if stream, else JSON), and
+    persist the turn. Used for the no-VLM decline / OCR-fallback replies — no model runs."""
+    _save_turn(conv_id, q.question or "[image]", answer, human)
+    if q.stream:
+        async def gen_canned():
+            yield _sse({"type": "token", "text": answer})
+            yield _sse({"type": "done", "answer": answer, "sources": [],
+                        "conversation_id": conv_id, "memory_withheld": False})
+        return StreamingResponse(gen_canned(), media_type="text/event-stream")
+    return {"answer": answer, "sources": [], "conversation_id": conv_id}
+
+
+async def _answer_about_image(q: "Question", human: bool):
+    """Phase 2 image Q&A. Capability-gated (VLM only on capable HW + actually installed); otherwise
+    an HONEST decline that falls back to Phase-1 Tesseract OCR ("I can't understand images here,
+    but I read this text…"). Never pulls a model, never calls a missing one."""
+    conv_id = q.conversation_id or str(uuid.uuid4())
+    es = _reply_es(q.question or "")
+    raw = _decode_image(q.image or "")
+    if raw is None:
+        return _canned(q, conv_id,
+                       "No he podido leer esa imagen." if es else "I couldn't read that image.",
+                       human)
+
+    vm = vision_model(detect())                      # capability: can this box run a VLM, and which?
+    model = vm["model"] if vm else None
+    installed = bool(model) and await _vision_installed(model)
+
+    if not (model and installed):
+        # Honest fallback, two distinct cases — never mislabel a capable box as underpowered.
+        # Either way, Phase-1 Tesseract OCR still reads any text off the image so the reply is useful.
+        if model and not installed:              # capable HW, VLM just not pulled yet
+            head = ("El modelo de visión aún no está descargado en este equipo." if es else
+                    "The vision model isn't downloaded on this machine yet.")
+        else:                                    # not a capable machine → understanding not offered
+            head = ("No puedo entender imágenes en este equipo (hace falta una máquina más potente)."
+                    if es else
+                    "I can't understand images on this machine (that needs a more capable computer).")
+        from ocr import ocr_image
+        text = ocr_image(raw).strip()
+        if text:
+            join = (" Aun así, he leído el texto de la imagen:\n\n" if es else
+                    " Still, here's the text I read in the image:\n\n")
+            return _canned(q, conv_id, head + join + text, human)
+        tail = (" Y no he encontrado texto legible en ella." if es else
+                " And I couldn't find any readable text in it.")
+        return _canned(q, conv_id, head + tail, human)
+
+    # VLM path. System prompt still carries personal memory for the human session (P2 gate unchanged
+    # inside build_chat_system); the image + question ride the user turn. No document RAG here.
+    cfg = get_config()
+    system  = await build_chat_system(cfg, human, q.question)
+    history = _load_history(conv_id, int(cfg.get("max_history") or MAX_HISTORY), human)
+    prompt  = (q.question or "").strip() or (
+        "¿Qué hay en esta imagen? Descríbela." if es else "What's in this image? Describe it.")
+    b64 = base64.b64encode(raw).decode()
+    messages = (
+        [{"role": "system", "content": system}]
+        + history
+        + [{"role": "user", "content": prompt, "images": [b64]}]
+    )
+    memory_withheld = (not human) and memory.has_facts()
+    save_q = "[image] " + prompt          # mark that this turn carried an image, for history
+    # Image-encode on CPU is slow (tens of seconds before the first token) → a generous timeout.
+    req = ChatRequest(messages=messages, model=model, context_size=8192, timeout=600)
+
+    if q.stream:
+        async def gen():
+            parts: list[str] = []
+            try:
+                async for delta in get_engine().chat_stream(req):
+                    parts.append(delta)
+                    yield _sse({"type": "token", "text": delta})
+            except asyncio.CancelledError:
+                raise
+            except HTTPException as e:
+                yield _sse({"type": "error", "detail": str(e.detail)})
+                return
+            except Exception:
+                log.exception("[vision] streaming generation failed")
+                yield _sse({"type": "error", "detail": "engine error"})
+                return
+            full = "".join(parts)
+            _save_turn(conv_id, save_q, full, human)
+            yield _sse({"type": "done", "answer": full, "sources": [],
+                        "conversation_id": conv_id, "memory_withheld": memory_withheld})
+        return StreamingResponse(gen(), media_type="text/event-stream")
+
+    answer = await get_engine().chat(req)
+    _save_turn(conv_id, save_q, answer, human)
+    return {"answer": answer, "sources": [], "conversation_id": conv_id,
+            "memory_withheld": memory_withheld}
+
+
 @router.post("/api/ask")
 async def ask(q: Question, x_vokter_human_session: str | None = Header(default=None)):
     human = is_local_human_session(x_vokter_human_session)
+
+    # Phase 2 — image Q&A ("what's in this photo", read a diagram/chart). Routed to the VLM BEFORE
+    # the text paths: an image question is never a "remember that…" and must not drag in document
+    # RAG (we're asking about THIS image, not the store). Capability-gated + fall-closed inside.
+    if q.image:
+        return await _answer_about_image(q, human)
 
     # Explicit memory save ("recuérdame que…" / "remember that…"): store the fact
     # VERBATIM, confirm predictably in the same language, and return — it never runs

@@ -121,6 +121,10 @@
   .chip:focus-visible{outline:2px solid var(--green);outline-offset:2px}
 
   .composer{flex:0 0 auto;padding:16px 24px calc(18px + env(safe-area-inset-bottom))}
+  .visionstage{display:flex;align-items:center;gap:10px;width:100%;max-width:var(--col);margin:0 auto 8px;background:var(--cream2);border:1px solid var(--sand);border-radius:12px;padding:8px 10px;box-shadow:var(--shadow)}
+  .visionstage img{width:40px;height:40px;border-radius:8px;object-fit:cover;flex:0 0 auto}
+  .visionstage .vstext{flex:1 1 auto;font-size:13px;color:var(--ink2,#6b6b6b)}
+  .visionstage .vsx{flex:0 0 auto;border:none;background:none;cursor:pointer;font-size:14px;color:var(--ink2,#6b6b6b);padding:4px}
   .inrow{display:flex;align-items:center;gap:8px;width:100%;max-width:var(--col);margin:0 auto;background:var(--cream2);border:1px solid var(--sand);border-radius:12px;padding:7px 7px 7px 15px;box-shadow:var(--shadow)}
   .inrow:focus-within{border-color:var(--green)}
   .inrow input[type=text]{flex:1;border:none;background:none;outline:none;font-family:inherit;font-size:15px;color:var(--ink);min-width:0}
@@ -374,10 +378,22 @@
 
     <div class="composer">
       <div class="modelbadge" id="modelBadge" title=""></div>
+      <!-- Phase 2: an image staged to ASK ABOUT (image Q&A via the VLM) — distinct from the
+           attach-document button, which OCRs a file into searchable text. Hidden until an image
+           is staged; the whole row is only reachable when /api/hardware reports vision available. -->
+      <div class="visionstage" id="visionStage" style="display:none">
+        <img id="visionThumb" alt="">
+        <span class="vstext" id="visionStageText" data-i18n="visionStaged">Ask a question about this image…</span>
+        <button class="vsx" id="visionClear" aria-label="Remove image">✕</button>
+      </div>
       <div class="inrow">
         <button class="rnd plain" id="attachBtn" data-i18n-aria="addDoc" aria-label="Add a document or image">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="m8 13 4 4a5 5 0 0 0 7-7l-7-7a3.5 3.5 0 0 0-5 5l7 7a2 2 0 0 0 3-3l-6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
+        <button class="rnd plain" id="visionBtn" style="display:none" data-i18n-aria="askImage" aria-label="Ask about an image">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2.5" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.8"/><path d="M8 5l1.2-2h5.6L16 5" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        </button>
+        <input type="file" id="visionInput" style="display:none" accept=".png,.jpg,.jpeg,.webp,.bmp,.tif,.tiff,.gif">
         <input type="file" id="fileInput" style="display:none" accept=".pdf,.txt,.md,.docx,.csv,.png,.jpg,.jpeg,.webp,.bmp,.tif,.tiff,.gif">
         <input type="text" id="q" data-i18n-ph="placeholder" placeholder="Message your agent…" autocomplete="off">
         <button class="rnd mic" id="micBtn" data-i18n-aria="speak" aria-label="Speak">

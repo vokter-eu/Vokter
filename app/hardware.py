@@ -12,7 +12,7 @@ import os
 
 from fastapi import APIRouter
 
-from hwdetect import CATALOG, detect, recommend, visible_catalog  # noqa: F401 (CATALOG kept for callers)
+from hwdetect import CATALOG, detect, recommend, visible_catalog, vision_model  # noqa: F401 (CATALOG kept for callers)
 
 router = APIRouter()
 
@@ -37,7 +37,7 @@ MIRROR_MODELS = {
 
 
 @router.get("/api/hardware")
-def hardware(lang: str | None = None):
+async def hardware(lang: str | None = None):
     # `lang` lets the picker PREVIEW the recommendation for the currently-selected reply language
     # (before Save); without it we fall back to the saved config language.
     from agent_config import get_config
@@ -45,4 +45,16 @@ def hardware(lang: str | None = None):
     lang = (lang or get_config().get("language") or "auto").strip()
     # `catalog` is the HARDWARE-GATED curated list (the chips the user sees): a CPU-only box never
     # gets the powerful (14B) chip. The free-text "any model name" field is separate/unaffected.
-    return {"hardware": hw, "recommended": recommend(hw, lang), "catalog": visible_catalog(hw)}
+    # `vision` (Phase 2) is SEPARATE from the chat catalog: image understanding, offered only on
+    # capable HW. `capable` = can run a VLM with dignity; `installed` = one is actually pulled; the
+    # UI uses the pair to pick absent / "download to enable" / "ask about an image". Never autopulled.
+    vm = vision_model(hw)
+    from chat import _vision_installed    # local import avoids a module-load cycle
+    vision = {
+        "capable":   vm is not None,
+        "model":     vm["model"] if vm else None,
+        "size_gb":   vm["size_gb"] if vm else None,
+        "installed": (await _vision_installed(vm["model"])) if vm else False,
+    }
+    return {"hardware": hw, "recommended": recommend(hw, lang),
+            "catalog": visible_catalog(hw), "vision": vision}

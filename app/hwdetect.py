@@ -24,7 +24,17 @@ CATALOG = [
     {"tier": "balanced", "model": "llama3.1:8b",      "size_gb": 4.9,  "source": "registry"},
     {"tier": "powerful", "model": "qwen2.5:14b",      "size_gb": 9.0,  "source": "registry"},
     {"tier": "catalan",  "model": "salamandra-2b-instruct", "size_gb": 1.5, "source": "mirror"},
+    # VISION (Phase 2, image understanding — NOT a chat tier): a VLM for true image Q&A
+    # ("what's in this photo", read a diagram/chart, messy layouts Tesseract can't parse).
+    # kind="vision" fences it off from every CHAT consumer (recommend / visible_catalog / the
+    # orchestrator first-run pull) so it is NEVER auto-picked or auto-pulled as the chat model.
+    # Capability-gated like balanced/powerful (see _can_run_vision): offered ONLY on GPU/Apple or a
+    # strong CPU, never on the i3 floor. Pulled on-demand with consent, never at silent boot.
+    # qwen2.5vl:7b: battle-tested on Ollama, strong ES/CA. Alternative = qwen3-vl:8b (newer) /
+    # minicpm-v:8b (SOTA OCRBench). See docs/IMAGE_UNDERSTANDING.md.
+    {"tier": "vision",   "model": "qwen2.5vl:7b",     "size_gb": 6.0,  "source": "registry", "kind": "vision"},
 ]
+VISION_TIER = "vision"
 # BALANCED (mid) = llama3.1:8b: NON-SWA, multilingual, and it PASSED the N=5 harness (confab 0/5,
 # no-preamble 0/10, one-language clean — incl. the English→Spanish slip that qwen2.5:7b FAILED 5/5,
 # 2026-09-27). qwen2.5:7b was rejected for that slip; gemma3:4b is out (SWA → ~10 s/msg on weak CPU,
@@ -124,6 +134,31 @@ def _can_run_balanced(hw: dict) -> bool:
     return (hw.get("ram_gb") or 0.0) >= 16 and (hw.get("cpu_cores") or 1) >= 8
 
 
+def _can_run_vision(hw: dict) -> bool:
+    """True when the box can run the Phase-2 VLM (image understanding, ~6 GB + heavy image-encode)
+    with dignity. Same capability bar as the balanced chat tier — ANY GPU/Apple, or a strong CPU
+    (≥16 GB AND ≥8 cores). A weak CPU-only box (the i3 floor) is False: image *understanding* is
+    simply not offered there (Tesseract still reads text off images via Phase 1). VLM image
+    inference encodes the image on CPU before generating → tens of seconds/image on a weak box, so
+    the floor stays OCR-only. Shares _can_run_balanced so 'capable' means one thing across tiers."""
+    return _can_run_balanced(hw)
+
+
+def vision_model(hw: dict) -> dict | None:
+    """The VLM to offer for image Q&A on THIS box, or None if it can't run one with dignity (→ image
+    understanding is not offered; never auto-pulled). VOKTER_VISION_MODEL overrides the model id AND
+    forces availability (power-user / at-own-risk on a weak box; also how the capable path is
+    dev-previewed on CPU hardware), mirroring the VOKTER_CHAT_MODEL / VOKTER_TESSERACT_* idiom.
+    Capability only — whether the model is actually PULLED is a runtime check in hardware.py."""
+    override = os.getenv("VOKTER_VISION_MODEL")
+    if override:
+        return {"tier": VISION_TIER, "model": override, "size_gb": None,
+                "source": "registry", "kind": "vision"}
+    if not _can_run_vision(hw):
+        return None
+    return _BY_TIER.get(VISION_TIER)
+
+
 def visible_catalog(hw: dict) -> list[dict]:
     """The curated model chips a user should SEE in the picker — gated to what THEIR machine can run
     with dignity, instead of showing everyone every tier. Rationale (product): a big model on a
@@ -141,7 +176,9 @@ def visible_catalog(hw: dict) -> list[dict]:
         tiers.add("balanced")                           # 8 B: any GPU/Apple or a strong CPU
     if _capable_gpu(hw):
         tiers.add("powerful")                           # 14 B: only where a GPU/Apple runs it well
-    return [c for c in CATALOG if c["tier"] in tiers]
+    # kind != "vision": these are the CHAT chips; the VLM is image-understanding, surfaced
+    # separately via /api/hardware's `vision` field — never as a selectable chat model.
+    return [c for c in CATALOG if c["tier"] in tiers and c.get("kind", "chat") != "vision"]
 
 
 def recommend(hw: dict, lang: str = "auto") -> dict:

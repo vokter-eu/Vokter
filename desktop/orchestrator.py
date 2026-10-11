@@ -508,7 +508,10 @@ def _boot_chat_model() -> str:
         # other curated model present. (chat.py already uses the persisted chat_model; this keeps the
         # orchestrator's pull + prewarm env in agreement with it.)
         ordered: list[str] = []
-        for m in [rec.get("model"), CHAT_MODEL, *(c["model"] for c in hwdetect.CATALOG)]:
+        # kind != "vision": the Phase-2 VLM lives in CATALOG but is NOT a chat model — never let a
+        # returning user who pulled it have it selected as `chosen` (and prewarmed) as their chat model.
+        chat_catalog = [c["model"] for c in hwdetect.CATALOG if c.get("kind", "chat") != "vision"]
+        for m in [rec.get("model"), CHAT_MODEL, *chat_catalog]:
             if m and m not in ordered:
                 ordered.append(m)
         installed = next((m for m in ordered if _model_present(m, have)), None)

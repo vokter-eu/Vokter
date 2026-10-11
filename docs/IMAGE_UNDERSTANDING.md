@@ -1,9 +1,11 @@
 # Image understanding for Vokter — plan (Tier-1 OCR now; VLM deferred)
 
 **Status:** Phase 1 (OCR text-extraction) **shipped and proven on the frozen `.deb`** (see the
-frozen-build proof below); Phase 2 (VLM image Q&A) deferred to a
-capable-tier upgrade. Near-term, local-only, must fit the i3 floor + the bundled-Ollama / frozen
-`.deb` stack. This doc is the plan + the verified research behind it.
+frozen-build proof below). Phase 2 (VLM image Q&A) **implemented, in dev-preview** (see the Phase-2
+notes at the bottom): a capability-gated VLM (`qwen2.5vl:7b`) for true image Q&A, offered only on
+capable hardware, consent-pulled on demand, with the i3 floor degrading honestly to Phase-1 OCR.
+Near-term, local-only, must fit the i3 floor + the bundled-Ollama / frozen `.deb` stack. This doc is
+the plan + the verified research behind it.
 
 ## The two sub-capabilities (different problems)
 
@@ -99,3 +101,40 @@ dropped data files and broke only in the `.deb`).
   That is the vendored tesseract tree (~15 MB uncompressed) **plus Pillow + its native `pillow.libs`**
   in the frozen backend; the Phase-1 commit message's "+5.4 MB" counted only the tesseract tree and
   omitted Pillow. Prune held (no regression; tesseract did not double).
+
+## Phase-2 implementation notes (image understanding — dev-preview)
+
+Phase 2 adds a VLM for **image Q&A** ("what's in this photo", read a diagram/chart, messy layouts
+Tesseract can't parse). Routing is by **intent/endpoint**, so Phase 1 is untouched:
+
+- **`/api/docs` → Tesseract OCR** (all machines, unchanged): "add a document/image, reads the text".
+- **`/api/ask` with an attached image → the VLM** (`Question.image`, base64): true image understanding,
+  capable hardware only. No engine change — Ollama's `/api/chat` carries per-message `images`.
+
+**Model + capability gate (`app/hwdetect.py`).** A `kind:"vision"` CATALOG entry (`qwen2.5vl:7b`,
+~6 GB, strong ES/CA; alternatives `qwen3-vl:8b` / `minicpm-v:8b`). `vision_model(hw)` returns it only
+when `_can_run_vision(hw)` (= the balanced bar: any GPU/Apple, or a strong CPU ≥16 GB/≥8 c); the i3
+floor gets `None`. `kind:"vision"` fences it out of every CHAT consumer — `recommend()`,
+`visible_catalog()`, and the orchestrator first-run pull — so it is **never** auto-picked or
+auto-pulled as the chat model. `VOKTER_VISION_MODEL` overrides the id + forces availability
+(power-user / dev-preview on CPU).
+
+**Routing (`app/chat.py`).** `/api/ask` branches early on `image`: builds a user turn carrying the
+image, routes to the vision model, keeps the system prompt + P2 personal-memory gate, and skips
+document RAG (we're asking about *this* image). Fall-closed: if the box isn't capable, or the VLM
+isn't pulled, it **degrades to Phase-1 OCR** with an honest, language-correct note (distinguishing
+"needs a more capable machine" from "model not downloaded yet"), never calling a missing model.
+
+**UX (`/api/hardware` + `app/static`).** `/api/hardware` exposes `vision {capable, model, size_gb,
+installed}`. The composer shows an "ask about an image" (camera) button only when capable; if the
+VLM isn't installed, the first click offers a **size-disclosed, consent-gated one-time download**
+(reusing the `/api/models/pull` SSE progress flow) — a capable box is never auto-pulled. EN/ES.
+
+**Not a chat default → no N=5 chat harness.** The VLM is opt-in (only when an image is attached), so
+the chat-model confab/language harness is a category error; the right check is image-specific
+(describes the image without hallucinating; EN→EN / ES→ES). Deferred, like Phase 1: the clean-VM
+`.deb` fire test and a frozen-build packaged gate before release.
+
+**Known deferred risk:** text inside an uploaded image reaches a VLM whose prompt carries personal
+memory for the human session — the same indirect-prompt-injection class as Phase-1 OCR→RAG (see
+docs/threat-model-prompt-injection.md), not new to Phase 2.
