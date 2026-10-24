@@ -245,12 +245,21 @@ def _render_block(lines: str) -> str:
 # block FLIPS to "list ALL of these" — while keeping the other half of the guard intact: do
 # NOT invent anything not listed (the confabulation ban is preserved, only the omission rule
 # is reversed). Reached ONLY via the strictly-gated entity branch in relevant_block.
-def _render_entity_block(name: str, lines: str) -> str:
+def _render_entity_block(name: str, lines: str, connections: list[str] | None = None) -> str:
+    # Phase B: a typed-connection summary (child-of/parent-of/attends/lives-in/works-at),
+    # when present, is shown FIRST as a concise structured header — the "Emma is your
+    # daughter, attends Oakwood" the entity query is meant to surface. It is DERIVED from the
+    # same facts below (grounded), so it adds structure, not new claims; the invent-nothing
+    # rule still binds. Empty → omitted, and the block reads exactly as before.
+    conn_block = ""
+    if connections:
+        conn_block = ("Known connections:\n"
+                      + "\n".join(f"- {c}" for c in connections) + "\n\n")
     return (
         f"\n\nThe user asked what you know about {name}. Below is EVERYTHING you have been "
         f"told about them (personal, private to this chat). List ALL of these facts in your "
         f"answer — do not omit any of them:\n"
-        f"{lines}\n"
+        f"{conn_block}{lines}\n"
         f"Use ONLY the facts written above: do not invent, guess, or add any detail about "
         f"{name} that is not in this list, and if something isn't here, say you don't have it "
         f"rather than making it up. These are things the USER TOLD YOU, not documents — never "
@@ -473,8 +482,8 @@ async def relevant_block(query: str) -> str:
         # "my son Leo…") that are noise in a focused "what do I know about Emma". Emma's own
         # identity facts already appear in `gathered` (reindex links the facts that name her,
         # core or not), so nothing about her is lost.
-        name, gathered = entity_hit
-        return _render_entity_block(name, "\n".join(f"- {c}" for c in gathered))
+        name, gathered, connections = entity_hit
+        return _render_entity_block(name, "\n".join(f"- {c}" for c in gathered), connections)
     if not rows:
         return ""
     content_by_id = {cid: content for cid, content, _core, _emb in rows}

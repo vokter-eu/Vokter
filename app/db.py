@@ -217,6 +217,31 @@ def get_db():
         "CREATE INDEX IF NOT EXISTS entity_aliases_norm_idx ON entity_aliases(alias_norm)"
     )
 
+    # Phase B — HEURISTIC typed relations (closed predicate set, NO model). A directed edge
+    # src --predicate--> dst, grounded in a fact's verbatim text (entities.extract_relations;
+    # precision earned by subject-adjacency + known-person + negation + proper-noun guards,
+    # measured adversarially in tests/entity_relation_eval.py). Predicates: child-of /
+    # parent-of (dst = the reserved 'you' self node) / attends / lives-in / works-at (dst = a
+    # place/org entity created as the relation ENDPOINT). Additive, no re-embed. Relations are
+    # DERIVED — reindex rebuilds them from current text each pass (no suppression flag yet; the
+    # corrections UI is the deferred follow-up). src_entity/dst_entity NOT NULL so the GC's
+    # NOT EXISTS keep-set can't be poisoned by a NULL. ON DELETE CASCADE from entities AND the
+    # source fact → a deleted fact/entity drops its edges.
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS relations (
+               id         INTEGER PRIMARY KEY AUTOINCREMENT,
+               src_entity INTEGER NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+               predicate  TEXT    NOT NULL,     -- child-of|parent-of|attends|lives-in|works-at
+               dst_entity INTEGER NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+               memory_id  INTEGER NOT NULL REFERENCES memory(id)   ON DELETE CASCADE,  -- provenance
+               created_at REAL    NOT NULL,
+               UNIQUE(src_entity, predicate, dst_entity)
+           )"""
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS relations_src_idx ON relations(src_entity)"
+    )
+
     # A key/value marker table so the one-time heavy migrations (migrations.run_once)
     # know what has already run and never repeat it.
     conn.execute(

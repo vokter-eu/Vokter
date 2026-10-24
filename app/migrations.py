@@ -95,6 +95,16 @@ def run_once() -> None:
             db.commit()
             log.info("[migrate] entity index built over existing memory (Phase A)")
 
+        # 4) Phase B — build typed relations over existing facts (one-off; reindex now also
+        #    derives relations, so this just re-runs it on a store that predates Phase B).
+        #    Deterministic, Ollama-free, no re-embed. Fenced so it never repeats.
+        if not _meta_get(db, "entity_relations_v1"):
+            import entities
+            entities.reindex(db)
+            _meta_set(db, "entity_relations_v1")
+            db.commit()
+            log.info("[migrate] typed relations built over existing memory (Phase B)")
+
 
 async def reembed_stale(batch: int = 64) -> int:
     """Re-embed any chunk or fact whose stored vector doesn't match the CURRENT embed
