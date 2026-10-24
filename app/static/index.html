@@ -246,6 +246,13 @@
   .memicon{cursor:pointer;font-size:13px;color:var(--grey2);background:none;border:none;padding:4px 6px;border-radius:var(--r-sm)}
   .memicon:hover{color:var(--green);background:var(--tint)}
   .memlock{font-size:11.5px;color:var(--grey2);white-space:nowrap}
+  /* People view (entity layer) — reuses membox/memrow/memc/del; a few bits of its own. */
+  .peoplehead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+  .peoplename{font-size:15px;font-weight:600;color:var(--ink);word-break:break-word}
+  .peopleconnlab{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--grey2);padding:2px 2px 4px}
+  .peopleconn{font-size:13px;line-height:1.5;color:var(--ink);padding:2px 2px}
+  .peoplefacts{margin-top:8px}
+  .pmerge{cursor:pointer;font-family:inherit;font-size:12px;color:var(--green);background:none;border:1px solid var(--sand);border-radius:var(--r-sm);padding:5px 9px}
   .memaddrow{display:flex;gap:8px;margin-top:14px}
   .memaddrow .sin{flex:1}
   .memforget{margin-top:16px;cursor:pointer;font-family:inherit;font-size:13px;color:var(--grey);background:none;border:none;border-top:1px solid var(--sand);width:100%;text-align:left;padding:14px 2px 2px;transition:color .12s}

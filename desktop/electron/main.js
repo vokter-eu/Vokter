@@ -433,9 +433,25 @@ ipcMain.handle('vokter:memory', (_event, reqIn) => new Promise((resolve) => {
   const id = Number.isInteger(r.id) ? r.id : null;
   const idNeeded = ['edit', 'pin', 'unpin', 'delete'];
   if (idNeeded.includes(r.op) && id == null) { resolve({ status: 400, body: null }); return; }
+  // Phase A/B entity-layer ops carry their own integer ids; validate here so a bad page
+  // request can never build a malformed path.
+  const entId = Number.isInteger(r.entityId) ? r.entityId : null;
+  const memId = Number.isInteger(r.memId) ? r.memId : null;
+  const fromId = Number.isInteger(r.fromId) ? r.fromId : null;
+  const intoId = Number.isInteger(r.intoId) ? r.intoId : null;
+  if (r.op === 'entityUnlink' && (entId == null || memId == null)) { resolve({ status: 400, body: null }); return; }
+  if (r.op === 'entityMerge' && (fromId == null || intoId == null)) { resolve({ status: 400, body: null }); return; }
   let method, path, payload = null;
   switch (r.op) {
     case 'list':  method = 'GET';  path = '/api/memory'; break;
+    // People view (entity layer): list people + their facts + typed connections; unlink a
+    // wrong fact; merge two same-named people. Same token bridge, page-whitelisted paths.
+    case 'entities':     method = 'GET';  path = '/api/memory/entities'; break;
+    case 'entityUnlink': method = 'POST'; path = `/api/memory/entities/${entId}/unlink/${memId}`; break;
+    case 'entityMerge':
+      method = 'POST'; path = '/api/memory/entities/merge';
+      payload = JSON.stringify({ from_id: fromId, into_id: intoId });
+      break;
     case 'add':
       method = 'POST'; path = '/api/memory';
       payload = JSON.stringify({

@@ -495,18 +495,23 @@ def entity_query_facts(db, query: str) -> tuple[str, list[str], list[str]] | Non
 
 
 def list_entities(db) -> list[dict]:
-    """The user-visible entity layer: each person + aliases + their linked facts (and which
-    are suppressed), for the 'what Vokter has connected' view and corrections."""
+    """The user-visible 'People' layer: each REAL person + aliases + their linked facts (and
+    which are suppressed) + the Phase B typed connections ("is your daughter", "attends X").
+    Filtered to type='person' EXCLUDING the reserved self node — place/org nodes are internal
+    relation endpoints, and 'you' is the user, neither is a person to show (per the UI
+    decision). For the transparency view and corrections (unlink/merge)."""
     out = []
-    for eid, name, ntype in db.execute(
-            "SELECT id, name, type FROM entities ORDER BY name COLLATE NOCASE").fetchall():
+    for eid, name in db.execute(
+            "SELECT id, name FROM entities WHERE type='person' AND norm != ? "
+            "ORDER BY name COLLATE NOCASE", (SELF_NORM,)).fetchall():
         aliases = [r[0] for r in db.execute(
             "SELECT alias_norm FROM entity_aliases WHERE entity_id=?", (eid,)).fetchall()]
         facts = [{"id": r[0], "content": r[1], "suppressed": bool(r[2])} for r in db.execute(
             "SELECT m.id, m.content, fe.suppressed FROM fact_entities fe "
             "JOIN memory m ON m.id = fe.memory_id WHERE fe.entity_id=? "
             "ORDER BY m.created_at DESC, m.id DESC", (eid,)).fetchall()]
-        out.append({"id": eid, "name": name, "type": ntype, "aliases": aliases, "facts": facts})
+        out.append({"id": eid, "name": name, "type": "person", "aliases": aliases,
+                    "facts": facts, "connections": render_connections(db, eid, name)})
     return out
 
 

@@ -30,6 +30,17 @@
       memForgetAll:"Forget everything about me", memForgetAllConfirm:"Permanently forget everything Vokter knows about you?", memForgetAllConfirm2:"This deletes all {n} fact(s) for good. Continue?", memForgotAll:"Forgot everything ({n}).",
       memSearchPh:"Search memory…", memEmpty:"Vokter doesn't know anything about you yet. Tell it in chat (\"remember that…\") or add something here.", memNoMatch:"No matching facts.",
       memDesktopOnly:"Your memory is available only in the Vokter desktop app.",
+      rowPeople:"People",
+      peopleIntro:"People Vokter has connected from what you've told it. It links facts that NAME someone, plus simple relations it can read directly (like “daughter” or “attends”). It won't yet connect mentions by “she/he” or implied references.",
+      peopleEmpty:"Vokter hasn't connected anyone yet. Tell it about people in chat (e.g. “my daughter Emma…”) and they'll appear here.",
+      peopleConnections:"Known connections",
+      peopleUnlinkAria:"This fact isn't about them",
+      peopleUnlinkConfirm:"Unlink “{fact}” from {name}? The fact itself is kept.",
+      peopleUnlinkedToast:"Unlinked.",
+      peopleMerge:"Merge into…",
+      peopleMergeConfirm:"Merge {from} into {into}? Their facts and connections combine under {into}.",
+      peopleMergedToast:"Merged.",
+      peopleDesktopOnly:"People are available only in the Vokter desktop app.",
       docDeleteConfirm:"Delete “{doc}” and everything your agent learned from it?", safetyBannerBad:"⚠ Safety rules failed to load — every guarded action is blocked or needs confirmation until this is fixed.",
       noteEmail:"Connect an inbox — indexed on this machine, never uploaded.",
       noteWeb:"Choose which sites your agent may visit.",
@@ -108,6 +119,17 @@
       memForgetAll:"Olvidar todo sobre mí", memForgetAllConfirm:"¿Olvidar permanentemente todo lo que Vokter sabe de ti?", memForgetAllConfirm2:"Esto borra los {n} dato(s) para siempre. ¿Continuar?", memForgotAll:"Olvidado todo ({n}).",
       memSearchPh:"Buscar en la memoria…", memEmpty:"Vokter aún no sabe nada de ti. Díselo en el chat («recuerda que…») o añade algo aquí.", memNoMatch:"Sin coincidencias.",
       memDesktopOnly:"Tu memoria solo está disponible en la app de escritorio de Vokter.",
+      rowPeople:"Personas",
+      peopleIntro:"Personas que Vokter ha conectado a partir de lo que le has contado. Enlaza hechos que NOMBRAN a alguien, y relaciones simples que puede leer directamente (como «hija» o «estudia en»). Todavía no conecta menciones con «ella/él» ni referencias implícitas.",
+      peopleEmpty:"Vokter aún no ha conectado a nadie. Cuéntale sobre personas en el chat (p. ej. «mi hija Emma…») y aparecerán aquí.",
+      peopleConnections:"Conexiones conocidas",
+      peopleUnlinkAria:"Este dato no es sobre esta persona",
+      peopleUnlinkConfirm:"¿Desvincular «{fact}» de {name}? El dato en sí se conserva.",
+      peopleUnlinkedToast:"Desvinculado.",
+      peopleMerge:"Combinar con…",
+      peopleMergeConfirm:"¿Combinar {from} con {into}? Sus datos y conexiones se unen bajo {into}.",
+      peopleMergedToast:"Combinado.",
+      peopleDesktopOnly:"Las personas solo están disponibles en la app de escritorio de Vokter.",
       docDeleteConfirm:"¿Borrar «{doc}» y todo lo que tu agente aprendió de él?", safetyBannerBad:"⚠ No se pudieron cargar las reglas de seguridad — toda acción protegida queda bloqueada o requiere confirmación hasta arreglarlo.",
       noteEmail:"Conecta un buzón — se indexa en esta máquina, nunca se sube.",
       noteWeb:"Elige a qué sitios puede acceder tu agente.",
@@ -826,11 +848,13 @@
     voice:'<rect x="9" y="3" width="6" height="12" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     model:'<path d="M12 3a6 6 0 0 1 6 6c0 2.5-1.8 3.5-1.8 6H7.8C7.8 12.5 6 11.5 6 9a6 6 0 0 1 6-6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 21h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
     language:'<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M3 12h18M12 3a14 14 0 0 1 4 9 14 14 0 0 1-4 9 14 14 0 0 1-4-9 14 14 0 0 1 4-9z" stroke="currentColor" stroke-width="1.8"/>',
-    memory:'<path d="M6 3h11a1 1 0 0 1 1 1v17l-6.5-4L5 21V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'
+    memory:'<path d="M6 3h11a1 1 0 0 1 1 1v17l-6.5-4L5 21V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>',
+    people:'<circle cx="9" cy="8" r="3.2" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16 5.2a3.2 3.2 0 0 1 0 5.6M17.5 13.4A5.5 5.5 0 0 1 20.5 19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
   };
   const ROWS=[
     {k:'documents',lk:'rowDocuments',type:'docs'},
     {k:'memory',lk:'rowMemory',type:'memory'},
+    {k:'people',lk:'rowPeople',type:'people'},
     {k:'email',lk:'rowEmail',type:'email'},
     {k:'web',lk:'rowWeb',type:'web'},
     {k:'tasks',lk:'rowTasks',type:'tasks'},
@@ -862,6 +886,7 @@
     settingsFromHome=true;                 // rows are only reached from the Settings home
     if(row.type==='docs') return renderDocs();
     if(row.type==='memory') return renderMemory();
+    if(row.type==='people') return renderPeople();
     if(row.type==='lang') return renderLang();
     if(row.type==='email') return renderEmail();
     if(row.type==='web') return renderWeb();
@@ -1351,6 +1376,85 @@
     async function doAdd(){ const v=addin.value.trim(); if(!v) return; addin.value=''; const r=await memCall({op:'add',content:v}); const dem=(r&&r.body&&r.body.demoted)||[]; if(dem.length) toast(t('memMoved',{n:dem.length})); load(); }
     addbtn.onclick=doAdd; addin.onkeydown=e=>{ if(e.key==='Enter') doAdd(); };
     forget.onclick=async()=>{ if(!all.length) return; if(!confirm(t('memForgetAllConfirm'))) return; if(!confirm(t('memForgetAllConfirm2',{n:all.length}))) return; const r=await memCall({op:'forgetAll',confirm:true}); if(r.status===200){ toast(t('memForgotAll',{n:(r.body&&r.body.forgotten)||0})); load(); } };
+    load();
+  }
+
+  // ── People view — the entity layer (Phase A links + Phase B typed relations) made visible ──
+  // Shows what Vokter has CONNECTED: facts that NAME a person + heuristic relations it can read
+  // directly (daughter / attends / lives in). HONEST by design — it does NOT claim pronoun /
+  // implicit mentions (that's Phase C). Same token bridge as the memory view (window.vokter.memory,
+  // op:'entities'/'entityUnlink'/'entityMerge'); no token in page JS. CSP-safe: all user text via
+  // textContent, never innerHTML. Place/org endpoints and the 'you' self node are filtered out
+  // server-side (list_entities), so only real people appear here.
+  function renderPeople(){
+    sTitle.textContent=t('rowPeople');
+    const wrap=_sub();
+    const intro=document.createElement('div'); intro.className='note'; intro.textContent=t('peopleIntro'); wrap.appendChild(intro);
+    const listEl=document.createElement('div'); wrap.appendChild(listEl);
+    let people=[];
+
+    // Merge control: fold THIS person into another (same person, two spellings). from = this,
+    // into = the one picked. The backend adds this name as an alias of the target, so it stays
+    // merged across reindex. Shown only when there's another person to merge into.
+    function mergeControl(p){
+      const others=people.filter(o=>o.id!==p.id);
+      if(!others.length) return null;
+      const sel=document.createElement('select'); sel.className='pmerge';
+      const opt0=document.createElement('option'); opt0.value=''; opt0.textContent=t('peopleMerge'); sel.appendChild(opt0);
+      others.forEach(o=>{ const op=document.createElement('option'); op.value=String(o.id); op.textContent=o.name; sel.appendChild(op); });
+      sel.onchange=async()=>{
+        const intoId=parseInt(sel.value,10); sel.value='';
+        if(!intoId) return;
+        const into=people.find(o=>o.id===intoId); if(!into) return;
+        if(!confirm(t('peopleMergeConfirm',{from:p.name,into:into.name}))) return;
+        const r=await memCall({op:'entityMerge',fromId:p.id,intoId:intoId});
+        if(r && r.status===200){ toast(t('peopleMergedToast')); load(); }
+      };
+      return sel;
+    }
+
+    function personCard(p){
+      const card=document.createElement('div'); card.className='membox';
+      const head=document.createElement('div'); head.className='peoplehead';
+      const nm=document.createElement('div'); nm.className='peoplename'; nm.textContent=p.name; head.appendChild(nm);  // CSP: name via textContent
+      const mc=mergeControl(p); if(mc) head.appendChild(mc);
+      card.appendChild(head);
+      // Phase B typed connections ("Emma is your daughter", "attends Oakwood") — grounded in the
+      // facts below, shown first as a concise summary.
+      const conns=(p.connections||[]);
+      if(conns.length){
+        const lab=document.createElement('div'); lab.className='peopleconnlab'; lab.textContent=t('peopleConnections'); card.appendChild(lab);
+        conns.forEach(c=>{ const d=document.createElement('div'); d.className='peopleconn'; d.textContent='— '+c; card.appendChild(d); });
+      }
+      // The linked facts (non-suppressed), each unlinkable if it isn't really about this person.
+      const facts=(p.facts||[]).filter(f=>!f.suppressed);
+      const fwrap=document.createElement('div'); fwrap.className='peoplefacts';
+      facts.forEach(f=>{
+        const row=document.createElement('div'); row.className='memrow';
+        const main=document.createElement('div'); main.className='memmain';
+        const c=document.createElement('div'); c.className='memc'; c.textContent=f.content; main.appendChild(c);  // CSP
+        row.appendChild(main);
+        const act=document.createElement('div'); act.className='memact';
+        const x=document.createElement('button'); x.className='del'; x.textContent='×'; x.setAttribute('aria-label',t('peopleUnlinkAria'));
+        x.onclick=async()=>{ if(!confirm(t('peopleUnlinkConfirm',{fact:f.content,name:p.name}))) return; const r=await memCall({op:'entityUnlink',entityId:p.id,memId:f.id}); if(r && r.status===200){ toast(t('peopleUnlinkedToast')); load(); } };
+        act.appendChild(x); row.appendChild(act); fwrap.appendChild(row);
+      });
+      card.appendChild(fwrap);
+      return card;
+    }
+
+    function render(){
+      listEl.textContent='';
+      if(!people.length){ listEl.appendChild(_placeholder(t('peopleEmpty'))); return; }
+      people.forEach(p=>listEl.appendChild(personCard(p)));
+    }
+
+    async function load(){
+      const r=await memCall({op:'entities'});
+      if(!r || r.status!==200 || !r.body){ listEl.textContent=''; listEl.appendChild(_placeholder(t('peopleDesktopOnly'))); return; }
+      people=r.body.entities||[];
+      render();
+    }
     load();
   }
 
