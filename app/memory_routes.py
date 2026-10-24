@@ -17,6 +17,7 @@ from contextlib import closing
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
+import entities
 import memory
 from chat import is_local_human_session
 from db import get_db
@@ -176,3 +177,43 @@ async def memory_suggest(item: SuggestIn,
     existing = {_norm(m["content"]) for m in memory.list_all()}
     suggestions = [f for f in proposed if _norm(f) not in existing]
     return {"suggestions": suggestions}
+
+
+# --- Phase A: the person-entity layer as a user-visible, CORRECTABLE view ----------------
+# All human-only (same P2 gate as the rest of memory), loopback, deny-by-default.
+
+class MergeIn(BaseModel):
+    from_id: int          # the duplicate node to fold away
+    into_id: int          # the node to keep
+
+
+@router.get("/api/memory/entities")
+def entities_list(x_vokter_human_session: str | None = Header(default=None)):
+    """People Vokter has linked across your facts — each with its aliases and connected
+    facts (suppressed ones flagged). The transparency + correction surface for Phase A."""
+    _require_human(x_vokter_human_session)
+    with closing(get_db()) as db:
+        return {"entities": entities.list_entities(db)}
+
+
+@router.post("/api/memory/entities/{entity_id}/unlink/{mem_id}")
+def entity_unlink(entity_id: int, mem_id: int,
+                  x_vokter_human_session: str | None = Header(default=None)):
+    """'This fact isn't about this person' — suppress one link. Sticks across reindex; the
+    fact and all its other links are untouched."""
+    _require_human(x_vokter_human_session)
+    with closing(get_db()) as db:
+        if not entities.unlink_fact(db, entity_id, mem_id):
+            raise HTTPException(404, "no such link")
+    return {"ok": True, "entity_id": entity_id, "memory_id": mem_id, "suppressed": True}
+
+
+@router.post("/api/memory/entities/merge")
+def entity_merge(item: MergeIn, x_vokter_human_session: str | None = Header(default=None)):
+    """Two surface forms of the SAME person → one node (e.g. 'Em' into 'Emma'). Splitting a
+    wrongly-merged node is Phase C (needs per-fact disambiguation); unlink is the workaround."""
+    _require_human(x_vokter_human_session)
+    with closing(get_db()) as db:
+        if not entities.merge_entities(db, item.from_id, item.into_id):
+            raise HTTPException(400, "bad merge (unknown id or self-merge)")
+    return {"ok": True, "merged_into": item.into_id}

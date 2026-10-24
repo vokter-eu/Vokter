@@ -85,6 +85,16 @@ def run_once() -> None:
             db.commit()
             log.info("[migrate] FTS5 mirrors rebuilt over existing chunks + memory")
 
+        # 3) Phase A — build the person-entity index over facts that predate the entity
+        #    layer (one-off; later add/edit/delete reindex incrementally). Deterministic,
+        #    Ollama-free, no re-embed. Fenced so it never repeats.
+        if not _meta_get(db, "entity_index_v1"):
+            import entities
+            entities.reindex(db)          # discovers + links; commits internally
+            _meta_set(db, "entity_index_v1")
+            db.commit()
+            log.info("[migrate] entity index built over existing memory (Phase A)")
+
 
 async def reembed_stale(batch: int = 64) -> int:
     """Re-embed any chunk or fact whose stored vector doesn't match the CURRENT embed

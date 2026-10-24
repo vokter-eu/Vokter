@@ -172,6 +172,51 @@ def get_db():
     if "pinned" not in mcols:
         conn.execute("ALTER TABLE memory ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")
 
+    # Phase A — person-entity layer over the flat memory store, so "what do I know about X"
+    # answers with ALL facts CONNECTED to that person, not just the ones that individually
+    # score against the query. Purely ADDITIVE (new tables only): `memory.content` and
+    # `memory.embedding` are untouched, so there is NO re-embed. Links are deterministic —
+    # a fact joins an entity only when the entity's name/alias LITERALLY appears in it
+    # (entities.py; ~100% link precision, measured in tests/entity_link_eval.py). No model.
+    #   entities        — a discovered person (canonical name + normalised key).
+    #   entity_aliases  — role labels ("my daughter"/"mi hija") and merged nicknames that
+    #                     also resolve to the entity; doubles as the merge mechanism.
+    #   fact_entities   — the fact<->entity links; `suppressed=1` is a user "this fact isn't
+    #                     about them" correction that survives reindex (never auto-resurrected).
+    # ON DELETE CASCADE everywhere → deleting a fact drops its links; the forget path and
+    # entity GC stay consistent for free. type is 'person' in v1 (places/orgs = Phase C).
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS entities (
+               id         INTEGER PRIMARY KEY AUTOINCREMENT,
+               name       TEXT NOT NULL,                 -- canonical surface form ("Emma")
+               norm       TEXT NOT NULL,                 -- lowercased + accent-stripped key
+               type       TEXT NOT NULL DEFAULT 'person',
+               created_at REAL NOT NULL,
+               UNIQUE(norm, type)
+           )"""
+    )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS entity_aliases (
+               entity_id  INTEGER NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+               alias_norm TEXT NOT NULL,                 -- "my daughter", "mi hija", "em"
+               PRIMARY KEY(entity_id, alias_norm)
+           )"""
+    )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS fact_entities (
+               memory_id  INTEGER NOT NULL REFERENCES memory(id)   ON DELETE CASCADE,
+               entity_id  INTEGER NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+               suppressed INTEGER NOT NULL DEFAULT 0,    -- 1 = user-unlinked (never re-added)
+               PRIMARY KEY(memory_id, entity_id)
+           )"""
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS fact_entities_entity_idx ON fact_entities(entity_id)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS entity_aliases_norm_idx ON entity_aliases(alias_norm)"
+    )
+
     # A key/value marker table so the one-time heavy migrations (migrations.run_once)
     # know what has already run and never repeat it.
     conn.execute(

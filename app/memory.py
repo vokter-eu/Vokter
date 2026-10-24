@@ -16,6 +16,7 @@ import numpy as np
 
 from config import (CORE_BUDGET_TOKENS, KW_ONLY_MIN_COVERAGE, MEMORY_MIN_SCORE,
                     MEMORY_REL_MARGIN, MEMORY_TOP_K)
+import entities
 from db import get_db
 from embedding import pack_embedding, unpack_embedding
 from engine import get_engine, ChatRequest
@@ -234,6 +235,29 @@ def _render_block(lines: str) -> str:
     )
 
 
+# Phase A — the render for an EXPLICIT "what do I know about X" query. This is a SEPARATE
+# block from _render_block ON PURPOSE: _render_block's "use only the item(s) that directly
+# answer… do not bring up the others" is load-bearing ANTI-CONFABULATION wording on the
+# default conversational path (a weak model primed by the memory list otherwise over-shares
+# or invents) and must stay unchanged. But that same "use only the relevant subset" rule
+# FIGHTS the entity-query goal: here the user explicitly asked for EVERYTHING about a person,
+# so a model that lists only a subset (measured: qwen2.5:3b dropped a fact) is wrong. So this
+# block FLIPS to "list ALL of these" — while keeping the other half of the guard intact: do
+# NOT invent anything not listed (the confabulation ban is preserved, only the omission rule
+# is reversed). Reached ONLY via the strictly-gated entity branch in relevant_block.
+def _render_entity_block(name: str, lines: str) -> str:
+    return (
+        f"\n\nThe user asked what you know about {name}. Below is EVERYTHING you have been "
+        f"told about them (personal, private to this chat). List ALL of these facts in your "
+        f"answer — do not omit any of them:\n"
+        f"{lines}\n"
+        f"Use ONLY the facts written above: do not invent, guess, or add any detail about "
+        f"{name} that is not in this list, and if something isn't here, say you don't have it "
+        f"rather than making it up. These are things the USER TOLD YOU, not documents — never "
+        f"attribute them to a named document, file, or source."
+    )
+
+
 def add(content: str, source: str = "told", confidence: float = 1.0) -> dict:
     """Store a fact. Returns the created row. `content` is stored VERBATIM so the
     user sees exactly what was saved. `confidence` < 1 marks a Phase-2 'learned'
@@ -254,6 +278,10 @@ def add(content: str, source: str = "told", confidence: float = 1.0) -> dict:
     # A new core fact may push the always-on pool over budget → demote the oldest (never this
     # newest one, never health/pinned). Cheap + idempotent.
     demoted = enforce_core_budget()
+    # Phase A: re-link the entity index so this fact joins any person it names (and a person
+    # it INTRODUCES links to the facts already stored). Deterministic, no model, no re-embed.
+    with closing(get_db()) as db:
+        entities.reindex(db)
     # The AFTER-INSERT trigger indexes the fact in memory_fts immediately (keyword-
     # retrievable at once). `embedding` is left NULL; embed_pending() computes the vector
     # in the background — scheduled fire-and-forget by the async caller (memory_add / ask).
@@ -288,6 +316,8 @@ def edit(mem_id: int, content: str) -> bool:
         ok = cur.rowcount > 0
     if ok:
         enforce_core_budget()
+        with closing(get_db()) as db:   # Phase A: re-link — the edited text may name someone new
+            entities.reindex(db)
     return ok
 
 
@@ -296,7 +326,13 @@ def delete(mem_id: int) -> bool:
     with closing(get_db()) as db:
         cur = db.execute("DELETE FROM memory WHERE id=?", (mem_id,))
         db.commit()
-        return cur.rowcount > 0
+        ok = cur.rowcount > 0
+    if ok:
+        # The link rows cascade with the fact (FK ON DELETE CASCADE); reindex GCs any entity
+        # left with no facts so the entity layer never shows a ghost person.
+        with closing(get_db()) as db:
+            entities.reindex(db)
+    return ok
 
 
 def system_block() -> str:
@@ -420,7 +456,25 @@ async def relevant_block(query: str) -> str:
     it never reaches an A2A/MCP/peer caller. An off-topic message pulls in no non-core fact,
     so a bare greeting still injects nothing beyond the (usually few) core identity facts."""
     with closing(get_db()) as db:
+        # Phase A — entity-gather, STRICTLY gated. Fires ONLY when the message is an explicit
+        # "what do I know about X" / "qué sabes de X" (entities.parse_entity_query) AND X
+        # resolves to a known person with linked facts. In that one case we return ALL facts
+        # connected to that person, deliberately BYPASSING the similarity/margin
+        # gate (the user asked for everything about them). Every other message → `gathered` is
+        # None and control falls through to the UNCHANGED hybrid+gated path below, so the
+        # default conversational path is byte-identical to before and the precision gates
+        # (margin 0.05 / kw-coverage 1.0) are never bypassed outside this explicit intent.
+        entity_hit = entities.entity_query_facts(db, query)
         rows = db.execute("SELECT id, content, core, embedding FROM memory").fetchall()
+    if entity_hit is not None:
+        # Return ONLY the facts connected to the asked-about person, rendered with the
+        # list-ALL instruction (_render_entity_block). We do NOT prepend the usual always-on
+        # core block here: core includes OTHER identity facts (the user's own name/allergy,
+        # "my son Leo…") that are noise in a focused "what do I know about Emma". Emma's own
+        # identity facts already appear in `gathered` (reindex links the facts that name her,
+        # core or not), so nothing about her is lost.
+        name, gathered = entity_hit
+        return _render_entity_block(name, "\n".join(f"- {c}" for c in gathered))
     if not rows:
         return ""
     content_by_id = {cid: content for cid, content, _core, _emb in rows}
@@ -552,6 +606,10 @@ def forget_all() -> int:
     with closing(get_db()) as db:
         n = db.execute("SELECT COUNT(*) FROM memory").fetchone()[0]
         db.execute("DELETE FROM memory")
+        # Phase A: clear the entity layer too. fact_entities cascades with the facts, but the
+        # entity/alias nodes have no FK to memory → drop them explicitly so "forget everything"
+        # leaves NO trace of who was linked. (entity_aliases cascades off entities.)
+        db.execute("DELETE FROM entities")
         db.commit()
         db.execute("VACUUM")   # scrub freed pages so erased facts don't linger on disk
     return n
