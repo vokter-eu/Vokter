@@ -22,6 +22,12 @@ rules:
   browse:
     human: allow_if_allowlisted
     nonhuman: allow_if_allowlisted
+  # Tier-3 Phase 1: ACTING on a web page in the interactive browser (fill/submit/click).
+  # CONFIRM-human-only — collapses to BLOCK for peer/mcp/autonomous, so a hostile page or a
+  # peer can never drive a form. Read-only navigation stays under `browse` (lighter). The
+  # browser runs hostile page JS, contained per TIER3_PHASE1_BROWSER_CONTAINMENT.md; NO secrets
+  # (password/PAN/CVV/OTP) this phase — those are later, each behind their own gate.
+  web.act:         { human: confirm, nonhuman: block }
   # Outbound agent messages — channel-confined to peers we already know.
   dm.send:
     human: allow_if_known

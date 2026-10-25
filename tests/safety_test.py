@@ -66,6 +66,39 @@ def main():
     check("browse off-allowlist peer BLOCK", g("browse", "http://evil.example", context="peer"), D.BLOCK)
     check("dm.send unknown peer BLOCK",      g("dm.send", "npub_stranger", context="peer"),       D.BLOCK)
 
+    # Tier-3 Phase 1: web.act (interactive-browser fill/submit/click) is CONFIRM-human-only — a
+    # hostile page or a peer can never drive a form.
+    check("web.act known action",            "web.act" in safety.KNOWN_ACTIONS,                   True)
+    for ctx in ("peer", "mcp", "autonomous"):
+        check(f"web.act/{ctx} BLOCK",        g("web.act", "#search", context=ctx),                D.BLOCK)
+    check("web.act/human CONFIRM",           g("web.act", "#search", context="human"),            D.CONFIRM)
+    try:
+        safety.enforce_http("web.act", "#search", context="autonomous")
+        check("enforce_http web.act autonomous raises", False, True)
+    except HTTPException as e:
+        check("enforce_http web.act autonomous → 403", e.status_code, 403)
+    try:
+        safety.enforce_http("web.act", "#search", context="human", confirmed=False)
+        check("enforce_http web.act human unconfirmed raises", False, True)
+    except HTTPException as e:
+        check("enforce_http web.act human unconfirmed → 428", e.status_code, 428)
+    try:
+        safety.enforce_http("web.act", "#search", context="human", confirmed=True)
+        check("enforce_http web.act human confirmed → allowed", True, True)
+    except HTTPException:
+        check("enforce_http web.act human confirmed → allowed", False, True)
+
+    # SOURCE-LEVEL TRIPWIRE: the interactive-browser handler must gate fill/submit/click through
+    # enforce_http("web.act", …) BEFORE acting — a handler reachable without the gate is a hole.
+    import os as _os
+    ib_src = open(_os.path.join(_os.path.dirname(__file__), "..", "app",
+                                "interactive_browser.py"), encoding="utf-8").read()
+    check("tripwire: web_act handler calls enforce_http(\"web.act\")",
+          'enforce_http("web.act"' in ib_src, True)
+    # ...and must NEVER launch the browser with --no-sandbox (renderer sandbox is required).
+    check("tripwire: no --no-sandbox in interactive_browser", "--no-sandbox" not in ib_src
+          or "must never appear" in ib_src, True)
+
     # deny-by-default for actions the gateway has never heard of
     check("unknown action peer BLOCK",   g("frobnicate", None, context="peer"),  D.BLOCK)
     check("unknown action human CONFIRM", g("frobnicate", None, context="human"), D.CONFIRM)

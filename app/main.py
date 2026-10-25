@@ -27,6 +27,7 @@ from voice.fetch import router as voice_fetch_router
 from voice.fetch import opportunistic_startup_fetch
 from engine import warm_up
 from browser import router as browser_router
+from interactive_browser import router as interactive_browser_router
 from planner import router as planner_router
 from schedule_routes import router as schedule_router
 from config_routes import router as config_router
@@ -127,6 +128,7 @@ app.include_router(whisper_router)
 app.include_router(voice_speak_router)
 app.include_router(voice_fetch_router)
 app.include_router(browser_router)
+app.include_router(interactive_browser_router)
 app.include_router(planner_router)
 app.include_router(schedule_router)
 app.include_router(config_router)
