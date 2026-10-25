@@ -246,18 +246,161 @@ def tier2(vport, hostlan):
         pass
 
 
+def _find_browser():
+    for c in (os.environ.get("VOKTER_BROWSER_SHELL"), "chrome-headless-shell", "chromium",
+              "chromium-browser", "google-chrome"):
+        if not c:
+            continue
+        p = shutil.which(c) or (c if os.path.exists(c) else None)
+        if p:
+            return os.path.realpath(p)
+    return None
+
+
+class _CDP:
+    """Minimal CDP over chrome's --remote-debugging-pipe (fd3 in / fd4 out, NUL-framed)."""
+    def __init__(self, rfd, wfd):
+        self.r, self.w, self._id, self._buf = rfd, wfd, 0, b""
+    def send(self, method, params=None, sid=None):
+        self._id += 1
+        m = {"id": self._id, "method": method, "params": params or {}}
+        if sid:
+            m["sessionId"] = sid
+        os.write(self.w, json.dumps(m).encode() + b"\x00")
+        return self._id
+    def wait(self, wid, timeout=20):
+        end = time.time() + timeout
+        while time.time() < end:
+            while b"\x00" not in self._buf:
+                if time.time() > end:
+                    raise TimeoutError("cdp")
+                try:
+                    c = os.read(self.r, 65536)
+                    self._buf += c if c else b""
+                except BlockingIOError:
+                    pass
+                time.sleep(0.01)
+            line, self._buf = self._buf.split(b"\x00", 1)
+            msg = json.loads(line)
+            if msg.get("id") == wid:
+                return msg
+        raise TimeoutError("cdp")
+
+
+def _hostile_page(vport, hostlan):
+    import urllib.parse
+    js = ("window.__p={};window.__done=false;"
+          "function f(n,u){return fetch(u,{mode:'no-cors',signal:AbortSignal.timeout(3000)})"
+          ".then(()=>{window.__p[n]='REACHED'}).catch(()=>{window.__p[n]='blocked'});}"
+          "Promise.allSettled(["
+          f"f('host-loopback via gateway','http://{GATEWAY}:{vport}/'),"
+          f"f('host LAN','http://{hostlan}:{vport}/'),"
+          "f('router','http://192.168.1.1/'),"
+          "f('cloud-metadata','http://169.254.169.254/'),"
+          f"f('ollama via gateway','http://{GATEWAY}:11434/'),"
+          f"f('dns-rebind','http://{DNS_REBIND}:{vport}/'),"
+          "f('public','https://1.1.1.1/')"
+          "]).then(()=>{window.__done=true});")
+    return "data:text/html," + urllib.parse.quote(f"<!doctype html><script>{js}</script>")
+
+
+def _run_hostile_page(browser, vport, hostlan) -> dict:
+    """Launch `browser` INSIDE the production egress cage (bwrap netns + slirp --disable-host-
+    loopback + nft drop-private) over a CDP pipe, load a hostile data: page whose JS attacks the
+    corrected address list, and read window.__p. Raises _Unsupported if the renderer sandbox can't
+    initialise (no AppArmor profile → chrome fails closed) or rootless egress isn't available."""
+    import shlex
+    import tempfile
+    slirp = _slirp_bin()
+    if not slirp:
+        raise _Unsupported("no rootless egress helper (slirp4netns/pasta)")
+    bdir = os.path.dirname(browser)
+    b_read, p_write = os.pipe(); p_read, b_write = os.pipe(); os.set_blocking(p_read, False)
+    info = tempfile.NamedTemporaryFile(prefix="bwinfo", suffix=".json", delete=False); info.close()
+    f9 = open(info.name, "w")
+    nft = ("nft add table ip f && nft -- add chain ip f out '{ type filter hook output priority 0 ; "
+           "policy accept ; }' && nft add rule ip f out ip daddr 10.0.2.3 accept && "
+           "nft add rule ip f out ip daddr 10.0.0.0/8 drop && nft add rule ip f out ip daddr "
+           "172.16.0.0/12 drop && nft add rule ip f out ip daddr 192.168.0.0/16 drop && "
+           "nft add rule ip f out ip daddr 169.254.0.0/16 drop ; ")
+    chrome = (f"{shlex.quote(browser)} --remote-debugging-pipe --headless=new --disable-gpu "
+              f"--disable-dev-shm-usage --no-first-run --user-data-dir=/tmp/ud")
+    inner = f"sleep 2.6; {nft} exec {chrome}"
+    binds = ["--ro-bind", "/usr", "/usr", "--ro-bind", "/bin", "/bin", "--ro-bind", "/lib", "/lib",
+             "--ro-bind", "/lib64", "/lib64"]
+    for extra in ("/etc/ssl", "/etc/fonts", "/etc/resolv.conf", "/opt"):
+        if os.path.exists(extra):
+            binds += ["--ro-bind", extra, extra]
+    argv = (["bwrap", "--unshare-user", "--unshare-net", "--unshare-ipc",
+             "--cap-add", "CAP_NET_ADMIN", "--cap-add", "CAP_NET_RAW", "--info-fd", str(f9.fileno())]
+            + binds + ["--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
+                       "--ro-bind", bdir, bdir, "--die-with-parent", "--", "bash", "-c", inner])
+    errf = tempfile.TemporaryFile()
+
+    def _pre():
+        os.dup2(b_read, 3); os.dup2(b_write, 4)
+    proc = subprocess.Popen(argv, preexec_fn=_pre, pass_fds=(3, 4, f9.fileno(), b_read, b_write),
+                            stderr=errf)
+    os.close(b_read); os.close(b_write); f9.close()
+    slp = None
+    try:
+        child = None
+        for _ in range(80):
+            try:
+                child = json.load(open(info.name)).get("child-pid")
+            except Exception:
+                child = None
+            if child:
+                break
+            time.sleep(0.1)
+        if not child:
+            raise _Unsupported("bwrap did not report a child pid")
+        slp = subprocess.Popen([slirp, "--configure", "--mtu=65520", "--disable-host-loopback",
+                                "--netns-type=pid", f"--userns-path=/proc/{child}/ns/user",
+                                str(child), "tap0"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        cdp = _CDP(p_read, p_write)
+        try:
+            tid = cdp.wait(cdp.send("Target.createTarget", {"url": _hostile_page(vport, hostlan)}))["result"]["targetId"]
+            sid = cdp.wait(cdp.send("Target.attachToTarget", {"targetId": tid, "flatten": True}))["result"]["sessionId"]
+            end = time.time() + 25
+            while time.time() < end:
+                d = cdp.wait(cdp.send("Runtime.evaluate", {"expression": "window.__done===true",
+                             "returnByValue": True}, sid=sid))
+                if d.get("result", {}).get("result", {}).get("value") is True:
+                    break
+                time.sleep(0.5)
+            res = cdp.wait(cdp.send("Runtime.evaluate", {"expression": "JSON.stringify(window.__p)",
+                           "returnByValue": True}, sid=sid))
+            return json.loads(res["result"]["result"]["value"])
+        except TimeoutError:
+            errf.seek(0); err = errf.read().decode(errors="replace")
+            if "usable sandbox" in err or "Failed to move to new namespace" in err or "sandbox" in err.lower():
+                raise _Unsupported("renderer sandbox could not initialise — needs the browser "
+                                   "AppArmor profile (chrome fails closed): " + err.strip().splitlines()[-1][:160])
+            raise _Unsupported("chrome/CDP did not respond: " + (err.strip()[-160:] or "no stderr"))
+    finally:
+        if slp:
+            slp.terminate()
+        proc.kill()
+
+
 def tier3(vport, hostlan):
-    print("\n── TIER 3: chrome renderer sandbox + hostile PAGE JS (over CDP pipe) ──")
+    print("\n── TIER 3: chrome renderer sandbox + hostile PAGE JS (over CDP pipe, in egress cage) ──")
     ok("--no-sandbox absent from the shipped cage (build-check)", "--no-sandbox" not in jail_argv(["x"]))
-    # The page-JS probe (sandboxed chrome in the egress cage, hostile data: page over a CDP pipe)
-    # is NOT implemented in this auto-harness yet. Its mechanic is proven in the runbook
-    # (vokter-internal/tier3_fire_scratch/firelib.py: bwrap forwards fds 3/4; google-chrome runs
-    # sandboxed; CDP eval over pipe works) but must be composed with the egress cage and run where
-    # the browser AppArmor profile exists. Honest SKIP — never a pass.
-    skip("hostile-page-JS probe",
-         "NOT IMPLEMENTED in auto-harness — mechanic proven in vokter-internal/tier3_fire_scratch "
-         "(firelib.py); MUST be ported + run GREEN on a clean VM (needs the browser AppArmor "
-         "profile) before any secret phase")
+    browser = _find_browser()
+    if not browser:
+        skip("hostile-page-JS", "no chromium present — NOT verified here; MUST be green on clean VM")
+        return
+    try:
+        page = _run_hostile_page(browser, vport, hostlan)
+    except _Unsupported as e:
+        skip("hostile-page-JS", f"NOT verified here — {e}. MUST be green on clean VM before any secret phase")
+        return
+    print("  hostile page reached:", json.dumps(page))
+    ok("page-JS: public egress REACHABLE (usable)", page.get("public") == "REACHED")
+    for name in ("host-loopback via gateway", "host LAN", "router", "cloud-metadata",
+                 "ollama via gateway", "dns-rebind"):
+        ok(f"page-JS blocked: {name}", page.get(name) == "blocked")
 
 
 def main():
