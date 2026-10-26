@@ -18,6 +18,7 @@ uncontained. The gateway choke is `web.act` (CONFIRM-human-only); read-only navi
 `browse`. Every fill/submit/click passes `enforce_http("web.act", …)` BEFORE acting (CI tripwire).
 """
 import os
+import shlex
 import shutil
 import sys
 
@@ -28,24 +29,57 @@ router = APIRouter()
 
 
 # ───────────────────────── containment: the canonical cage ─────────────────────────
-# The fire test imports jail_argv() so it exercises the SHIPPED config, not a copy.
+# Architecture VALIDATED on a clean Ubuntu 24.04 VM (apparmor_restrict_unprivileged_userns=1); see
+# vokter-internal/TIER3_PHASE1_BROWSER_CONTAINMENT.md + tier3_fire_scratch/validated_vm/FINDINGS.md.
+# The naive "bwrap --unshare-net + an external slirp/pasta joins the netns" is BROKEN on 24.04:
+# apparmor denies an external helper's setns into bwrap's confined userns. So ownership is INVERTED:
+#   * a network helper (pasta) that has its OWN AppArmor profile OWNS the netns (pasta --config-net),
+#   * nft drop-private runs in PASTA's userns (it owns the netns; the nested bwrap cannot manage it),
+#   * bwrap nests for FILESYSTEM isolation only (no --unshare-net; --uid 1000 so a nested browser is
+#     not root — chrome refuses to run as root without --no-sandbox, which we forbid).
+# The fire test imports jail_argv()/egress_argv() so it exercises the SHIPPED config, not a copy.
+# PACKAGING (part of "done"): the .deb must install THREE abi-matched AppArmor profiles (bwrap, pasta,
+# the browser) and bundle `passt` + `nftables`; the containment is not real for users until it does.
 _RO_BINDS = ("/usr", "/bin", "/lib", "/lib64")
+_BROWSER_RO_BINDS = ("/etc", "/opt", "/sys")   # the browser additionally needs these (fonts/ssl/runtime)
+
+# nft ruleset: drop egress to every private / link-local / cloud-metadata range, allow the rest
+# (public). Loaded in PASTA's userns (which owns the netns). `--no-map-gw` already blocks the gateway→
+# host-loopback path; this closes RFC1918 reached via pasta's upstream forwarding.
+_NFT_DROP_PRIVATE = (
+    "table ip f {\n"
+    "  chain out {\n"
+    "    type filter hook output priority 0; policy accept;\n"
+    "    ip daddr 127.0.0.0/8 drop\n"   # pasta splices ns-localhost → HOST localhost (the Vokter
+                                        # admin API lives there) — this closes that path. Chrome
+                                        # uses unix sockets, not TCP-localhost, so it is unaffected.
+    "    ip daddr 10.0.0.0/8 drop\n"
+    "    ip daddr 172.16.0.0/12 drop\n"
+    "    ip daddr 192.168.0.0/16 drop\n"
+    "    ip daddr 169.254.0.0/16 drop\n"
+    "  }\n"
+    "}\n"
+)
 
 
 def browser_supported() -> bool:
-    """True only where the containment exists: Linux + bwrap present. Elsewhere the interactive
-    browser is ABSENT (feature-gated off) — never run uncontained."""
-    return sys.platform.startswith("linux") and shutil.which("bwrap") is not None
+    """True only where the FULL containment exists: Linux + bwrap + pasta + nft. Elsewhere the
+    interactive browser is ABSENT (feature-gated off) — never run uncontained."""
+    return (sys.platform.startswith("linux")
+            and all(shutil.which(b) for b in ("bwrap", "pasta", "nft")))
 
 
-def jail_argv(inner_argv, *, ro_binds=(), scratch="/tmp"):
-    """bwrap cage around `inner_argv`: new user/net/ipc/pid namespaces, a read-only minimal
-    runtime, a tmpfs scratch, and NO bind of /home, /etc, the Vokter DB, or the DBus/keychain
-    socket. `--unshare-net` = no route to the host; egress-only (public yes, host/internal no) is
-    added at launch by the rootless slirp/pasta helper + an nft drop-private ruleset (clean-VM
-    gate). NEVER includes `--no-sandbox` (that is a build-fail — see the fire test build-check).
-    `ro_binds` = extra (src, dst) read-only binds (the browser runtime; the probe file in tests)."""
-    argv = ["bwrap", "--unshare-user", "--unshare-net", "--unshare-ipc", "--unshare-pid"]
+def jail_argv(inner_argv, *, ro_binds=(), scratch="/tmp", unshare_net=False):
+    """The INNER filesystem cage (bwrap): new user/ipc/pid namespaces, a read-only minimal runtime, a
+    tmpfs scratch, and NO bind of /home, the Vokter DB, or the DBus/keychain socket. Runs as a
+    non-root uid (`--uid/--gid 1000`) so a nested browser is not root. NEVER `--no-sandbox` (build-
+    fail). By default does NOT unshare the net namespace — it is meant to nest INSIDE the pasta-owned,
+    egress-filtered netns (see egress_argv). `unshare_net=True` gives a standalone no-egress cage (the
+    Tier-1 filesystem test only). `ro_binds` = extra (src, dst) read-only binds (the browser runtime;
+    the probe file in tests)."""
+    argv = ["bwrap", "--unshare-user", "--unshare-ipc", "--unshare-pid", "--uid", "1000", "--gid", "1000"]
+    if unshare_net:
+        argv.insert(1, "--unshare-net")
     for p in _RO_BINDS:
         argv += ["--ro-bind", p, p]
     argv += ["--proc", "/proc", "--dev", "/dev", "--tmpfs", scratch]
@@ -55,6 +89,21 @@ def jail_argv(inner_argv, *, ro_binds=(), scratch="/tmp"):
     argv += list(inner_argv)
     assert "--no-sandbox" not in argv, "BUILD-FAIL: --no-sandbox must never appear in the browser cage"
     return argv
+
+
+def egress_argv(inner_argv, *, ro_binds=()):
+    """The FULL contained-browser cage (the SHIPPED launch path). pasta OWNS the netns (`--config-net`
+    egress; `--no-map-gw` blocks the gateway→host-loopback path), nft drop-private loads in pasta's
+    userns (which owns the netns), then the bwrap filesystem cage nests inside (inheriting the
+    egress-filtered netns). Result: public reachable, host-loopback/LAN/RFC1918/metadata blocked.
+    Requires the pasta + bwrap + browser AppArmor profiles (shipped by the .deb). `inner_argv` runs
+    inside the bwrap cage."""
+    jail = jail_argv(inner_argv, ro_binds=ro_binds, unshare_net=False)
+    # nft is piped in (no tempfile); then exec the bwrap fs cage. The whole thing runs in pasta's
+    # userns, which holds CAP_NET_ADMIN over the netns it created.
+    sh = (f"printf %s {shlex.quote(_NFT_DROP_PRIVATE)} | nft -f - && exec "
+          + " ".join(shlex.quote(a) for a in jail))
+    return ["pasta", "--config-net", "--no-map-gw", "--", "bash", "-c", sh]
 
 
 # ───────────────────────── the injector: INNOCUOUS fields only ─────────────────────────
@@ -114,13 +163,15 @@ def launch() -> Session:
     AppArmor profile the .deb installs for the bundled headless-shell). Playwright is imported
     lazily here so importing this module stays cheap."""
     if not browser_supported():
-        raise InjectorError("interactive browser unavailable here — contained Linux (bwrap) only")
+        raise InjectorError("interactive browser unavailable here — needs contained Linux "
+                            "(bwrap + pasta + nft) with the shipped AppArmor profiles")
     # Lazy import; the real transport drives chrome-headless-shell via Playwright over
-    # --remote-debugging-pipe, launched through jail_argv(). Built out on the packaged/clean-VM
-    # path where the renderer sandbox initialises; not run in a bare dev shell.
+    # --remote-debugging-pipe, launched through egress_argv() (pasta owns the netns + nft drop-private
+    # + nested bwrap fs cage — the architecture validated on the clean VM). Built out on the
+    # packaged path where the pasta/bwrap/browser AppArmor profiles are installed.
     from playwright.sync_api import sync_playwright  # noqa: F401  (import guarded by browser_supported)
-    raise InjectorError("contained browser launch is wired for the packaged/clean-VM path "
-                        "(renderer sandbox needs the installed AppArmor profile)")
+    raise InjectorError("contained browser launch is wired for the packaged path (needs the "
+                        "installed pasta + bwrap + browser AppArmor profiles — see egress_argv)")
 
 
 # ───────────────────────── gateway-choked route (§7) ─────────────────────────

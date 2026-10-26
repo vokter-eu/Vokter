@@ -83,8 +83,11 @@ def probe(vport: int, hostlan: str) -> dict:
         net[f"dns-rebind {DNS_REBIND}:80"] = tcp(DNS_REBIND, 80)
     except Exception:
         net[f"dns-rebind {DNS_REBIND}:80"] = "blocked"
+    net["public egress 1.1.1.1:443"] = tcp("1.1.1.1", 443)   # must be REACHED in the egress cage
     fs = {}
-    for p in ("/home/harry/Vokter/desktop/runtime/data", os.path.expanduser("~/.config"),
+    # Portable "sensitive host data" targets: the user's home config/dotfiles (stand-ins for the
+    # Vokter DB/keychain), the shadow file, and the DBus session bus (keychain transport).
+    for p in (os.path.expanduser("~/.config"), os.path.expanduser("~/.bashrc"),
               "/etc/shadow", "/run/user/%d/bus" % os.getuid()):
         try:
             (os.listdir(p) if os.path.isdir(p) else open(p, "rb").read(1))
@@ -94,22 +97,29 @@ def probe(vport: int, hostlan: str) -> dict:
     return {"net": net, "fs": fs}
 
 
-# ── the containment config: the SHIPPED cage from app/interactive_browser.py ──
-# We call the exact jail_argv the product uses (adding only the probe file as a read-only bind), so
-# a weakening of the real cage fails this test. Imported LAZILY: the probe re-execs this file inside
-# the jail (where app/ isn't on the path and must not be), and the __probe__ path is stdlib-only.
-def jail_argv(inner_argv: list[str]) -> list[str]:
+# ── the containment config: the SHIPPED cages from app/interactive_browser.py ──
+# We call the exact jail_argv / egress_argv the product uses (adding only the probe file as a
+# read-only bind), so a weakening of the real cage fails this test. Imported LAZILY: the probe
+# re-execs this file inside the jail (where app/ isn't on the path and must not be), and the
+# __probe__ path is stdlib-only.
+def _app():
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
-    from interactive_browser import jail_argv as _app_jail_argv  # the SHIPPED cage
-    return _app_jail_argv(inner_argv, ro_binds=[(os.path.abspath(__file__), "/probe.py")])
+    import interactive_browser as ib
+    return ib
+
+
+_JPY = "/usr/bin/python3" if os.path.exists("/usr/bin/python3") else "python3"   # jail-visible interpreter
+
+
+def jail_argv(inner_argv, *, unshare_net=False):
+    return _app().jail_argv(inner_argv, ro_binds=[(os.path.abspath(__file__), "/probe.py")],
+                            unshare_net=unshare_net)
 
 
 def run_probe(jailed: bool, vport: int, hostlan: str) -> dict:
     if jailed:
-        # Use a jail-visible interpreter (system python under the /usr bind), not whatever ran the
-        # harness — the uv/venv python may live under /home, which the cage deliberately does NOT bind.
-        jpy = "/usr/bin/python3" if os.path.exists("/usr/bin/python3") else "python3"
-        argv = jail_argv([jpy, "/probe.py", "__probe__", str(vport), str(hostlan)])
+        # Tier-1 standalone filesystem cage: the SHIPPED bwrap fs cage with unshare_net (no egress).
+        argv = jail_argv([_JPY, "/probe.py", "__probe__", str(vport), str(hostlan)], unshare_net=True)
     else:
         argv = [sys.executable, os.path.abspath(__file__), "__probe__", str(vport), str(hostlan)]
     out = subprocess.check_output(argv, text=True, stderr=subprocess.DEVNULL)
@@ -146,8 +156,8 @@ def tier1(vport, hostlan):
     print("  GREEN (bwrap):   ", json.dumps(green))
     # RED must demonstrate the danger (else the test proves nothing)
     ok("RED reaches host LAN service (danger real)", red["net"][f"host LAN {hostlan}:{vport}"] == "REACHED")
-    ok("RED can read ~/Vokter data (danger real)",
-       red["fs"]["/home/harry/Vokter/desktop/runtime/data"] == "READABLE")
+    ok("RED can read user home config (danger real)",
+       red["fs"][os.path.expanduser("~/.config")] == "READABLE")
     # GREEN: every single probe must be blocked
     for k, v in green["net"].items():
         ok(f"GREEN net blocked: {k}", v == "blocked")
@@ -160,90 +170,43 @@ class _Unsupported(Exception):
     SKIP — never a pass. The tier MUST run green on a clean VM before any secret phase."""
 
 
-def _slirp_bin():
-    import shutil as _sh
-    return (os.environ.get("VOKTER_SLIRP") or _sh.which("slirp4netns")
-            or ("/tmp/slirp4netns" if os.path.exists("/tmp/slirp4netns") else None))
-
-
-def _egress_probe(vport, hostlan, disable_host_loopback: bool) -> dict:
-    """Run the in-jail attack probe inside the PRODUCTION egress cage: bwrap netns + slirp4netns
-    (optionally --disable-host-loopback) + nft drop-private. Returns the probe dict. Raises
-    _Unsupported if the rootless-net prerequisite isn't satisfiable here (e.g. slirp setns perm)."""
-    slirp = _slirp_bin()
-    if not slirp:
-        raise _Unsupported("no rootless egress helper (slirp4netns/pasta) present")
-    import tempfile
-    info = tempfile.NamedTemporaryFile(prefix="bwinfo", suffix=".json", delete=False)
-    info.close()
-    nft = ("nft add table ip f && nft -- add chain ip f out '{ type filter hook output priority 0 ; "
-           "policy accept ; }' && nft add rule ip f out ip daddr 10.0.2.3 accept && "
-           "nft add rule ip f out ip daddr 10.0.0.0/8 drop && nft add rule ip f out ip daddr "
-           "172.16.0.0/12 drop && nft add rule ip f out ip daddr 192.168.0.0/16 drop && "
-           "nft add rule ip f out ip daddr 169.254.0.0/16 drop ; ")
-    inner = f"sleep 2.6; {nft} /usr/bin/python3 /probe.py __probe__ {vport} {hostlan}"
-    f9 = open(info.name, "w")
-    # Egress cage = jail_argv's base cage + CAP_NET_ADMIN (for in-ns nft) + --info-fd (so slirp can
-    # target the child pid). bwrap owns the netns; slirp configures egress into it from outside.
-    argv = ["bwrap", "--unshare-user", "--unshare-net", "--unshare-ipc",
-            "--cap-add", "CAP_NET_ADMIN", "--cap-add", "CAP_NET_RAW", "--info-fd", str(f9.fileno()),
-            "--ro-bind", "/usr", "/usr", "--ro-bind", "/bin", "/bin", "--ro-bind", "/lib", "/lib",
-            "--ro-bind", "/lib64", "/lib64", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
-            "--ro-bind", os.path.abspath(__file__), "/probe.py", "--die-with-parent",
-            "--", "bash", "-c", inner]
-    proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, pass_fds=(f9.fileno(),))
-    f9.close()
-    child = None
-    for _ in range(80):
-        try:
-            child = json.load(open(info.name)).get("child-pid")
-        except Exception:
-            child = None
-        if child:
-            break
-        time.sleep(0.1)
-    if not child:
-        proc.kill()
-        raise _Unsupported("bwrap did not report a child pid for slirp")
-    sl = [slirp, "--configure", "--mtu=65520"]
-    if disable_host_loopback:
-        sl.append("--disable-host-loopback")
-    sl += ["--netns-type=pid", f"--userns-path=/proc/{child}/ns/user", str(child), "tap0"]
-    slp = subprocess.Popen(sl, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    out, _ = proc.communicate()
-    slerr = (slp.stderr.read() or b"").decode(errors="replace") if slp.stderr else ""
-    slp.terminate()
-    if "setns" in slerr or "Operation not permitted" in slerr:
-        raise _Unsupported(f"rootless slirp could not setns ({slerr.strip().splitlines()[-1:]}) — "
-                           "needs packaged newuidmap/root setup")
-    lines = [l for l in out.decode(errors="replace").splitlines() if l.strip().startswith("{")]
+def _egress_probe(vport, hostlan) -> dict:
+    """Run the in-jail attack probe inside the SHIPPED production egress cage (interactive_browser.
+    egress_argv: pasta owns the netns + nft drop-private in pasta's userns + nested bwrap fs cage).
+    Returns the probe dict. Raises _Unsupported if the cage can't be established here (e.g. the
+    pasta/bwrap AppArmor profiles aren't installed → userns creation denied)."""
+    ib = _app()
+    argv = ib.egress_argv([_JPY, "/probe.py", "__probe__", str(vport), str(hostlan)],
+                          ro_binds=[(os.path.abspath(__file__), "/probe.py")])
+    try:
+        out = subprocess.run(argv, capture_output=True, text=True, timeout=45)
+    except subprocess.TimeoutExpired:
+        raise _Unsupported("egress cage timed out")
+    err = out.stderr or ""
+    if "uid_map" in err or "Couldn't configure user mappings" in err or "clone: Operation not permitted" in err:
+        raise _Unsupported("pasta/bwrap could not create a userns — install the pasta + bwrap "
+                           "AppArmor profiles (abi-matched)")
+    lines = [l for l in out.stdout.splitlines() if l.strip().startswith("{")]
     if not lines:
-        raise _Unsupported("egress cage produced no probe output")
+        raise _Unsupported("egress cage produced no probe output: " + (err.strip()[-200:] or "no stderr"))
     return json.loads(lines[-1])
 
 
 def tier2(vport, hostlan):
-    print("\n── TIER 2: egress-only correctness — the LOAD-BEARING network control ──")
-    print("   (Tier 1's net-green is trivial: --unshare-net has NO egress. This tier is the real")
-    print("    test — public reachable YET host/internal blocked, via --disable-host-loopback + nft.)")
+    print("\n── TIER 2: egress-only — the LOAD-BEARING network control (SHIPPED egress_argv) ──")
+    print("   (Tier 1's net-green is trivial: no egress. This is the real test — public reachable")
+    print("    YET host/internal blocked, via pasta --no-map-gw + nft drop-private in pasta's userns.)")
     try:
-        g = _egress_probe(vport, hostlan, disable_host_loopback=True)
+        g = _egress_probe(vport, hostlan)
     except _Unsupported as e:
         skip("egress-only cage", f"NOT verified here — {e}. MUST be green on clean VM before any secret phase")
         return
-    print("  egress-cage (--disable-host-loopback):", json.dumps(g["net"]))
+    print("  egress-cage net:", json.dumps(g["net"]))
     ok("public egress REACHABLE (usable browser)", g["net"]["public egress 1.1.1.1:443"] == "REACHED")
-    ok("host-loopback via gateway BLOCKED", g["net"][f"host-loopback via gateway {GATEWAY}:{vport}"] == "blocked")
-    ok("host LAN BLOCKED", g["net"][f"host LAN {hostlan}:{vport}"] == "blocked")
-    ok("cloud-metadata BLOCKED", g["net"]["cloud-metadata 169.254.169.254:80"] == "blocked")
-    ok("DNS-rebind to private BLOCKED", g["net"][f"dns-rebind {DNS_REBIND}:80"] == "blocked")
-    # the control is load-bearing: WITHOUT --disable-host-loopback the gateway reaches host loopback
-    try:
-        h = _egress_probe(vport, hostlan, disable_host_loopback=False)
-        ok("control proven: host-loopback REACHABLE without --disable-host-loopback (so the flag matters)",
-           h["net"][f"host-loopback via gateway {GATEWAY}:{vport}"] == "REACHED")
-    except _Unsupported:
-        pass
+    for k, v in g["net"].items():
+        if k.startswith("public"):
+            continue
+        ok(f"egress-cage blocked: {k}", v == "blocked")
 
 
 def _find_browser():
@@ -289,8 +252,11 @@ class _CDP:
 
 def _hostile_page(vport, hostlan):
     import urllib.parse
+    # 8s per-fetch budget: a host/internal target is refused/dropped near-instantly (→ blocked); the
+    # public TLS handshake can be slow through a nested-VM double-NAT, so give it real headroom so a
+    # slow-but-reachable public egress isn't mis-scored as blocked.
     js = ("window.__p={};window.__done=false;"
-          "function f(n,u){return fetch(u,{mode:'no-cors',signal:AbortSignal.timeout(3000)})"
+          "function f(n,u){return fetch(u,{mode:'no-cors',signal:AbortSignal.timeout(8000)})"
           ".then(()=>{window.__p[n]='REACHED'}).catch(()=>{window.__p[n]='blocked'});}"
           "Promise.allSettled(["
           f"f('host-loopback via gateway','http://{GATEWAY}:{vport}/'),"
@@ -299,70 +265,37 @@ def _hostile_page(vport, hostlan):
           "f('cloud-metadata','http://169.254.169.254/'),"
           f"f('ollama via gateway','http://{GATEWAY}:11434/'),"
           f"f('dns-rebind','http://{DNS_REBIND}:{vport}/'),"
-          "f('public','https://1.1.1.1/')"
+          "f('public','http://1.1.1.1/')"   # http (no TLS) — a bare-IP https cert check would reject
           "]).then(()=>{window.__done=true});")
     return "data:text/html," + urllib.parse.quote(f"<!doctype html><script>{js}</script>")
 
 
 def _run_hostile_page(browser, vport, hostlan) -> dict:
-    """Launch `browser` INSIDE the production egress cage (bwrap netns + slirp --disable-host-
-    loopback + nft drop-private) over a CDP pipe, load a hostile data: page whose JS attacks the
-    corrected address list, and read window.__p. Raises _Unsupported if the renderer sandbox can't
-    initialise (no AppArmor profile → chrome fails closed) or rootless egress isn't available."""
-    import shlex
+    """Launch `browser` INSIDE the SHIPPED egress cage (interactive_browser.egress_argv: pasta owns
+    the netns + nft drop-private + nested bwrap fs cage, --uid 1000 so chrome isn't root) over a CDP
+    pipe, load a hostile data: page whose JS attacks the corrected address list, and read window.__p.
+    Raises _Unsupported if the renderer sandbox can't init (no browser AppArmor profile → chrome
+    fails closed) or the CDP pipe doesn't survive pasta→bwrap."""
     import tempfile
-    slirp = _slirp_bin()
-    if not slirp:
-        raise _Unsupported("no rootless egress helper (slirp4netns/pasta)")
+    ib = _app()
     bdir = os.path.dirname(browser)
+    ro = [(bdir, bdir)] + [(p, p) for p in ("/etc", "/opt", "/sys") if os.path.exists(p)]
+    chrome = [browser, "--remote-debugging-pipe", "--headless=new", "--disable-gpu",
+              "--disable-dev-shm-usage", "--no-first-run", "--user-data-dir=/tmp/ud"]
+    argv = ib.egress_argv(chrome, ro_binds=ro)
     b_read, p_write = os.pipe(); p_read, b_write = os.pipe(); os.set_blocking(p_read, False)
-    info = tempfile.NamedTemporaryFile(prefix="bwinfo", suffix=".json", delete=False); info.close()
-    f9 = open(info.name, "w")
-    nft = ("nft add table ip f && nft -- add chain ip f out '{ type filter hook output priority 0 ; "
-           "policy accept ; }' && nft add rule ip f out ip daddr 10.0.2.3 accept && "
-           "nft add rule ip f out ip daddr 10.0.0.0/8 drop && nft add rule ip f out ip daddr "
-           "172.16.0.0/12 drop && nft add rule ip f out ip daddr 192.168.0.0/16 drop && "
-           "nft add rule ip f out ip daddr 169.254.0.0/16 drop ; ")
-    chrome = (f"{shlex.quote(browser)} --remote-debugging-pipe --headless=new --disable-gpu "
-              f"--disable-dev-shm-usage --no-first-run --user-data-dir=/tmp/ud")
-    inner = f"sleep 2.6; {nft} exec {chrome}"
-    binds = ["--ro-bind", "/usr", "/usr", "--ro-bind", "/bin", "/bin", "--ro-bind", "/lib", "/lib",
-             "--ro-bind", "/lib64", "/lib64"]
-    for extra in ("/etc/ssl", "/etc/fonts", "/etc/resolv.conf", "/opt"):
-        if os.path.exists(extra):
-            binds += ["--ro-bind", extra, extra]
-    argv = (["bwrap", "--unshare-user", "--unshare-net", "--unshare-ipc",
-             "--cap-add", "CAP_NET_ADMIN", "--cap-add", "CAP_NET_RAW", "--info-fd", str(f9.fileno())]
-            + binds + ["--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp",
-                       "--ro-bind", bdir, bdir, "--die-with-parent", "--", "bash", "-c", inner])
     errf = tempfile.TemporaryFile()
 
     def _pre():
         os.dup2(b_read, 3); os.dup2(b_write, 4)
-    proc = subprocess.Popen(argv, preexec_fn=_pre, pass_fds=(3, 4, f9.fileno(), b_read, b_write),
-                            stderr=errf)
-    os.close(b_read); os.close(b_write); f9.close()
-    slp = None
+    proc = subprocess.Popen(argv, preexec_fn=_pre, pass_fds=(3, 4, b_read, b_write), stderr=errf)
+    os.close(b_read); os.close(b_write)
     try:
-        child = None
-        for _ in range(80):
-            try:
-                child = json.load(open(info.name)).get("child-pid")
-            except Exception:
-                child = None
-            if child:
-                break
-            time.sleep(0.1)
-        if not child:
-            raise _Unsupported("bwrap did not report a child pid")
-        slp = subprocess.Popen([slirp, "--configure", "--mtu=65520", "--disable-host-loopback",
-                                "--netns-type=pid", f"--userns-path=/proc/{child}/ns/user",
-                                str(child), "tap0"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         cdp = _CDP(p_read, p_write)
         try:
             tid = cdp.wait(cdp.send("Target.createTarget", {"url": _hostile_page(vport, hostlan)}))["result"]["targetId"]
             sid = cdp.wait(cdp.send("Target.attachToTarget", {"targetId": tid, "flatten": True}))["result"]["sessionId"]
-            end = time.time() + 25
+            end = time.time() + 35
             while time.time() < end:
                 d = cdp.wait(cdp.send("Runtime.evaluate", {"expression": "window.__done===true",
                              "returnByValue": True}, sid=sid))
@@ -374,13 +307,12 @@ def _run_hostile_page(browser, vport, hostlan) -> dict:
             return json.loads(res["result"]["result"]["value"])
         except TimeoutError:
             errf.seek(0); err = errf.read().decode(errors="replace")
-            if "usable sandbox" in err or "Failed to move to new namespace" in err or "sandbox" in err.lower():
+            if "usable sandbox" in err or "Running as root" in err or "Failed to move to new namespace" in err:
                 raise _Unsupported("renderer sandbox could not initialise — needs the browser "
                                    "AppArmor profile (chrome fails closed): " + err.strip().splitlines()[-1][:160])
-            raise _Unsupported("chrome/CDP did not respond: " + (err.strip()[-160:] or "no stderr"))
+            raise _Unsupported("chrome/CDP did not respond (CDP pipe through pasta?): "
+                               + (err.strip()[-200:] or "no stderr"))
     finally:
-        if slp:
-            slp.terminate()
         proc.kill()
 
 
