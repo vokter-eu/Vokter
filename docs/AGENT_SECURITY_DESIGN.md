@@ -28,6 +28,16 @@ the counterparty agent is hostile and the surrounding network is adversarial.
 4. **The trust boundary is the human account.** We defend against a hostile *counterparty* and a
    hostile *network*; we do NOT claim to defend against code already running as the user (see §8).
 5. **No overclaiming.** Every guarantee is paired with its residual.
+6. **Unlinkable-by-default identity.** Every identity Vokter presents is a *purpose-scoped key
+   derived from one seed* (§2). No two of Vokter's activities — and none of them to the user's
+   **social/public npub** — are linkable by a shared key. The **default** for any new external
+   interaction (A2A, a site, a backup) is a **fresh, unlinkable** key; a *stable* identity is used
+   **only** where the user explicitly opts into a *named, reputation-bearing* relationship, is
+   **scoped to that relationship**, and **never equals the user's social npub**. This is a *key-layer*
+   guarantee: unlinkable keys are **not** network anonymity — IP/relay/timing correlation needs
+   Tor/mixnet and is a *separate dimension* (§2/§8), never implied by "unlinkable."
+   *(Partial today: the Nostr transport still uses one stable npub — see §2 "gap"; the principle is
+   the target every identity-touching feature must move toward.)*
 
 Mapping to standards: OWASP **Top 10 for Agentic Applications 2026** (ASI01–ASI10: goal hijack,
 tool misuse, memory poisoning, rogue agents, excessive agency, …) and **OWASP LLM Top 10** (LLM01
@@ -67,6 +77,24 @@ to the user's wallet*.
 - **HTTP A2A is identity-anonymous by construction** (`agent_client.call_a2a`): random `messageId`/`id`
   per call, no persistent crypto identity on the wire. Two requests are unlinkable *at the identity
   layer*.
+- **Vokter's agent identity is NOT the user's social npub.** Layer-3 is derived from Vokter's *own*
+  minted master key; the user's social nsec lives in *their* signer and is never used by Vokter.
+
+**Derivation taxonomy (the §0.6 principle, formalized).** One seed → **purpose-scoped, mutually
+unlinkable** identities, addressed by a **BIP32-style hardened path** (hardened-only: no xpub leakage;
+implementable as labelled-HMAC today, or real BIP32 for seed-tooling interop). None equals the social
+npub; none is linkable to another without the seed:
+
+| Path | Identity | Stable/ephemeral |
+|---|---|---|
+| `vokter/backup/v1` | the backup-wrap key (§3-backup) | stable, one |
+| `vokter/a2a/<counterparty>` | a per-relationship agent key | **stable, scoped to that peer** (reputation accrues *within* the relationship, not across) |
+| `vokter/a2a/ephemeral/<nonce>` | a one-shot agent key | **ephemeral — the default** for any one-off/sensitive request |
+| `vokter/site/<domain>` | a per-site web identity | the email-alias-per-site model |
+
+Default = **ephemeral**. A stable scoped key is used only for a *named, reputation-bearing*
+relationship the user opts into; global/portable reputation (one key everyone trusts) is the *opposite*
+of unlinkable and is an explicit, labelled opt-in only.
 
 **The gap [partial → to build]**
 - **`nostr_outbound.call_nostr` signs with the STABLE Layer-3 npub** (`get_nostr_privkey`), so every
@@ -80,6 +108,11 @@ to the user's wallet*.
   today depends on the listener being subscribed to the stable npub), **untestable without a live peer
   + relays**, so it is a **separate, peer-tested change**, not bundled with a UI. Effort: **medium**;
   risk: **medium** (reply-correlation rewrite).
+- **Sequencing:** this transport rewrite is the **next identity-privacy work *after* backup v1**
+  (backup rides the principle correctly today by using BIP39 — no identity, zero linkage — see the
+  backup design). When it lands, add a **CI tripwire** (the `safety_test` pattern): *no outbound path
+  may sign with the user's social key, and Nostr outbound must default to an ephemeral derived key* —
+  so a regression that re-introduces the stable-npub leak fails the build.
 
 **Honest residuals**
 - **IP-level exposure.** Neither transport hides the source IP. HTTP A2A reveals the user's IP to the
