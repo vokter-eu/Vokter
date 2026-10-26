@@ -57,6 +57,14 @@
         "to": "desktop/runtime/tesseract"
       },
       {
+        "from": "../runtime/browser",
+        "to": "desktop/runtime/browser"
+      },
+      {
+        "from": "../runtime/pasta",
+        "to": "desktop/runtime/pasta"
+      },
+      {
         "from": "../../NOTICE",
         "to": "NOTICE"
       }
@@ -72,7 +80,35 @@
     },
     "deb": {
       "afterInstall": "build/deb-after-install.sh",
-      "afterRemove": "build/deb-after-remove.sh"
+      "afterRemove": "build/deb-after-remove.sh",
+      "depends": [
+        "bubblewrap",
+        "nftables",
+        "fonts-liberation",
+        "libasound2t64 | libasound2",
+        "libatk-bridge2.0-0t64 | libatk-bridge2.0-0",
+        "libatk1.0-0t64 | libatk1.0-0",
+        "libatspi2.0-0t64 | libatspi2.0-0",
+        "libcairo2",
+        "libcups2t64 | libcups2",
+        "libdbus-1-3",
+        "libexpat1",
+        "libgbm1",
+        "libglib2.0-0t64 | libglib2.0-0",
+        "libgtk-3-0t64 | libgtk-3-0",
+        "libnspr4",
+        "libnss3",
+        "libpango-1.0-0",
+        "libvulkan1",
+        "libx11-6",
+        "libxcb1",
+        "libxcomposite1",
+        "libxdamage1",
+        "libxext6",
+        "libxfixes3",
+        "libxkbcommon0",
+        "libxrandr2"
+      ]
     }
   },
   "devDependencies": {

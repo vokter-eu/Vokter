@@ -13,12 +13,14 @@ else
     rm -f '/usr/bin/vokter-desktop'
 fi
 
-# --- added: unload then delete the AppArmor profile -------------------------
-if [ -f /etc/apparmor.d/vokter ]; then
-    if command -v apparmor_parser >/dev/null 2>&1; then
-        apparmor_parser -R /etc/apparmor.d/vokter 2>/dev/null || true
+# --- added: unload then delete the AppArmor profiles ------------------------
+for prof in vokter vokter-pasta vokter-browser; do
+    if [ -f "/etc/apparmor.d/$prof" ]; then
+        if command -v apparmor_parser >/dev/null 2>&1; then
+            apparmor_parser -R "/etc/apparmor.d/$prof" 2>/dev/null || true
+        fi
+        rm -f "/etc/apparmor.d/$prof" || true
     fi
-    rm -f /etc/apparmor.d/vokter || true
-fi
+done
 
 exit 0

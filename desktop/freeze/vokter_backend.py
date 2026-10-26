@@ -84,6 +84,22 @@ if __name__ == "__main__":
     if "--verify-key" in sys.argv:
         sys.exit(_verify_key())
 
+    if "--containment-selftest" in sys.argv:
+        # Prove the interactive-browser CAGE from the packaged install: exercises the SHIPPED
+        # egress_argv/jail_argv against the bundled browser + pasta, system bwrap + nft, and the
+        # installed AppArmor profiles. No socket, no DB. Resolve the bundled binaries relative to
+        # THIS frozen binary's install root (…/resources/desktop/freeze/dist/vokter-backend → the
+        # bundled browser/pasta live under …/resources/desktop/runtime/…), unless already set.
+        import os
+        root = os.path.dirname(os.path.abspath(sys.argv[0]))                 # …/dist/vokter-backend
+        res = os.path.abspath(os.path.join(root, "..", "..", "..", ".."))    # …/resources
+        _shell = os.path.join(res, "desktop", "runtime", "browser", "chrome-headless-shell")
+        _pasta = os.path.join(res, "desktop", "runtime", "pasta", "pasta")
+        os.environ.setdefault("VOKTER_BROWSER_SHELL", _shell)
+        os.environ.setdefault("VOKTER_PASTA", _pasta)
+        import containment_selftest
+        sys.exit(containment_selftest.run())
+
     if "--orchestrate" in sys.argv:
         # Run the desktop orchestrator from within the bundle. orchestrator.main()
         # installs its own SIGINT/SIGTERM handlers and supervises the children;

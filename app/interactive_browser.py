@@ -20,6 +20,7 @@ uncontained. The gateway choke is `web.act` (CONFIRM-human-only); read-only navi
 import os
 import shlex
 import shutil
+import subprocess
 import sys
 
 from fastapi import APIRouter, Header, HTTPException
@@ -62,11 +63,53 @@ _NFT_DROP_PRIVATE = (
 )
 
 
+# Binary resolution. The .deb bundles passt (pasta) + chromium-headless-shell under the install
+# root and Depends on bubblewrap + nftables (system). The orchestrator/self-test entrypoint sets
+# these env vars to the packaged paths; everything falls back to PATH for dev.
+def _bin(name: str, env_var: str) -> str | None:
+    v = os.environ.get(env_var)
+    if v and (os.path.exists(v) or shutil.which(v)):
+        return shutil.which(v) or v
+    return shutil.which(name)
+
+
+def pasta_bin(): return _bin("pasta", "VOKTER_PASTA")
+def nft_bin():   return _bin("nft", "VOKTER_NFT")
+def bwrap_bin(): return _bin("bwrap", "VOKTER_BWRAP")
+
+
+def clean_env() -> dict:
+    """Env for spawning the contained browser: strip the PyInstaller bundle's LD_LIBRARY_PATH so
+    chrome loads SYSTEM libraries, not the frozen backend's `_internal/` (which is built against the
+    BUILD host's glibc and can be newer than the target). PyInstaller stashes the original in
+    LD_LIBRARY_PATH_ORIG — restore it; else drop the var entirely."""
+    env = dict(os.environ)
+    orig = env.pop("LD_LIBRARY_PATH_ORIG", None)
+    if orig is not None:
+        env["LD_LIBRARY_PATH"] = orig
+    else:
+        env.pop("LD_LIBRARY_PATH", None)
+    return env
+
+
+def browser_binary() -> str | None:
+    """The contained browser binary: the bundled chromium-headless-shell (VOKTER_BROWSER_SHELL) or,
+    in dev, any chromium/chrome on PATH."""
+    v = os.environ.get("VOKTER_BROWSER_SHELL")
+    if v and os.path.exists(v):
+        return os.path.realpath(v)
+    for c in ("chrome-headless-shell", "chromium", "chromium-browser", "google-chrome"):
+        p = shutil.which(c)
+        if p:
+            return os.path.realpath(p)
+    return None
+
+
 def browser_supported() -> bool:
-    """True only where the FULL containment exists: Linux + bwrap + pasta + nft. Elsewhere the
-    interactive browser is ABSENT (feature-gated off) — never run uncontained."""
+    """True only where the FULL containment exists: Linux + bwrap + pasta + nft + a browser.
+    Elsewhere the interactive browser is ABSENT (feature-gated off) — never run uncontained."""
     return (sys.platform.startswith("linux")
-            and all(shutil.which(b) for b in ("bwrap", "pasta", "nft")))
+            and all((bwrap_bin(), pasta_bin(), nft_bin(), browser_binary())))
 
 
 def jail_argv(inner_argv, *, ro_binds=(), scratch="/tmp", unshare_net=False):
@@ -77,7 +120,8 @@ def jail_argv(inner_argv, *, ro_binds=(), scratch="/tmp", unshare_net=False):
     egress-filtered netns (see egress_argv). `unshare_net=True` gives a standalone no-egress cage (the
     Tier-1 filesystem test only). `ro_binds` = extra (src, dst) read-only binds (the browser runtime;
     the probe file in tests)."""
-    argv = ["bwrap", "--unshare-user", "--unshare-ipc", "--unshare-pid", "--uid", "1000", "--gid", "1000"]
+    argv = [bwrap_bin() or "bwrap", "--unshare-user", "--unshare-ipc", "--unshare-pid",
+            "--uid", "1000", "--gid", "1000"]
     if unshare_net:
         argv.insert(1, "--unshare-net")
     for p in _RO_BINDS:
@@ -101,9 +145,10 @@ def egress_argv(inner_argv, *, ro_binds=()):
     jail = jail_argv(inner_argv, ro_binds=ro_binds, unshare_net=False)
     # nft is piped in (no tempfile); then exec the bwrap fs cage. The whole thing runs in pasta's
     # userns, which holds CAP_NET_ADMIN over the netns it created.
-    sh = (f"printf %s {shlex.quote(_NFT_DROP_PRIVATE)} | nft -f - && exec "
+    nft = shlex.quote(nft_bin() or "nft")
+    sh = (f"printf %s {shlex.quote(_NFT_DROP_PRIVATE)} | {nft} -f - && exec "
           + " ".join(shlex.quote(a) for a in jail))
-    return ["pasta", "--config-net", "--no-map-gw", "--", "bash", "-c", sh]
+    return [pasta_bin() or "pasta", "--config-net", "--no-map-gw", "--", "bash", "-c", sh]
 
 
 # ───────────────────────── the injector: INNOCUOUS fields only ─────────────────────────
@@ -157,21 +202,113 @@ class Session:
         return "succeeded" if self._t.click(selector) else "failed"
 
 
+class _CDP:
+    """Minimal CDP client over chrome's --remote-debugging-pipe (fd3 in / fd4 out, NUL-framed). Raw
+    CDP (not Playwright) by design: identical security (inherited pipe, no TCP control port), and no
+    Node driver to bundle into the frozen backend."""
+    def __init__(self, rfd, wfd):
+        self.r, self.w, self._id, self._buf = rfd, wfd, 0, b""
+    def send(self, method, params=None, sid=None):
+        import json
+        self._id += 1
+        m = {"id": self._id, "method": method, "params": params or {}}
+        if sid:
+            m["sessionId"] = sid
+        os.write(self.w, json.dumps(m).encode() + b"\x00")
+        return self._id
+    def wait(self, wid, timeout=30):
+        import json
+        import time
+        end = time.time() + timeout
+        while time.time() < end:
+            while b"\x00" not in self._buf:
+                if time.time() > end:
+                    raise InjectorError("CDP timeout")
+                try:
+                    c = os.read(self.r, 65536)
+                    self._buf += c if c else b""
+                except BlockingIOError:
+                    pass
+                time.sleep(0.01)
+            line, self._buf = self._buf.split(b"\x00", 1)
+            m = json.loads(line)
+            if m.get("id") == wid:
+                return m
+        raise InjectorError("CDP timeout")
+    def eval(self, expr, sid, timeout=30):
+        r = self.wait(self.send("Runtime.evaluate",
+                      {"expression": expr, "returnByValue": True, "awaitPromise": True}, sid=sid), timeout)
+        return r.get("result", {}).get("result", {}).get("value")
+
+
+class CDPTransport:
+    """Drives the CONTAINED browser over the CDP pipe. The LLM never touches this — only Session's
+    status-returning methods. The typed value reaches the field via code (Runtime.evaluate set-value
+    for innocuous fields), never the model. Closed over the egress cage = pasta+nft+bwrap."""
+    def __init__(self, browser: str):
+        bdir = os.path.dirname(browser)
+        ro = [(bdir, bdir)] + [(p, p) for p in _BROWSER_RO_BINDS if os.path.exists(p)]
+        chrome = [browser, "--remote-debugging-pipe", "--headless=new", "--disable-gpu",
+                  "--disable-dev-shm-usage", "--no-first-run", "--user-data-dir=/tmp/ud"]
+        argv = egress_argv(chrome, ro_binds=ro)
+        self._br, self._pw = os.pipe()      # browser reads _br (→fd3); we write _pw
+        self._pr, self._bw = os.pipe()      # browser writes _bw (→fd4); we read _pr
+        os.set_blocking(self._pr, False)
+
+        def _pre():
+            os.dup2(self._br, 3); os.dup2(self._bw, 4)
+        self._proc = subprocess.Popen(argv, preexec_fn=_pre, env=clean_env(),
+                                      pass_fds=(3, 4, self._br, self._bw), stderr=subprocess.DEVNULL)
+        os.close(self._br); os.close(self._bw)
+        self._cdp = _CDP(self._pr, self._pw)
+        tid = self._cdp.wait(self._cdp.send("Target.createTarget", {"url": "about:blank"}))["result"]["targetId"]
+        self._sid = self._cdp.wait(self._cdp.send("Target.attachToTarget",
+                                   {"targetId": tid, "flatten": True}))["result"]["sessionId"]
+
+    def navigate(self, url):
+        import json
+        self._cdp.wait(self._cdp.send("Page.enable", sid=self._sid))
+        self._cdp.send("Page.navigate", {"url": url}, sid=self._sid)
+        import time
+        end = time.time() + 30
+        while time.time() < end:
+            if self._cdp.eval("document.readyState==='complete'", self._sid) is True:
+                return True
+            time.sleep(0.2)
+        return False
+
+    def type_into(self, selector, value):
+        import json
+        expr = ("(()=>{const el=document.querySelector(%s); if(!el) return false; el.focus();"
+                "el.value=%s; el.dispatchEvent(new Event('input',{bubbles:true}));"
+                "el.dispatchEvent(new Event('change',{bubbles:true})); return true;})()"
+                % (json.dumps(selector), json.dumps(value)))
+        return self._cdp.eval(expr, self._sid) is True
+
+    def click(self, selector):
+        import json
+        expr = "(()=>{const el=document.querySelector(%s); if(!el) return false; el.click(); return true;})()" % json.dumps(selector)
+        return self._cdp.eval(expr, self._sid) is True
+
+    def read_text(self):
+        return self._cdp.eval("document.body?document.body.innerText:''", self._sid) or ""
+
+    def close(self):
+        try:
+            self._proc.kill()
+        except Exception:
+            pass
+
+
 def launch() -> Session:
-    """Launch a CONTAINED headless browser and return a Session. Feature-gated; the real run is
-    exercised by the fire test / clean VM (chrome's renderer sandbox inside bwrap needs the
-    AppArmor profile the .deb installs for the bundled headless-shell). Playwright is imported
-    lazily here so importing this module stays cheap."""
+    """Launch a CONTAINED headless browser and return a Session driven over a raw CDP pipe through
+    egress_argv (pasta owns the netns + nft drop-private + nested bwrap fs cage — validated on the
+    clean VM). Feature-gated: requires bwrap + pasta + nft + the bundled browser, with the pasta +
+    bwrap + browser AppArmor profiles the .deb installs."""
     if not browser_supported():
         raise InjectorError("interactive browser unavailable here — needs contained Linux "
-                            "(bwrap + pasta + nft) with the shipped AppArmor profiles")
-    # Lazy import; the real transport drives chrome-headless-shell via Playwright over
-    # --remote-debugging-pipe, launched through egress_argv() (pasta owns the netns + nft drop-private
-    # + nested bwrap fs cage — the architecture validated on the clean VM). Built out on the
-    # packaged path where the pasta/bwrap/browser AppArmor profiles are installed.
-    from playwright.sync_api import sync_playwright  # noqa: F401  (import guarded by browser_supported)
-    raise InjectorError("contained browser launch is wired for the packaged path (needs the "
-                        "installed pasta + bwrap + browser AppArmor profiles — see egress_argv)")
+                            "(bwrap + pasta + nft + a browser) with the shipped AppArmor profiles")
+    return Session(CDPTransport(browser_binary()))
 
 
 # ───────────────────────── gateway-choked route (§7) ─────────────────────────
