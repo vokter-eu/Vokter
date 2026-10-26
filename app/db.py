@@ -1,5 +1,11 @@
 import os
+import re
 from config import DB_PATH, DB_KEY, sqlite_impl
+
+# Restore-scoped: a DB RESTORED from a backup is SQLCipher raw-key form `x'<64 hex>'` (the 32 bytes
+# ARE the key — see backup.py). The NORMAL install is passphrase-mode and takes the unchanged branch
+# below; this only adds a raw-key branch for a restored DB, never altering the passphrase open.
+_RAW_KEY_RE = re.compile(r"^x'[0-9a-fA-F]{64}'$")
 
 
 def get_db():
@@ -10,8 +16,11 @@ def get_db():
         # H1: SQLCipher secure-memory — lock/zero the key + decrypted pages in RAM. MUST be set
         # BEFORE PRAGMA key. (Plain sqlite3 in keyless dev ignores unknown PRAGMAs.)
         conn.execute("PRAGMA cipher_memory_security = ON")
-        safe_key = DB_KEY.replace("'", "''")
-        conn.execute(f"PRAGMA key='{safe_key}'")
+        if _RAW_KEY_RE.match(DB_KEY):
+            conn.execute(f'PRAGMA key="{DB_KEY}"')          # restored raw-key DB (x'<hex>')
+        else:
+            safe_key = DB_KEY.replace("'", "''")            # normal passphrase install — UNCHANGED
+            conn.execute(f"PRAGMA key='{safe_key}'")
     # H1: never spill sorts / index builds / FTS5 work to plaintext temp files on disk.
     conn.execute("PRAGMA temp_store = MEMORY")
     # H3: scrub freed pages so 'forget' (delete) actually erases, not just unlinks.

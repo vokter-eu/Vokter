@@ -69,9 +69,14 @@ def _verify_key() -> int:
         return 2
     db = args[0]
     key = os.environ.get("VOKTER_DB_KEY", "")
+    import re
     try:
         con = s.connect(f"file:{db}?mode=ro&immutable=1", uri=True)
-        con.execute("PRAGMA key='%s'" % key.replace("'", "''"))
+        # Restore-scoped raw-key (x'<64 hex>') — same detection as db.get_db; passphrase unchanged.
+        if re.match(r"^x'[0-9a-fA-F]{64}'$", key):
+            con.execute('PRAGMA key="%s"' % key)
+        else:
+            con.execute("PRAGMA key='%s'" % key.replace("'", "''"))
         con.execute("SELECT count(*) FROM sqlite_master").fetchone()
         con.close()
         return 0

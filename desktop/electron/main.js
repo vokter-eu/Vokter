@@ -495,6 +495,42 @@ ipcMain.handle('vokter:memory', (_event, reqIn) => new Promise((resolve) => {
   rq.end();
 }));
 
+// Backup & recovery bridge: proxy /api/backup/* through MAIN so the human-session token never
+// touches page JS (same discipline as vokter:memory). The page sends {op,...}; MAIN whitelists
+// op → method+path. The recovery phrase is returned to the page for display ONCE and never stored.
+ipcMain.handle('vokter:backup', (_event, reqIn) => new Promise((resolve) => {
+  if (!ready || backendPort == null) { resolve({ status: 0, body: null }); return; }
+  const r = (reqIn && typeof reqIn === 'object') ? reqIn : {};
+  let method, path, payload = null;
+  switch (r.op) {
+    case 'status':         method = 'GET';  path = '/api/backup/status'; break;
+    case 'setup':
+      method = 'POST'; path = '/api/backup/setup';
+      payload = JSON.stringify({ words: r.words === 24 ? 24 : 12 });
+      break;
+    case 'confirmWritten': method = 'POST'; path = '/api/backup/confirm-written'; break;
+    case 'export':
+      method = 'POST'; path = '/api/backup/export';
+      payload = JSON.stringify({ out_path: String(r.outPath || '') });
+      break;
+    case 'restoreValidate':
+      method = 'POST'; path = '/api/backup/restore-validate';
+      payload = JSON.stringify({ backup_path: String(r.backupPath || ''), phrase: String(r.phrase || '') });
+      break;
+    default: resolve({ status: 400, body: null }); return;
+  }
+  const headers = { 'X-Vokter-Human-Session': HUMAN_SESSION_TOKEN };
+  if (payload != null) { headers['Content-Type'] = 'application/json'; headers['Content-Length'] = Buffer.byteLength(payload); }
+  const rq = http.request({ host: '127.0.0.1', port: backendPort, path, method, headers }, (res) => {
+    let data = ''; res.setEncoding('utf8'); res.on('data', (c) => { data += c; });
+    res.on('end', () => { let parsed = null; try { parsed = JSON.parse(data); } catch { /* */ } resolve({ status: res.statusCode || 0, body: parsed }); });
+  });
+  rq.on('error', () => resolve({ status: 0, body: null }));
+  rq.setTimeout(30000, () => { rq.destroy(); resolve({ status: 0, body: null }); });
+  if (payload != null) rq.write(payload);
+  rq.end();
+}));
+
 // The window's ONE outbound action: the user clicked [2] "Start fresh". Honour it
 // ONLY while halted at the guardrail, and ONLY once — a nervous double click must
 // not spawn two orchestrators contending for the ports and Ollama.

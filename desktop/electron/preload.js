@@ -60,4 +60,9 @@ contextBridge.exposeInMainWorld('vokter', {
   // WHITELISTS req.op → the real path (the page can't choose an arbitrary path). Resolves to
   // {status, body}. Used only by the Memory settings view.
   memory: (req) => ipcRenderer.invoke('vokter:memory', req),
+
+  // backup(req): proxy /api/backup/* through main (the human-session token never lives in page JS).
+  // ops: status | setup | confirmWritten | export | restoreValidate. The recovery phrase comes back
+  // from setup for one-time display and is never persisted. Used only by the Backup settings view.
+  backup: (req) => ipcRenderer.invoke('vokter:backup', req),
 });
