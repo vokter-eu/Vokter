@@ -1598,7 +1598,7 @@
         gen.disabled=true; out.className='smeta'; out.textContent=t('loading');
         const r=await bkCall({op:'setup',words});
         if(!(r.status===200 && r.body && r.body.mnemonic)){ gen.disabled=false; out.textContent=bkErr(r); return; }
-        showPhrase(r.body.mnemonic.split(' '));
+        const m=r.body.mnemonic; showPhrase(Array.isArray(m)?m:String(m).split(' '));   // backend returns a word array
       };
     }
 
