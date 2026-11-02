@@ -302,6 +302,13 @@
   @media (prefers-reduced-motion:reduce){.dlfill,.dlfill.indet{transition:none;animation:none}}
   .swarn{display:flex;gap:9px;font-size:12.5px;line-height:1.55;color:var(--ink-2);background:color-mix(in srgb,var(--amber) 12%,transparent);border:1px solid color-mix(in srgb,var(--amber) 45%,transparent);border-radius:var(--r-sm);padding:10px 12px;margin:8px 6px}
   .swarn svg{flex:0 0 auto;color:var(--amber);margin-top:1px}
+  /* ── Backup & recovery: the write-it-down phrase grid + success meta ── */
+  .subwrap .smeta.ok{color:var(--green);font-weight:500}
+  .bkphrase{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin:12px 6px}
+  @media (min-width:420px){.bkphrase{grid-template-columns:repeat(3,1fr)}}
+  .bkword{display:flex;align-items:baseline;gap:8px;background:var(--cream2);border:1px solid var(--sand);border-radius:var(--r-sm);padding:8px 10px}
+  .bkword .bkn{font-family:var(--mono);font-size:11px;color:var(--grey2);min-width:1.4em;text-align:right;user-select:none}
+  .bkword .bkw{font-family:var(--mono);font-size:13.5px;color:var(--ink);word-break:break-all}
   .mtoggle{display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px}
   .mtoggle input{width:16px;height:16px;accent-color:var(--green);cursor:pointer}
   .mtoggle span{font-size:13.5px;color:var(--ink)}

@@ -15,6 +15,10 @@ datas = [
     (os.path.join(APP_DIR, "static"), "static"),
     (os.path.join(APP_DIR, "safety_rules.yaml"), "."),   # capability-gateway rules (safety.py)
     (os.path.join(APP_DIR, "..", "CONSTITUTION.md"), "."),  # human-readable constitution
+    # BIP39 wordlist for backup/recovery — backup.py:_find() loads it from sys._MEIPASS at runtime.
+    # Data files don't travel unless collected (same lesson as Kokoro's language_tags): without this,
+    # setup/restore 500 in the frozen .deb while passing every dev-source check.
+    (os.path.join(APP_DIR, "bip39_english.txt"), "."),
 ]
 binaries = []
 # The orchestrate-mode modules are imported lazily (inside a branch), so name

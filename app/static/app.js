@@ -58,7 +58,7 @@
       bkRestoreTitle:"Restore on a new machine",
       bkRestoreIntro:"New computer? Install Vokter, pick your backup file, and enter your phrase.",
       bkRestorePathPh:"Path to your backup file", bkRestorePhrasePh:"Your 12 or 24 recovery words",
-      bkRestoreCheck:"Check this phrase + backup", bkRestoreOk:"✓ This phrase opens this backup (from {date}). On a fresh install this restores your Vokter.",
+      bkRestoreCheck:"Check this phrase + backup", bkRestoreOk:"✓ This phrase opens this backup (from {date}) — your phrase and backup are valid. (Restoring it onto a new machine isn’t available yet.)",
       bkSetupFirst:"Set up a recovery phrase first.", bkDesktopOnly:"Backup is available only in the Vokter desktop app.",
       docDeleteConfirm:"Delete “{doc}” and everything your agent learned from it?", safetyBannerBad:"⚠ Safety rules failed to load — every guarded action is blocked or needs confirmation until this is fixed.",
       noteEmail:"Connect an inbox — indexed on this machine, never uploaded.",
@@ -166,7 +166,7 @@
       bkRestoreTitle:"Restaurar en un equipo nuevo",
       bkRestoreIntro:"¿Ordenador nuevo? Instala Vokter, elige tu archivo de copia e introduce tu frase.",
       bkRestorePathPh:"Ruta a tu archivo de copia", bkRestorePhrasePh:"Tus 12 o 24 palabras de recuperación",
-      bkRestoreCheck:"Comprobar frase + copia", bkRestoreOk:"✓ Esta frase abre esta copia (del {date}). En una instalación nueva esto restaura tu Vokter.",
+      bkRestoreCheck:"Comprobar frase + copia", bkRestoreOk:"✓ Esta frase abre esta copia (del {date}) — tu frase y tu copia son válidas. (Restaurarla en un equipo nuevo aún no está disponible.)",
       bkSetupFirst:"Configura primero una frase de recuperación.", bkDesktopOnly:"La copia solo está disponible en la app de escritorio de Vokter.",
       docDeleteConfirm:"¿Borrar «{doc}» y todo lo que tu agente aprendió de él?", safetyBannerBad:"⚠ No se pudieron cargar las reglas de seguridad — toda acción protegida queda bloqueada o requiere confirmación hasta arreglarlo.",
       noteEmail:"Conecta un buzón — se indexa en esta máquina, nunca se sube.",
@@ -899,6 +899,7 @@
     {k:'tasks',lk:'rowTasks',type:'tasks'},
     {k:'voice',lk:'rowVoice',type:'voice'},
     {k:'model',lk:'rowModel',type:'model'},
+    {k:'backup',lk:'rowBackup',type:'backup'},
     {k:'safety',lk:'rowSafety',type:'safety'},
     {k:'language',lk:'rowLanguage',type:'lang'}
   ];
@@ -932,6 +933,7 @@
     if(row.type==='tasks') return renderTasks();
     if(row.type==='model') return renderModel();
     if(row.type==='voice') return renderVoice();
+    if(row.type==='backup') return renderBackup();
     if(row.type==='safety') return renderSafety();
     sTitle.textContent=t(row.lk);
     slist.innerHTML='<div class="subwrap"><div class="placeholder">'+t(row.note)+'</div></div>';
@@ -1495,6 +1497,145 @@
       render();
     }
     load();
+  }
+
+  // ── Backup & recovery view — sovereign BIP39-wrapped backup/restore made visible ──
+  // Same token-bridge discipline as memory/people: every /api/backup/* call goes through
+  // window.vokter.backup (the human-session token lives in the Electron main process, never in
+  // page JS). No bridge (plain browser) → the whole panel is deny-by-default "desktop app only".
+  // The recovery phrase is shown ONCE from the setup response and never persisted anywhere — not
+  // in the DOM beyond this render, not in storage. CSP-safe: all dynamic text via textContent.
+  async function bkCall(req){
+    if(window.vokter && typeof window.vokter.backup==='function'){
+      try{ return await window.vokter.backup(req); }catch{ return {status:0,body:null}; }
+    }
+    return {status:0,body:null};
+  }
+  // Surface the backend's own message on a clean 400 (e.g. "that recovery phrase does not match
+  // this backup"); fall back to a generic no-reach line for 0/5xx.
+  function bkErr(r){ return (r && r.status>=400 && r.body && r.body.detail) ? r.body.detail : t('noReachShort'); }
+
+  function renderBackup(){
+    sTitle.textContent=t('rowBackup');
+    const wrap=_sub();
+    const intro=document.createElement('div'); intro.className='note'; intro.textContent=t('bkIntro'); wrap.appendChild(intro);
+    const warn=document.createElement('div'); warn.className='swarn';
+    warn.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 9v4m0 4h.01M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    const wt=document.createElement('span'); wt.textContent=t('bkWarn'); warn.appendChild(wt); wrap.appendChild(warn);
+
+    const setup=document.createElement('div'); wrap.appendChild(setup);
+    const exportSec=document.createElement('div'); wrap.appendChild(exportSec);
+    const restoreSec=document.createElement('div'); wrap.appendChild(restoreSec);
+
+    // 3 · Restore — always available (its whole point is a brand-new install). Validates ONLY:
+    //     the phrase opens the backup. Placing the DB + seeding the keychain is the orchestrator's
+    //     job at boot (it owns key/DB setup), so the UI's honest end-state is "this phrase works".
+    function paintRestore(){
+      restoreSec.textContent='';
+      const h=document.createElement('div'); h.className='ssub'; h.textContent=t('bkRestoreTitle'); restoreSec.appendChild(h);
+      const n=document.createElement('div'); n.className='smeta'; n.textContent=t('bkRestoreIntro'); restoreSec.appendChild(n);
+      const f1=document.createElement('div'); f1.className='sfield';
+      const path=document.createElement('input'); path.type='text'; path.className='sin'; path.placeholder=t('bkRestorePathPh'); path.setAttribute('autocomplete','off'); f1.appendChild(path); restoreSec.appendChild(f1);
+      const f2=document.createElement('div'); f2.className='sfield';
+      const phrase=document.createElement('input'); phrase.type='text'; phrase.className='sin'; phrase.placeholder=t('bkRestorePhrasePh'); phrase.setAttribute('autocomplete','off'); phrase.setAttribute('spellcheck','false'); f2.appendChild(phrase); restoreSec.appendChild(f2);
+      const acts=document.createElement('div'); acts.className='sactions';
+      const btn=document.createElement('button'); btn.className='sbtn ghost'; btn.textContent=t('bkRestoreCheck'); acts.appendChild(btn); restoreSec.appendChild(acts);
+      const out=document.createElement('div'); out.className='smeta'; restoreSec.appendChild(out);
+      btn.onclick=async()=>{
+        const bp=path.value.trim(), ph=phrase.value.trim();
+        if(!bp || !ph) return;
+        btn.disabled=true; out.textContent=t('loading');
+        const r=await bkCall({op:'restoreValidate',backupPath:bp,phrase:ph});
+        btn.disabled=false;
+        if(r.status===200 && r.body && r.body.valid){ out.className='smeta ok'; out.textContent=t('bkRestoreOk',{date:(r.body.created_at||'').slice(0,10)}); }
+        else { out.className='smeta'; out.textContent=bkErr(r); }
+      };
+    }
+
+    // 2 · Export — needs recovery set up first (that's what wraps the backup's key). Keyless/unset
+    //     installs show "set up first"; otherwise a path field → one verified snapshot.
+    function paintExport(ready){
+      exportSec.textContent='';
+      const h=document.createElement('div'); h.className='ssub'; h.textContent=t('bkExportTitle'); exportSec.appendChild(h);
+      if(!ready){ exportSec.appendChild(_placeholder(t('bkSetupFirst'))); return; }
+      const n=document.createElement('div'); n.className='smeta'; n.textContent=t('bkExportNote'); exportSec.appendChild(n);
+      const f=document.createElement('div'); f.className='sfield';
+      const path=document.createElement('input'); path.type='text'; path.className='sin'; path.placeholder=t('bkExportPh'); path.setAttribute('autocomplete','off'); f.appendChild(path); exportSec.appendChild(f);
+      const acts=document.createElement('div'); acts.className='sactions';
+      const btn=document.createElement('button'); btn.className='sbtn'; btn.textContent=t('bkExport'); acts.appendChild(btn); exportSec.appendChild(acts);
+      const out=document.createElement('div'); out.className='smeta'; exportSec.appendChild(out);
+      btn.onclick=async()=>{
+        const bp=path.value.trim(); if(!bp) return;
+        btn.disabled=true; out.className='smeta'; out.textContent=t('loading');
+        const r=await bkCall({op:'export',outPath:bp});
+        btn.disabled=false;
+        if(r.status===200 && r.body && r.body.ok){ out.className='smeta ok'; out.textContent=t('bkExported'); toast(t('bkExported')); }
+        else { out.className='smeta'; out.textContent=bkErr(r); }
+      };
+    }
+
+    // 1 · Set up recovery. Once ready we DON'T re-offer generate — a second setup would mint a new
+    //     phrase and overwrite (salt, KEK), silently orphaning every backup made with the old one.
+    function paintSetup(ready){
+      setup.textContent='';
+      const h=document.createElement('div'); h.className='ssub'; h.textContent=t('bkSetupTitle'); setup.appendChild(h);
+      if(ready){ const r=document.createElement('div'); r.className='smeta ok'; r.textContent=t('bkReady'); setup.appendChild(r); return; }
+      const n=document.createElement('div'); n.className='smeta'; n.textContent=t('bkWordsNote'); setup.appendChild(n);
+      let words=12;
+      const choice=document.createElement('div'); choice.className='mchips';
+      [[12,'bkW12'],[24,'bkW24']].forEach(([val,key])=>{
+        const lab=document.createElement('label'); lab.className='mtoggle';
+        const radio=document.createElement('input'); radio.type='radio'; radio.name='bkwords'; radio.value=String(val); if(val===12) radio.checked=true;
+        radio.onchange=()=>{ if(radio.checked) words=val; };
+        const sp=document.createElement('span'); sp.textContent=t(key);
+        lab.appendChild(radio); lab.appendChild(sp); choice.appendChild(lab);
+      });
+      setup.appendChild(choice);
+      const acts=document.createElement('div'); acts.className='sactions';
+      const gen=document.createElement('button'); gen.className='sbtn'; gen.textContent=t('bkGenerate'); acts.appendChild(gen); setup.appendChild(acts);
+      const out=document.createElement('div'); out.className='smeta'; setup.appendChild(out);
+      gen.onclick=async()=>{
+        gen.disabled=true; out.className='smeta'; out.textContent=t('loading');
+        const r=await bkCall({op:'setup',words});
+        if(!(r.status===200 && r.body && r.body.mnemonic)){ gen.disabled=false; out.textContent=bkErr(r); return; }
+        showPhrase(r.body.mnemonic.split(' '));
+      };
+    }
+
+    // The phrase, shown ONCE. Numbered grid (write-down-in-order), then an explicit "I wrote it
+    // down" gate before Finish calls confirm-written — setup isn't "done" without that attestation.
+    function showPhrase(words){
+      setup.textContent='';
+      const h=document.createElement('div'); h.className='ssub'; h.textContent=t('bkSetupTitle'); setup.appendChild(h);
+      const title=document.createElement('div'); title.className='smeta'; title.textContent=t('bkPhraseTitle'); setup.appendChild(title);
+      const grid=document.createElement('div'); grid.className='bkphrase';
+      words.forEach((w,i)=>{ const cell=document.createElement('div'); cell.className='bkword';
+        const num=document.createElement('span'); num.className='bkn'; num.textContent=String(i+1);
+        const wd=document.createElement('span'); wd.className='bkw'; wd.textContent=w;   // CSP: word via textContent
+        cell.appendChild(num); cell.appendChild(wd); grid.appendChild(cell); });
+      setup.appendChild(grid);
+      const lab=document.createElement('label'); lab.className='mtoggle';
+      const chk=document.createElement('input'); chk.type='checkbox';
+      const sp=document.createElement('span'); sp.textContent=t('bkWrote');
+      lab.appendChild(chk); lab.appendChild(sp); setup.appendChild(lab);
+      const acts=document.createElement('div'); acts.className='sactions';
+      const fin=document.createElement('button'); fin.className='sbtn'; fin.textContent=t('bkFinish'); fin.disabled=true; acts.appendChild(fin); setup.appendChild(acts);
+      const out=document.createElement('div'); out.className='smeta'; setup.appendChild(out);
+      chk.onchange=()=>{ fin.disabled=!chk.checked; };
+      fin.onclick=async()=>{
+        fin.disabled=true; out.className='smeta'; out.textContent=t('loading');
+        const r=await bkCall({op:'confirmWritten'});
+        if(r.status===200){ paintSetup(true); paintExport(true); toast(t('bkReady')); }
+        else { fin.disabled=false; out.textContent=bkErr(r); }
+      };
+    }
+
+    (async()=>{
+      const r=await bkCall({op:'status'});
+      if(!r || r.status===0){ wrap.textContent=''; wrap.appendChild(_placeholder(t('bkDesktopOnly'))); return; }
+      const ready=!!(r.body && r.body.recovery_ready);
+      paintSetup(ready); paintExport(ready); paintRestore();
+    })();
   }
 
   // ── Shell controls: sidebar drawer, new chat, settings/docs, language, theme ──
