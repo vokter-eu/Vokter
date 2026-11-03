@@ -531,6 +531,51 @@ ipcMain.handle('vokter:backup', (_event, reqIn) => new Promise((resolve) => {
   rq.end();
 }));
 
+// Restore (new-machine recovery): the page sends {backupPath, phrase, confirm}. MAIN proxies it to
+// restore-apply (which STAGES the restored DB under the data dir without touching the live one), and
+// on success RESTARTS the orchestrator — on reboot it swaps the staging into place (_apply_staged_restore)
+// and the backend comes up on the restored DB. The human-session token stays in MAIN; the phrase is a
+// request body here and never written to disk by MAIN. confirm MUST be true (the backend re-checks).
+ipcMain.handle('vokter:restore', (_event, reqIn) => new Promise((resolve) => {
+  if (!ready || backendPort == null) { resolve({ status: 0, body: null }); return; }
+  const r = (reqIn && typeof reqIn === 'object') ? reqIn : {};
+  const payload = JSON.stringify({
+    backup_path: String(r.backupPath || ''), phrase: String(r.phrase || ''), confirm: r.confirm === true,
+  });
+  const headers = { 'X-Vokter-Human-Session': HUMAN_SESSION_TOKEN,
+                    'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) };
+  const rq = http.request({ host: '127.0.0.1', port: backendPort, path: '/api/backup/restore-apply', method: 'POST', headers }, (res) => {
+    let data = ''; res.setEncoding('utf8'); res.on('data', (c) => { data += c; });
+    res.on('end', () => {
+      let parsed = null; try { parsed = JSON.parse(data); } catch { /* */ }
+      resolve({ status: res.statusCode || 0, body: parsed });
+      if (res.statusCode === 200 && parsed && parsed.ok) restartForRestore();   // staging ready → reboot into it
+    });
+  });
+  rq.on('error', () => resolve({ status: 0, body: null }));
+  rq.setTimeout(60000, () => { rq.destroy(); resolve({ status: 0, body: null }); });
+  rq.write(payload); rq.end();
+}));
+
+// Reboot the orchestrator into a just-staged restore. Unlike start-fresh (which runs while HALTED),
+// restore fires while the backend is RUNNING — so we SIGTERM the live child and respawn only AFTER its
+// 'close' has fired, so the running child's close handler still sees ready===true and never flashes the
+// error screen (startOrchestrator resets `ready`, so respawning before close would race into it). No
+// startFresh flag: that forces create-only mint — the opposite of placing a restored DB.
+function restartForRestore() {
+  if (restarting) return;
+  restarting = true;
+  if (win && !win.isDestroyed()) win.loadFile(path.join(__dirname, 'loading.html'));
+  const c = child;
+  if (c && !childExited) {
+    c.once('close', () => { restarting = false; startOrchestrator(); });
+    c.kill('SIGTERM');
+    setTimeout(() => { if (!childExited && c) c.kill('SIGKILL'); }, 15000);
+  } else {
+    restarting = false; startOrchestrator();
+  }
+}
+
 // The window's ONE outbound action: the user clicked [2] "Start fresh". Honour it
 // ONLY while halted at the guardrail, and ONLY once — a nervous double click must
 // not spawn two orchestrators contending for the ports and Ollama.

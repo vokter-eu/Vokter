@@ -17,6 +17,7 @@ import hashlib
 import json
 import os
 import secrets
+import shutil
 import sys
 import time
 
@@ -215,3 +216,51 @@ def restore_key(backup_db_path: str, manifest: dict, mnemonic: list[str]) -> byt
     if not _key_opens(backup_db_path, k):
         raise BackupError("recovered key did not open the backup (corrupt backup or wrong manifest)")
     return k
+
+
+# ───────────────────────────── stage a validated restore (for orchestrator placement) ─────────
+def stage_restore(backup_db_path: str, manifest: dict, mnemonic: list[str], staging_dir: str) -> dict:
+    """Prepare a validated backup for placement, WITHOUT touching the live install. Reconstruct K
+    from (backup + phrase), copy the backup into `staging_dir`, and REKEY the copy from raw-K to a
+    FRESH PASSPHRASE key — so the restored install runs the NORMAL passphrase path (open + future
+    `export_backup` both expect a passphrase, not `x'<hex>'`), while the identity ROWS are preserved
+    (rekey re-encrypts pages, never touches row bytes → same agent identity). Writes three files the
+    orchestrator swaps into the data dir at next boot: `vokter.db` (restored, passphrase-keyed),
+    `db_key` (0600, the fresh passphrase), and `ready` (a marker carrying the backup's provenance).
+    Raises BackupError on a wrong phrase or a copy that fails to re-open. The live DB is never read."""
+    k = restore_key(backup_db_path, manifest, mnemonic)      # validates; raises on a wrong phrase
+    os.makedirs(staging_dir, exist_ok=True)
+    staged_db = os.path.join(staging_dir, "vokter.db")
+    if os.path.exists(staged_db):
+        os.remove(staged_db)
+    shutil.copyfile(backup_db_path, staged_db)               # the backup is already a consistent snapshot
+
+    # Rekey raw-K → a fresh passphrase (NORMAL path). `PRAGMA rekey = '<text>'` = passphrase-KDF mode;
+    # `= "x'<hex>'"` would stay raw. Identity rows survive (verified empirically).
+    passphrase = secrets.token_urlsafe(32)
+    conn = _open_raw(staged_db, k)
+    try:
+        conn.execute("PRAGMA rekey = '%s'" % passphrase.replace("'", "''"))
+        conn.commit()
+    finally:
+        conn.close()
+
+    # VERIFY the rekeyed copy opens with the passphrase + passes integrity BEFORE we mark it ready —
+    # a staged-but-unopenable DB must never reach placement.
+    v = _open_passphrase(staged_db, passphrase)
+    try:
+        bad = v.execute("PRAGMA cipher_integrity_check").fetchall()
+        if bad:
+            raise BackupError(f"restored copy failed integrity check: {bad[:3]}")
+        v.execute("SELECT count(*) FROM sqlite_master").fetchone()
+    finally:
+        v.close()
+
+    kf = os.path.join(staging_dir, "db_key")
+    fd = os.open(kf, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)   # the key is 0600 from creation
+    with os.fdopen(fd, "w") as f:
+        f.write(passphrase)
+    meta = {"created_at": manifest.get("created_at"), "schema_version": manifest.get("schema_version")}
+    with open(os.path.join(staging_dir, "ready"), "w", encoding="utf-8") as f:
+        json.dump(meta, f)
+    return meta

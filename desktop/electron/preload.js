@@ -65,4 +65,9 @@ contextBridge.exposeInMainWorld('vokter', {
   // ops: status | setup | confirmWritten | export | restoreValidate. The recovery phrase comes back
   // from setup for one-time display and is never persisted. Used only by the Backup settings view.
   backup: (req) => ipcRenderer.invoke('vokter:backup', req),
+
+  // restore({backupPath, phrase, confirm}): STAGE + apply a validated backup, then reboot into it.
+  // Separate from backup() because it has a side effect beyond a proxy call — main restarts the
+  // orchestrator on success. Resolves to {status, body}; the window then reloads into the restored DB.
+  restore: (req) => ipcRenderer.invoke('vokter:restore', req),
 });

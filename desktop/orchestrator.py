@@ -413,6 +413,43 @@ def _recreate_key_file(key: str) -> None:
             f"recreate is best-effort, never a boot condition")
 
 
+def _apply_staged_restore() -> None:
+    """Place a validated backup the UI staged, if any — the one write-side of restore.
+
+    The backend (restore-apply) already did the crypto: it rekeyed a COPY of the backup to a fresh
+    PASSPHRASE and wrote DATA_DIR/.restore/{vokter.db, db_key, ready} WITHOUT touching the live DB.
+    Here, at the very top of boot (before the guardrail + ensure_db_key), we atomically swap that
+    staging into place: os.replace the restored DB over vokter.db (same filesystem → atomic), write
+    the fresh passphrase to .db_key (0600) + seed the keychain, then delete the staging. After this
+    the normal key path reads the passphrase, opens the restored DB, and migrations.run_once() (which
+    fires on every boot) upgrades an older-schema backup forward. Destructive by design — the UI
+    collected the confirm before restore-apply staged anything; reaching this point means "do it".
+
+    Fail-safe: if staging is incomplete (no db/key), we remove it and boot normally rather than
+    half-apply. The swap itself is the last irreversible step and is a single os.replace."""
+    staging = DATA_DIR / ".restore"
+    ready, staged_db, staged_key = staging / "ready", staging / "vokter.db", staging / "db_key"
+    if not ready.exists():
+        return
+    if not (staged_db.exists() and staged_key.exists()):
+        log("staged restore is incomplete (missing db or key) — ignoring it and booting normally")
+        shutil.rmtree(staging, ignore_errors=True)
+        return
+    log("staged restore found — placing the restored database (this replaces the current install)")
+    key = staged_key.read_text().strip()
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    os.replace(staged_db, DATA_DIR / "vokter.db")                 # atomic overwrite of the live DB
+    # Write the restored DB's key atomically (temp + replace, 0600) — this IS the new source of truth.
+    tmp = DBKEY_FILE.with_name(DBKEY_FILE.name + ".restore-tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(key)
+    os.replace(tmp, DBKEY_FILE)
+    _seed_keychain(key)                                          # best-effort; file stays source of truth
+    shutil.rmtree(staging, ignore_errors=True)
+    log("restore placed → the restored Vokter will boot on the next key resolution")
+
+
 def _seed_keychain(key: str) -> None:
     """Best-effort file→keychain seed (migration and first-mint paths). NEVER
     breaks the boot: keychain.mirror swallows every keychain hiccup, and the file
@@ -835,6 +872,7 @@ def main() -> None:
     log(f"data dir → {DATA_DIR}  ({_DATA_WHY})")
     flavour = backend_flavour()
     preflight(flavour)
+    _apply_staged_restore()          # place a UI-staged backup, if any, BEFORE the key/guardrail path
     db_key = ensure_db_key()
     start_ollama()
     ensure_models()

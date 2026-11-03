@@ -58,7 +58,10 @@
       bkRestoreTitle:"Restore on a new machine",
       bkRestoreIntro:"New computer? Install Vokter, pick your backup file, and enter your phrase.",
       bkRestorePathPh:"Path to your backup file", bkRestorePhrasePh:"Your 12 or 24 recovery words",
-      bkRestoreCheck:"Check this phrase + backup", bkRestoreOk:"✓ This phrase opens this backup (from {date}) — your phrase and backup are valid. (Restoring it onto a new machine isn’t available yet.)",
+      bkRestoreCheck:"Check this phrase + backup", bkRestoreOk:"✓ This phrase opens this backup (from {date}).",
+      bkRestoreNow:"Restore this backup now", bkRestoreWarn:"This replaces everything on this Vokter with the backup and restarts. Do this on a new or empty install — it can’t be undone.",
+      bkRestoreConfirm:"Replace this Vokter with the backup from {date}? Everything currently here is overwritten. This cannot be undone.",
+      bkRestoring:"Restoring… Vokter will restart.", bkRestoreFail:"Restore couldn’t start — {msg}",
       bkSetupFirst:"Set up a recovery phrase first.", bkDesktopOnly:"Backup is available only in the Vokter desktop app.",
       docDeleteConfirm:"Delete “{doc}” and everything your agent learned from it?", safetyBannerBad:"⚠ Safety rules failed to load — every guarded action is blocked or needs confirmation until this is fixed.",
       noteEmail:"Connect an inbox — indexed on this machine, never uploaded.",
@@ -166,7 +169,10 @@
       bkRestoreTitle:"Restaurar en un equipo nuevo",
       bkRestoreIntro:"¿Ordenador nuevo? Instala Vokter, elige tu archivo de copia e introduce tu frase.",
       bkRestorePathPh:"Ruta a tu archivo de copia", bkRestorePhrasePh:"Tus 12 o 24 palabras de recuperación",
-      bkRestoreCheck:"Comprobar frase + copia", bkRestoreOk:"✓ Esta frase abre esta copia (del {date}) — tu frase y tu copia son válidas. (Restaurarla en un equipo nuevo aún no está disponible.)",
+      bkRestoreCheck:"Comprobar frase + copia", bkRestoreOk:"✓ Esta frase abre esta copia (del {date}).",
+      bkRestoreNow:"Restaurar esta copia ahora", bkRestoreWarn:"Esto reemplaza todo lo de este Vokter con la copia y lo reinicia. Hazlo en una instalación nueva o vacía — no se puede deshacer.",
+      bkRestoreConfirm:"¿Reemplazar este Vokter con la copia del {date}? Se sobrescribe todo lo que hay aquí. No se puede deshacer.",
+      bkRestoring:"Restaurando… Vokter se reiniciará.", bkRestoreFail:"No se pudo iniciar la restauración — {msg}",
       bkSetupFirst:"Configura primero una frase de recuperación.", bkDesktopOnly:"La copia solo está disponible en la app de escritorio de Vokter.",
       docDeleteConfirm:"¿Borrar «{doc}» y todo lo que tu agente aprendió de él?", safetyBannerBad:"⚠ No se pudieron cargar las reglas de seguridad — toda acción protegida queda bloqueada o requiere confirmación hasta arreglarlo.",
       noteEmail:"Conecta un buzón — se indexa en esta máquina, nunca se sube.",
@@ -1541,13 +1547,35 @@
       const acts=document.createElement('div'); acts.className='sactions';
       const btn=document.createElement('button'); btn.className='sbtn ghost'; btn.textContent=t('bkRestoreCheck'); acts.appendChild(btn); restoreSec.appendChild(acts);
       const out=document.createElement('div'); out.className='smeta'; restoreSec.appendChild(out);
+      // Revealed only AFTER a valid check: the destructive apply. Its own amber warning + a second
+      // confirm() — restore overwrites this install and reboots, so it's never one accidental click.
+      const warn=document.createElement('div'); warn.className='swarn'; warn.style.display='none';
+      warn.innerHTML='<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 9v4m0 4h.01M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      const wtx=document.createElement('span'); wtx.textContent=t('bkRestoreWarn'); warn.appendChild(wtx); restoreSec.appendChild(warn);
+      const acts2=document.createElement('div'); acts2.className='sactions';
+      const nowBtn=document.createElement('button'); nowBtn.className='sbtn'; nowBtn.textContent=t('bkRestoreNow'); nowBtn.style.display='none'; acts2.appendChild(nowBtn); restoreSec.appendChild(acts2);
       btn.onclick=async()=>{
         const bp=path.value.trim(), ph=phrase.value.trim();
         if(!bp || !ph) return;
-        btn.disabled=true; out.textContent=t('loading');
+        btn.disabled=true; out.textContent=t('loading'); warn.style.display='none'; nowBtn.style.display='none';
         const r=await bkCall({op:'restoreValidate',backupPath:bp,phrase:ph});
         btn.disabled=false;
-        if(r.status===200 && r.body && r.body.valid){ out.className='smeta ok'; out.textContent=t('bkRestoreOk',{date:(r.body.created_at||'').slice(0,10)}); }
+        if(r.status===200 && r.body && r.body.valid){
+          const date=(r.body.created_at||'').slice(0,10);
+          out.className='smeta ok'; out.textContent=t('bkRestoreOk',{date});
+          warn.style.display=''; nowBtn.style.display='';
+          nowBtn.onclick=async()=>{
+            if(!confirm(t('bkRestoreConfirm',{date}))) return;
+            nowBtn.disabled=true; btn.disabled=true; out.className='smeta'; out.textContent=t('bkRestoring');
+            // On success MAIN reboots the app into the restored DB (the window reloads), so control
+            // usually never returns here; a non-200 means staging failed — surface it and re-enable.
+            let rr={status:0,body:null};
+            if(window.vokter && typeof window.vokter.restore==='function'){
+              try{ rr=await window.vokter.restore({backupPath:bp,phrase:ph,confirm:true}); }catch{ rr={status:0,body:null}; }
+            }
+            if(!(rr && rr.status===200)){ nowBtn.disabled=false; btn.disabled=false; out.className='smeta'; out.textContent=t('bkRestoreFail',{msg:bkErr(rr)}); }
+          };
+        }
         else { out.className='smeta'; out.textContent=bkErr(r); }
       };
     }

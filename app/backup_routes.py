@@ -122,3 +122,41 @@ def backup_restore_validate(req: RestoreIn, x_vokter_human_session: str | None =
         raise HTTPException(400, "could not read the backup manifest")
     return {"ok": True, "valid": True, "created_at": manifest.get("created_at"),
             "schema_version": manifest.get("schema_version")}
+
+
+# The subdir (under the data dir, same filesystem → atomic swap) where a validated restore is staged
+# for the orchestrator to place at next boot.
+RESTORE_SUBDIR = ".restore"
+
+
+class RestoreApplyIn(BaseModel):
+    backup_path: str
+    phrase: str
+    confirm: bool = False     # restore REPLACES this install — the UI must collect an explicit yes
+
+
+@router.post("/api/backup/restore-apply")
+def backup_restore_apply(req: RestoreApplyIn, x_vokter_human_session: str | None = Header(default=None)):
+    """Stage a validated backup for placement. We do NOT touch the running install here: backup.py
+    rekeys a COPY of the backup to a fresh passphrase and writes it (plus its key + a ready marker)
+    into DATA_DIR/.restore. The desktop orchestrator swaps that staging into place at the NEXT boot
+    (atomic os.replace on the same filesystem) and relaunches into the restored DB — identity rows
+    intact, migrations run on boot. Restore is destructive by nature, so `confirm` is mandatory (the
+    UI collects it); detecting 'is this install populated' is deliberately avoided (identity/config
+    rows exist on every install, fresh included — it would always-confirm anyway)."""
+    _require_human(x_vokter_human_session)
+    if not req.confirm:
+        raise HTTPException(400, "restore replaces this install — explicit confirmation is required")
+    bp = os.path.abspath(os.path.expanduser(req.backup_path))
+    mpath = bp + ".manifest.json"
+    if not (os.path.exists(bp) and os.path.exists(mpath)):
+        raise HTTPException(400, "backup file or its manifest not found")
+    staging = os.path.join(os.path.dirname(os.path.abspath(DB_PATH)), RESTORE_SUBDIR)
+    try:
+        manifest = json.load(open(mpath))
+        meta = backup.stage_restore(bp, manifest, req.phrase.split(), staging)
+    except backup.BackupError as e:
+        raise HTTPException(400, str(e))
+    except Exception:
+        raise HTTPException(400, "could not read the backup manifest")
+    return {"ok": True, "staged": True, **meta}
