@@ -2,6 +2,7 @@ import io
 from contextlib import closing
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from pypdf import PdfReader
 
 from config import CHUNK_SIZE, CHUNK_OVERLAP
@@ -25,7 +26,14 @@ def chunk_text(text: str) -> list[str]:
 def extract_text(filename: str, raw: bytes) -> str:
     if filename.lower().endswith(".pdf"):
         reader = PdfReader(io.BytesIO(raw))
-        return "\n".join(page.extract_text() or "" for page in reader.pages)
+        page_texts = [page.extract_text() or "" for page in reader.pages]
+        # Fast path: a PDF with a real text layer is returned as-is — never rasterised or OCR'd.
+        # A scanned/image PDF (no text layer), or a mixed doc, falls to on-device OCR for the
+        # empty pages only (pypdfium2 renders them → the Tesseract path reads them).
+        from ocr import pdf_needs_ocr, ocr_pdf
+        if pdf_needs_ocr(page_texts):
+            return ocr_pdf(raw, page_texts)
+        return "\n".join(page_texts)
     # Images → on-device OCR (reads text off receipts/tickets/labels; not photo
     # understanding). Lazy import so text/PDF uploads never load the OCR engine.
     from ocr import is_image, ocr_image
@@ -37,7 +45,9 @@ def extract_text(filename: str, raw: bytes) -> str:
 @router.post("/api/docs")
 async def upload_doc(file: UploadFile = File(...)):
     raw  = await file.read()
-    text = extract_text(file.filename, raw)
+    # Extraction is sync + CPU/subprocess-bound (pypdf parse, pdfium raster, Tesseract) — a multi-page
+    # scan would freeze the whole event loop. Run it off the loop so the app stays responsive.
+    text = await run_in_threadpool(extract_text, file.filename, raw)
     if not text.strip():
         raise HTTPException(400, "Could not extract text from that file.")
     doc_name = file.filename or "untitled"

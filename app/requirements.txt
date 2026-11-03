@@ -9,6 +9,11 @@ python-multipart>=0.0.18
 # located via VOKTER_TESSERACT_CMD / VOKTER_TESSDATA_PREFIX / VOKTER_TESSERACT_LIBDIR.
 # See app/ocr.py + docs/IMAGE_UNDERSTANDING.md.
 pillow>=10,<13
+# Scanned/image PDFs have no text layer → pypdf returns nothing. pypdfium2 (self-contained
+# libpdfium, Apache/BSD, ~4 MB wheel, no system deps) rasterises those pages so the SAME Tesseract
+# path can read them (ocr.py:ocr_pdf). Text-layer PDFs never touch it. The native pdfium .so must
+# travel into the frozen bundle — verify in the freeze spec (Task 2 re-freeze).
+pypdfium2>=4,<6
 faster-whisper>=1.0,<2
 # TTS engine 1: Kokoro-82M (Apache-2.0) via kokoro-onnx — runs on the onnxruntime faster-whisper
 # already pulls in, no PyTorch. Covers en/es/fr/it/pt.

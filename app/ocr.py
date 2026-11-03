@@ -34,6 +34,15 @@ IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff", ".gif")
 _LANGS = os.getenv("VOKTER_OCR_LANGS", "cat+spa+eng")
 _TIMEOUT = 60  # seconds — a generous cap for a large/slow-CPU scan
 
+# A PDF page whose text layer carries fewer real (non-space) characters than this is treated as
+# scanned (no usable text layer) → rasterise + OCR it. Pages with real text stay on the fast path.
+_MIN_PAGE_CHARS = 10
+# Rasterise scanned pages at ~300 DPI (PDF user space is 72 DPI) — the sweet spot for Tesseract.
+_PDF_RENDER_SCALE = 300 / 72
+# Cap how many scanned pages we OCR in one document (~tens of seconds each on CPU): a 466-page scan
+# must not run for hours. Text-layer pages are free and never count against this. Overridable.
+_MAX_OCR_PAGES = int(os.getenv("VOKTER_MAX_OCR_PAGES", "25"))
+
 
 def is_image(filename: str) -> bool:
     return bool(filename) and filename.lower().endswith(IMAGE_EXTS)
@@ -74,17 +83,12 @@ def _to_png(raw: bytes) -> bytes | None:
         return None
 
 
-def ocr_image(raw: bytes) -> str:
-    """Extract text from image bytes. Returns "" if OCR is unavailable or nothing legible.
-
-    Pure w.r.t. the bytes; no network. The caller treats "" as "couldn't read this image".
-    """
+def _tesseract_png(png: bytes) -> str:
+    """Run the vendored/system Tesseract on PNG bytes → text. "" on any failure (engine absent,
+    timeout, or nothing legible). Pure w.r.t. the bytes; no network."""
     cmd = _tesseract_cmd()
     if not cmd:
         return ""  # OCR engine not present → degrade gracefully
-    png = _to_png(raw)
-    if png is None:
-        return ""
     try:
         proc = subprocess.run(
             [cmd, "-", "-", "-l", _LANGS],  # stdin → stdout
@@ -93,3 +97,65 @@ def ocr_image(raw: bytes) -> str:
     except Exception:
         return ""
     return proc.stdout.decode("utf-8", errors="replace").strip()
+
+
+def ocr_image(raw: bytes) -> str:
+    """Extract text from image bytes. Returns "" if OCR is unavailable or nothing legible.
+
+    The caller treats "" as "couldn't read this image".
+    """
+    png = _to_png(raw)
+    return _tesseract_png(png) if png is not None else ""
+
+
+def _page_has_text(text: str) -> bool:
+    """A page is 'already readable' once its text layer carries enough real characters."""
+    return sum(1 for c in text if not c.isspace()) >= _MIN_PAGE_CHARS
+
+
+def pdf_needs_ocr(page_texts: list[str]) -> bool:
+    """True if any page lacks a usable text layer — i.e. a scanned/image PDF, or a mixed doc with
+    some scanned pages. A fully text-layer PDF returns False and never touches the OCR path."""
+    return any(not _page_has_text(t) for t in page_texts)
+
+
+def ocr_pdf(raw: bytes, page_texts: list[str]) -> str:
+    """OCR only the scanned pages of a PDF; pages that already have a text layer pass through
+    unchanged (never rasterised). `page_texts` is pypdf's per-page extraction, in the same page
+    order pdfium uses. The rasteriser (pypdfium2) is imported lazily and the document opened only
+    if at least one page actually needs it; if the rasteriser is unavailable we degrade to whatever
+    text layer exists rather than failing the upload. A render/OCR hiccup on one page keeps the rest.
+    """
+    try:
+        import pypdfium2 as pdfium
+    except Exception:
+        return "\n".join(page_texts)
+    doc = None
+    out: list[str] = []
+    ocr_pages = 0
+    truncated = False
+    try:
+        for i, text in enumerate(page_texts):
+            if _page_has_text(text):
+                out.append(text)          # text-layer page — free, never counts against the cap
+                continue
+            if ocr_pages >= _MAX_OCR_PAGES:
+                truncated = True          # past the cap: skip OCR but keep scanning for text pages
+                continue
+            if doc is None:
+                doc = pdfium.PdfDocument(raw)
+            try:
+                pil = doc[i].render(scale=_PDF_RENDER_SCALE).to_pil()
+                buf = io.BytesIO()
+                pil.save(buf, "PNG")
+                out.append(_tesseract_png(buf.getvalue()))
+                ocr_pages += 1
+            except Exception:
+                out.append(text)          # best-effort: keep the (empty) text-layer for this page
+    finally:
+        if doc is not None:
+            doc.close()
+    if truncated:
+        out.append(f"[Vokter: this scanned PDF is long — only the first {_MAX_OCR_PAGES} scanned "
+                   f"pages were read by OCR.]")
+    return "\n".join(out)
