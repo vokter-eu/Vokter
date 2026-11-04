@@ -55,6 +55,11 @@ for pkg in (
     "secretstorage",
     "jeepney",
     "PIL",   # Pillow — normalises uploaded images → PNG before Tesseract (ocr.py); has native pieces
+    # pypdfium2 rasterises scanned-PDF pages for OCR (ocr.py:ocr_pdf). The native libpdfium .so lives
+    # in pypdfium2_raw (+ a version.json data file) — collect BOTH or setup/scanned-PDF ingest 500s
+    # only in the frozen .deb (the bip39/Kokoro lesson again).
+    "pypdfium2",
+    "pypdfium2_raw",
 ):
     d, b, h = collect_all(pkg)
     datas += d
