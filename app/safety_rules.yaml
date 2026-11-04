@@ -28,6 +28,13 @@ rules:
   # browser runs hostile page JS, contained per TIER3_PHASE1_BROWSER_CONTAINMENT.md; NO secrets
   # (password/PAN/CVV/OTP) this phase — those are later, each behind their own gate.
   web.act:         { human: confirm, nonhuman: block }
+  # Tier-3 Phase 1: LOGGING IN to a site on the human's behalf (web_login routine). CONFIRM-human-only
+  # — collapses to BLOCK for peer/mcp/autonomous, so a page or a peer can never drive a login. Distinct
+  # from web.act: the request carries only a (site, identity) REFERENCE, never a secret value; the
+  # password/token is dereferenced by code and typed by the injector into a page whose RESOLVED origin
+  # was verified — the model only learns succeeded|failed. See TIER3_PHASE1_LOGIN.md. No secret path
+  # executes until the fire-test secret-non-leakage probe is green on the frozen .deb.
+  web.login:       { human: confirm, nonhuman: block }
   # Outbound agent messages — channel-confined to peers we already know.
   dm.send:
     human: allow_if_known

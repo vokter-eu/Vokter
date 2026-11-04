@@ -52,12 +52,12 @@ HUMAN = "human"                    # the owner, via the local UI (the only conte
 
 # The closed set of actions the gateway knows. Anything else → deny-by-default.
 KNOWN_ACTIONS = {
-    "browse", "web.act", "dm.send", "doc.delete", "memory.delete", "memory.purge",
+    "browse", "web.act", "web.login", "dm.send", "doc.delete", "memory.delete", "memory.purge",
     "task.delete", "email.purge", "avatar.delete", "schedule.create",
 }
 
 # sha256 of safety_rules.yaml — corruption-detection only (see module docstring).
-_RULES_SHA256 = "9d07519a6768aa114744557bb31f31e8dff3fefede9cf20793dbd9a372f5a100"
+_RULES_SHA256 = "f8ff3de397cf7a49298a8c36bece0ef5b68a85aebd0ef1544f17e21015fad702"
 
 _rules: dict | None = None
 _ok = False

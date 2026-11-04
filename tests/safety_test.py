@@ -29,6 +29,15 @@ def check(desc, got, want):
         FAILS.append(desc)
 
 
+def _safe_raises(fn) -> bool:
+    """True iff fn() raises (used to assert a guard rejects bad input)."""
+    try:
+        fn()
+        return False
+    except Exception:
+        return True
+
+
 def main():
     assert safety.load(), "rules should load in a clean checkout"
     g = safety.guard
@@ -98,6 +107,45 @@ def main():
     # ...and must NEVER launch the browser with --no-sandbox (renderer sandbox is required).
     check("tripwire: no --no-sandbox in interactive_browser", "--no-sandbox" not in ib_src
           or "must never appear" in ib_src, True)
+
+    # Tier-3 Phase 1: web.login (sign in on the human's behalf) is CONFIRM-human-only — a page or a
+    # peer can never drive a login. Distinct action from web.act; reference-not-secret request.
+    check("web.login known action",          "web.login" in safety.KNOWN_ACTIONS,                 True)
+    for ctx in ("peer", "mcp", "autonomous"):
+        check(f"web.login/{ctx} BLOCK",      g("web.login", "bank as me", context=ctx),           D.BLOCK)
+    check("web.login/human CONFIRM",         g("web.login", "bank as me", context="human"),       D.CONFIRM)
+    try:
+        safety.enforce_http("web.login", "bank as me", context="autonomous")
+        check("enforce_http web.login autonomous raises", False, True)
+    except HTTPException as e:
+        check("enforce_http web.login autonomous → 403", e.status_code, 403)
+    try:
+        safety.enforce_http("web.login", "bank as me", context="human", confirmed=False)
+        check("enforce_http web.login human unconfirmed raises", False, True)
+    except HTTPException as e:
+        check("enforce_http web.login human unconfirmed → 428", e.status_code, 428)
+    try:
+        safety.enforce_http("web.login", "bank as me", context="human", confirmed=True)
+        check("enforce_http web.login human confirmed → allowed", True, True)
+    except HTTPException:
+        check("enforce_http web.login human confirmed → allowed", False, True)
+
+    # SOURCE-LEVEL TRIPWIRE: the web_login handler must gate through enforce_http("web.login", …)
+    # BEFORE acting, AND the request must carry NO secret-bearing field (reference-not-secret).
+    wl_src = open(_os.path.join(_os.path.dirname(__file__), "..", "app",
+                                "web_login.py"), encoding="utf-8").read()
+    check("tripwire: web_login handler calls enforce_http(\"web.login\")",
+          'enforce_http("web.login"' in wl_src, True)
+    _req_body = wl_src.split("class WebLoginRequest")[1].split("@router")[0].lower()
+    check("tripwire: WebLoginRequest carries no secret-value field",
+          not any(f"{k}:" in _req_body or f"{k} :" in _req_body
+                  for k in ("password", "value", "token", "secret", "otp", "pan", "cvv")), True)
+    # origin-binding: a credential is released only into the RESOLVED origin, never the model's claim.
+    import web_login as _wl
+    check("origin_matches exact origin",     _wl.origin_matches("https://bank.example/login", "https://bank.example"), True)
+    check("origin_matches rejects other host", _wl.origin_matches("https://evil.example", "https://bank.example"), False)
+    check("origin_matches rejects scheme downgrade", _wl.origin_matches("http://bank.example", "https://bank.example"), False)
+    check("normalize_origin rejects non-absolute", _safe_raises(lambda: _wl.normalize_origin("bank.example")), True)
 
     # deny-by-default for actions the gateway has never heard of
     check("unknown action peer BLOCK",   g("frobnicate", None, context="peer"),  D.BLOCK)

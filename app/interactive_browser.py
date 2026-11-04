@@ -191,6 +191,12 @@ class Session:
     def read_text(self) -> str:
         return self._t.read_text()
 
+    def top_origin(self) -> str:
+        """The page's RESOLVED top-level origin (document.location.origin), read from the browser.
+        Innocuous (no secret) — used by web_login's origin-binding so a credential is released only
+        into the origin the browser actually landed on, never the model's claimed URL."""
+        return self._t.top_origin()
+
     def fill(self, selector: str, value: str, *, kind: str) -> str:
         """Type `value` into the field at `selector`. `kind` MUST be innocuous (enforced). Returns
         'succeeded'|'failed' — never the value. The value is handed to the transport (code), never
@@ -292,6 +298,9 @@ class CDPTransport:
 
     def read_text(self):
         return self._cdp.eval("document.body?document.body.innerText:''", self._sid) or ""
+
+    def top_origin(self):
+        return self._cdp.eval("document.location.origin", self._sid) or ""
 
     def close(self):
         try:
