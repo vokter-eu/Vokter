@@ -14,10 +14,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
 
 import containment_selftest as cs
 
+fails = []
+print("── password path ──")
 ok, checks = cs._login_handler_e2e()
 for k, v in checks.items():
-    print(("PASS " if v else "FAIL ") + k)
+    print(("PASS " if v else "FAIL ") + k); (fails.append("password:" + k) if not v else None)
+print("\n── OAuth path (Path 1) ──")
+ook, ochecks = cs._oauth_handler_e2e()
+for k, v in ochecks.items():
+    print(("PASS " if v else "FAIL ") + k); (fails.append("oauth:" + k) if not v else None)
 print()
-if not ok:
-    print("❌ FAILED:", [k for k, v in checks.items() if not v]); sys.exit(1)
-print("✅ TIER-5 e2e: live two-phase web.login works end to end and leaks nothing")
+if fails:
+    print("❌ FAILED:", fails); sys.exit(1)
+print("✅ TIER-5 e2e: live two-phase web.login (password + OAuth) works end to end and leaks nothing")

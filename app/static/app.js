@@ -112,7 +112,7 @@
       advEngineBad:"Must be an http(s) URL, or empty for the bundled engine.",
       newChat:"New chat", theme:"Theme", themeAria:"Toggle light or dark theme", menu:"Menu", themeLight:"Light", themeDark:"Dark",
       chatsLabel:"Chats", noChats:"No conversations yet",
-      lgnTitle:"Confirm sign-in", lgnVerifiedSite:"Verified site", lgnVerifiedNote:"Read from the browser after the page loaded — not what was typed or claimed.", lgnSignInAs:"Sign in as", lgnProvider:"Sign-in provider", lgnScopes:"Access requested", lgnOauthReassure:"Revocable access — Vokter stores a token you can revoke anytime, never a password.", lgnPasswordNote:"Your saved password is typed directly into this site. Vokter never sees it, stores it, or sends it to the model.", lgnWrongSite:"Not the site you meant? Cancel — nothing is sent.", lgnConfirm:"Sign in", lgnCancel:"Cancel", lgnDone:"Signed in.", lgnFailed:"Sign-in didn't complete.", lgnUnavailable:"Sign-in is only available in the Vokter desktop app."
+      lgnTitle:"Confirm sign-in", lgnVerifiedSite:"Verified site", lgnVerifiedNote:"Read from the browser after the page loaded — not what was typed or claimed.", lgnVerifiedNoteOauth:"You'll sign in on the provider's own page, in your browser — check the address bar there.", lgnSignInAs:"Sign in as", lgnProvider:"Sign-in provider", lgnScopes:"Access requested", lgnOauthReassure:"Revocable access — Vokter stores a token you can revoke anytime, never a password.", lgnPasswordNote:"Your saved password is typed directly into this site. Vokter never sees it, stores it, or sends it to the model.", lgnWrongSite:"Not the site you meant? Cancel — nothing is sent.", lgnConfirm:"Sign in", lgnCancel:"Cancel", lgnDone:"Signed in.", lgnFailed:"Sign-in didn't complete.", lgnUnavailable:"Sign-in is only available in the Vokter desktop app."
     },
     es:{
       onDevice:"En tu dispositivo", settings:"Ajustes", send:"Enviar", stopGen:"Detener generación", speak:"Hablar", addDoc:"Añadir un documento o imagen (lee el texto)",
@@ -224,7 +224,7 @@
       advEngineBad:"Debe ser una URL http(s), o vacío para el motor empaquetado.",
       newChat:"Nuevo chat", theme:"Tema", themeAria:"Cambiar tema claro u oscuro", menu:"Menú", themeLight:"Claro", themeDark:"Oscuro",
       chatsLabel:"Chats", noChats:"Aún no hay conversaciones",
-      lgnTitle:"Confirmar inicio de sesión", lgnVerifiedSite:"Sitio verificado", lgnVerifiedNote:"Leído del navegador tras cargar la página — no lo que se escribió o se afirmó.", lgnSignInAs:"Iniciar sesión como", lgnProvider:"Proveedor de acceso", lgnScopes:"Acceso solicitado", lgnOauthReassure:"Acceso revocable — Vokter guarda un token que puedes revocar cuando quieras, nunca una contraseña.", lgnPasswordNote:"Tu contraseña guardada se escribe directamente en este sitio. Vokter nunca la ve, ni la guarda, ni la envía al modelo.", lgnWrongSite:"¿No es el sitio que querías? Cancela — no se envía nada.", lgnConfirm:"Iniciar sesión", lgnCancel:"Cancelar", lgnDone:"Sesión iniciada.", lgnFailed:"No se pudo iniciar sesión.", lgnUnavailable:"El inicio de sesión solo está disponible en la app de escritorio de Vokter."
+      lgnTitle:"Confirmar inicio de sesión", lgnVerifiedSite:"Sitio verificado", lgnVerifiedNote:"Leído del navegador tras cargar la página — no lo que se escribió o se afirmó.", lgnVerifiedNoteOauth:"Iniciarás sesión en la página del proveedor, en tu navegador — comprueba la barra de direcciones allí.", lgnSignInAs:"Iniciar sesión como", lgnProvider:"Proveedor de acceso", lgnScopes:"Acceso solicitado", lgnOauthReassure:"Acceso revocable — Vokter guarda un token que puedes revocar cuando quieras, nunca una contraseña.", lgnPasswordNote:"Tu contraseña guardada se escribe directamente en este sitio. Vokter nunca la ve, ni la guarda, ni la envía al modelo.", lgnWrongSite:"¿No es el sitio que querías? Cancela — no se envía nada.", lgnConfirm:"Iniciar sesión", lgnCancel:"Cancelar", lgnDone:"Sesión iniciada.", lgnFailed:"No se pudo iniciar sesión.", lgnUnavailable:"El inicio de sesión solo está disponible en la app de escritorio de Vokter."
     }
   };
   const LANGS=[{code:'en',name:'English'},{code:'es',name:'Español'}];
@@ -262,7 +262,7 @@
       const site=document.createElement('div'); site.className='lgn-site';
       site.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="4" y="10" width="16" height="10" rx="2" fill="currentColor"/><path d="M8 10V7a4 4 0 018 0v3" stroke="currentColor" stroke-width="2"/></svg>';
       const u=document.createElement('span'); u.className='u'; u.textContent=details.origin; site.appendChild(u); card.appendChild(site);
-      const vnote=document.createElement('div'); vnote.className='lgn-note'; vnote.textContent=t('lgnVerifiedNote'); card.appendChild(vnote);
+      const vnote=document.createElement('div'); vnote.className='lgn-note'; vnote.textContent=t(details.mode==='oauth'?'lgnVerifiedNoteOauth':'lgnVerifiedNote'); card.appendChild(vnote);
 
       // which identity/account
       const idrow=document.createElement('div'); idrow.className='lgn-row';

@@ -64,10 +64,27 @@ def read_resolved_origin(session) -> str:
 # gate is the registered origin + the injector's EXACT origin re-read — a wrong selector only makes a
 # login fail, never leak. (OAuth sub-shape — idp/provider/scopes — is added when Path 1 goes live.)
 _SITE_REGISTRY = {
+    # OAuth / PKCE (Path 1 — structurally SAFER: no password exists to capture; T14 can't steal what is
+    # never typed). Consent happens in the user's OWN system browser (never the cage); only a scoped,
+    # REVOCABLE token is stored. Provision a real client_id (a registered OAuth app) before an entry
+    # works — an empty client_id is refused (503), never a broken authorize URL.
     "github": {
+        "mode": "oauth",
+        "provider": "GitHub",
+        "registered_origin": "https://github.com",
+        "authorize": "https://github.com/login/oauth/authorize",
+        "token": "https://github.com/login/oauth/access_token",
+        "revoke": None,
+        "client_id": "",   # ← set to your registered OAuth app's client_id to enable this entry
+        "scopes": ["read:user"],
+    },
+    # Password / keychain-injector (Path 2 — fallback for password-only sites; the weaker path, T14
+    # residual: a hostile target page can capture what is typed). login_url + registered_origin + the
+    # field selectors are code-side (never the model's claim); the injector re-checks the resolved origin.
+    "github-password": {
+        "mode": "password",
         "login_url": "https://github.com/login",
         "registered_origin": "https://github.com",
-        "mode": "password",
         "selectors": {"username": "#login_field", "password": "#password", "submit": "input[name='commit']"},
     },
 }
@@ -125,6 +142,32 @@ def _run_password_login(entry, identity: str) -> str:
         _close_session(s)
 
 
+# ───────────────────────── OAuth seams (Path 1; patchable in tests) ─────────────────────────
+def _token_store():
+    """Production OAuth token store — the scoped, revocable token in the OS keychain. Patchable."""
+    from oauth_broker import KeychainTokenStore
+    return KeychainTokenStore()
+
+
+def _open_system_browser(url):
+    """Open the IdP consent in the user's OWN system browser (never the cage). Patchable in tests."""
+    from oauth_broker import open_in_system_browser
+    open_in_system_browser(url)
+
+
+def _run_oauth_login(entry, identity: str) -> str:
+    """Path 1 (OAuth/PKCE): consent in the user's SYSTEM browser → loopback code (trusted backend) →
+    server-side PKCE exchange → scoped token in the keychain. GATED (GateNotPassed until the ship gate is
+    green) and NEVER returns the token — only status + metadata reach the handler/model. No cage, no
+    secret in any page: the sovereign-best path."""
+    from oauth_broker import begin_delegation, IdP
+    idp = IdP(authorize=entry["authorize"], token=entry["token"], client_id=entry["client_id"],
+              scopes=entry["scopes"], revoke=entry.get("revoke"))
+    res = begin_delegation(idp, origin=entry["registered_origin"], identity=identity,
+                           store=_token_store(), open_url=_open_system_browser, wait_timeout=300)
+    return res.get("status", "failed")
+
+
 # ───────────────────────── gateway-choked two-phase route ─────────────────────────
 class WebLoginRequest(BaseModel):
     site: str              # the model's CLAIMED site KEY — resolved via the code-side registry; its
@@ -138,14 +181,19 @@ class WebLoginRequest(BaseModel):
 def web_login(req: WebLoginRequest, x_vokter_human_session: str | None = Header(default=None)):
     """Sign in as `identity_ref` WITHOUT the secret reaching the model. Two phases, STATELESS:
 
-      Phase 1 (confirm=false) — CONSENT. enforce_http BLOCKs non-human (403) BEFORE any navigation; the
-        human-unconfirmed 428 is intercepted and ENRICHED with the RESOLVED origin (read read-only from
-        the browser) + identity + mode(+provider/scopes), so the confirm UI shows the real destination.
-        The live origin read is HONESTY, not the gate.
+    Two modes from the code-side registry (OAuth-first — the structurally safer path):
+      * OAuth (Path 1): consent in the user's OWN system browser → loopback code → server-side PKCE
+        exchange → scoped, revocable token in the keychain. No cage, no secret in any page, nothing to
+        capture. Phase-1 428 shows provider + scopes; phase 2 runs begin_delegation.
+      * password (Path 2, fallback): phase-1 navigates read-only in the cage and reads the RESOLVED
+        origin (honesty); phase 2 injects, and perform_password_login RE-READS the resolved origin and
+        refuses unless it EXACTLY equals the registered origin — THAT (registry origin + injector
+        re-check) is the gate, not the confirm step. Status-only; the secret never reaches the model.
+
+      Phase 1 (confirm=false) — CONSENT. enforce_http BLOCKs non-human (403) BEFORE anything acts; the
+        human-unconfirmed 428 is intercepted and ENRICHED for the confirm UI.
       Phase 2 (confirm=true) — the human approved. enforce_http allows (human+confirm), BLOCKs non-human.
-        Navigate + inject; perform_password_login RE-READS the resolved origin and refuses unless it
-        EXACTLY equals the registered origin. THAT (registry origin + injector re-check) is the whole
-        gate — NOT the confirm step. Status-only; the secret never reaches the model/memory/logs.
+        GateNotPassed (ship gate not green) → 503; both paths stay dormant until the self-test passes.
 
     Stateless by design: phase 2 is the same {site, identity_ref, confirm:true} round-tripped by the
     TRUSTED renderer. No server-side session/flow state: a page/peer/model cannot reach web.login at all
@@ -160,32 +208,48 @@ def web_login(req: WebLoginRequest, x_vokter_human_session: str | None = Header(
     target = f"{req.site} as {req.identity_ref}"   # gateway-recorded target — secret-free by construction
 
     if not req.confirm:
-        # Phase 1 — gate FIRST: 403 for non-human BEFORE launching any cage; 428 (enriched below) for human.
+        # Phase 1 — CONSENT. Gate FIRST: 403 for non-human BEFORE any navigation / cage launch.
         try:
             enforce_http("web.login", target, context=context, confirmed=False)
         except HTTPException as e:
             if e.status_code != 428:
-                raise                           # non-human → 403 propagates; NO navigation happens
+                raise                           # non-human → 403 propagates; nothing acts
         entry = _registry_lookup(req.site)
         if entry is None:
             raise HTTPException(404, f"no login registered for site '{req.site}'")
+        if entry.get("mode") == "oauth":
+            # OAuth consents in the user's OWN system browser (no cage); the sheet shows provider + scopes.
+            # resolved_origin here is the IdP's registered authorize origin — the human ALSO verifies it in
+            # their real address bar (§1.5). An unconfigured entry (no client_id) is refused up front.
+            if not entry.get("client_id"):
+                raise HTTPException(503, f"OAuth not configured for '{req.site}' (no client_id provisioned)")
+            raise HTTPException(428, detail={
+                "error": "confirmation_required", "action": "web.login",
+                "resolved_origin": entry["registered_origin"], "identity": req.identity_ref,
+                "mode": "oauth", "provider": entry.get("provider"), "scopes": entry.get("scopes")})
+        # password: navigate read-only in the cage and read the RESOLVED origin (honesty, not the gate).
         if not ib.browser_supported():
             raise HTTPException(503, "interactive browser not available on this platform (contained Linux only)")
         resolved = _resolve_origin_readonly(entry)
         raise HTTPException(428, detail={
             "error": "confirmation_required", "action": "web.login",
-            "resolved_origin": resolved, "identity": req.identity_ref, "mode": entry["mode"],
-            "provider": entry.get("provider"), "scopes": entry.get("scopes")})
+            "resolved_origin": resolved, "identity": req.identity_ref, "mode": "password",
+            "provider": None, "scopes": None})
 
     # Phase 2 — confirmed: enforce_http allows human+confirm, BLOCKs non-human (403).
     enforce_http("web.login", target, context=context, confirmed=True)
     entry = _registry_lookup(req.site)
     if entry is None:
         raise HTTPException(404, f"no login registered for site '{req.site}'")
-    if not ib.browser_supported():
-        raise HTTPException(503, "interactive browser not available on this platform (contained Linux only)")
     try:
-        status = _run_password_login(entry, req.identity_ref)
+        if entry.get("mode") == "oauth":
+            if not entry.get("client_id"):
+                raise HTTPException(503, f"OAuth not configured for '{req.site}' (no client_id provisioned)")
+            status = _run_oauth_login(entry, req.identity_ref)       # system-browser consent; no cage
+        else:
+            if not ib.browser_supported():
+                raise HTTPException(503, "interactive browser not available on this platform (contained Linux only)")
+            status = _run_password_login(entry, req.identity_ref)    # cage inject
     except GateNotPassed:
         raise HTTPException(503, "login unavailable: the containment self-test has not passed on this install")
     return {"status": status}

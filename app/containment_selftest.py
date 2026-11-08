@@ -351,6 +351,107 @@ def _login_handler_e2e():
     return all(checks.values()), checks
 
 
+def _oauth_handler_e2e():
+    """Drive the REAL web_login() handler through BOTH phases for OAuth (Path 1), hermetically: a MockIdP
+    + a browser_sim stand in for the user's system browser + the IdP (loopback is in the TRUSTED backend,
+    never the cage). Asserts phase1→428 {mode:oauth, provider, scopes, NO token}; phase2→'succeeded' with
+    the scoped token STORED but the token sentinel NEVER in the 428 / return / stdout; an unconfigured
+    entry (no client_id)→503; non-human→403."""
+    import base64, contextlib, hashlib, io, sys as _sys, threading, types
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    from urllib.parse import urlparse, parse_qs
+    SENT_TOK = "VKTR-OAUTH-e4a91f7c2b8d-token-never-to-model"; SCODE = "oauth-e2e-code-xyz"
+    REG = "https://e2e-idp.example"; TOK = "e2e-human-session-tok"
+    os.environ["VOKTER_TIER3_SECRET_GATE"] = "passed"
+
+    from fastapi import HTTPException
+    import web_login as wl
+    from oauth_broker import InMemoryTokenStore, token_name
+
+    class _IdP:
+        def __init__(self):
+            self._chal = {}; idp = self
+            class _H(BaseHTTPRequestHandler):
+                def log_message(self, *a): pass
+                def do_GET(self):
+                    u = urlparse(self.path); q = parse_qs(u.query)
+                    if u.path == "/authorize":
+                        idp._chal[SCODE] = q.get("code_challenge", [""])[0]
+                        loc = f'{q.get("redirect_uri", [""])[0]}?code={SCODE}&state={q.get("state", [""])[0]}'
+                        self.send_response(302); self.send_header("Location", loc); self.end_headers()
+                    else:
+                        self.send_response(404); self.end_headers()
+                def do_POST(self):
+                    n = int(self.headers.get("Content-Length", 0)); b = parse_qs(self.rfile.read(n).decode())
+                    if urlparse(self.path).path == "/token":
+                        v = b.get("code_verifier", [""])[0]; code = b.get("code", [""])[0]
+                        chal = base64.urlsafe_b64encode(hashlib.sha256(v.encode()).digest()).decode().rstrip("=")
+                        if idp._chal.get(code) == chal:
+                            out = b'{"access_token":"%s","token_type":"bearer","scope":"read:user"}' % SENT_TOK.encode(); self.send_response(200)
+                        else:
+                            out = b'{"error":"invalid_grant"}'; self.send_response(400)
+                        self.send_header("Content-Type", "application/json"); self.end_headers(); self.wfile.write(out)
+                    else:
+                        self.send_response(404); self.end_headers()
+            self._srv = HTTPServer(("127.0.0.1", 0), _H); self.base = f"http://127.0.0.1:{self._srv.server_address[1]}"
+        def __enter__(self): threading.Thread(target=self._srv.serve_forever, daemon=True).start(); return self
+        def __exit__(self, *e): self._srv.shutdown(); self._srv.server_close()
+
+    def browser_sim(url):
+        def go():
+            import httpx
+            loc = httpx.get(url, follow_redirects=False).headers.get("location"); httpx.get(loc)
+        threading.Thread(target=go, daemon=True).start()
+
+    store = InMemoryTokenStore()
+    _sys.modules["chat"] = types.ModuleType("chat"); _sys.modules["chat"].is_local_human_session = lambda m: m == TOK
+    wl._token_store = lambda: store
+    wl._open_system_browser = browser_sim
+    checks = {}
+    try:
+        with _IdP() as idp:
+            wl._SITE_REGISTRY["__e2e_oauth__"] = {"mode": "oauth", "provider": "E2E-IdP", "registered_origin": REG,
+                "authorize": idp.base + "/authorize", "token": idp.base + "/token", "revoke": None,
+                "client_id": "e2e-client", "scopes": ["read:user"]}
+            wl._SITE_REGISTRY["__e2e_oauth_unconf__"] = {"mode": "oauth", "provider": "E2E", "registered_origin": REG,
+                "authorize": idp.base + "/authorize", "token": idp.base + "/token", "revoke": None,
+                "client_id": "", "scopes": ["read:user"]}
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+                p1s = None; p1d = {}
+                try:
+                    wl.web_login(wl.WebLoginRequest(site="__e2e_oauth__", identity_ref="e2e-user"), x_vokter_human_session=TOK)
+                except HTTPException as e:
+                    p1s = e.status_code; p1d = e.detail if isinstance(e.detail, dict) else {}
+                p2 = wl.web_login(wl.WebLoginRequest(site="__e2e_oauth__", identity_ref="e2e-user", confirm=True), x_vokter_human_session=TOK)
+                uns = None
+                try:
+                    wl.web_login(wl.WebLoginRequest(site="__e2e_oauth_unconf__", identity_ref="e2e-user", confirm=True), x_vokter_human_session=TOK)
+                except HTTPException as e:
+                    uns = e.status_code
+                nhs = None
+                try:
+                    wl.web_login(wl.WebLoginRequest(site="__e2e_oauth__", identity_ref="e2e-user"), x_vokter_human_session="nope")
+                except HTTPException as e:
+                    nhs = e.status_code
+            captured = buf.getvalue()
+            stored_tok = store.get(token_name(REG, "e2e-user"))
+        checks = {
+            "oauth_phase1_428": p1s == 428,
+            "oauth_phase1_mode+provider+scopes": p1d.get("mode") == "oauth" and p1d.get("provider") == "E2E-IdP" and p1d.get("scopes") == ["read:user"],
+            "oauth_phase1_no_token": SENT_TOK not in str(p1d),
+            "oauth_phase2_succeeded": isinstance(p2, dict) and p2.get("status") == "succeeded",
+            "oauth_token_stored_scoped": stored_tok == SENT_TOK,
+            "oauth_phase2_return_no_token": SENT_TOK not in str(p2),
+            "oauth_unconfigured_503": uns == 503,
+            "oauth_nonhuman_403": nhs == 403,
+            "oauth_no_token_in_stdout": SENT_TOK not in captured,
+        }
+    finally:
+        wl._SITE_REGISTRY.pop("__e2e_oauth__", None); wl._SITE_REGISTRY.pop("__e2e_oauth_unconf__", None); _sys.modules.pop("chat", None)
+    return all(checks.values()), checks
+
+
 def run() -> int:
     """Run all tiers. Returns 0 only if every tier is green."""
     FAILS.clear(); SKIPS.clear()
@@ -427,10 +528,17 @@ def run() -> int:
         try:
             e2e_ok, checks = _login_handler_e2e()
             for k, v in checks.items():
-                _ok(f"e2e: {k}", v)
-            _ok("e2e: live two-phase web.login leaks nothing + works end to end", e2e_ok)
+                _ok(f"e2e[password]: {k}", v)
+            _ok("e2e[password]: live two-phase web.login leaks nothing + works end to end", e2e_ok)
         except Exception as e:
-            _ok(f"TIER 5 e2e probe ran ({e})", False)
+            _ok(f"TIER 5 password e2e probe ran ({e})", False)
+        try:
+            oa_ok, ochecks = _oauth_handler_e2e()
+            for k, v in ochecks.items():
+                _ok(f"e2e[oauth]: {k}", v)
+            _ok("e2e[oauth]: live OAuth two-phase works + token never reaches the model", oa_ok)
+        except Exception as e:
+            _ok(f"TIER 5 oauth e2e probe ran ({e})", False)
     finally:
         srv.terminate()
         try:
