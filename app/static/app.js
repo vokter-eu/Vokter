@@ -111,7 +111,8 @@
       advEnginePh:"http://127.0.0.1:11434", advEngineHint:"e.g. your system Ollama. The model list and downloads will target this engine.",
       advEngineBad:"Must be an http(s) URL, or empty for the bundled engine.",
       newChat:"New chat", theme:"Theme", themeAria:"Toggle light or dark theme", menu:"Menu", themeLight:"Light", themeDark:"Dark",
-      chatsLabel:"Chats", noChats:"No conversations yet"
+      chatsLabel:"Chats", noChats:"No conversations yet",
+      lgnTitle:"Confirm sign-in", lgnVerifiedSite:"Verified site", lgnVerifiedNote:"Read from the browser after the page loaded — not what was typed or claimed.", lgnSignInAs:"Sign in as", lgnProvider:"Sign-in provider", lgnScopes:"Access requested", lgnOauthReassure:"Revocable access — Vokter stores a token you can revoke anytime, never a password.", lgnPasswordNote:"Your saved password is typed directly into this site. Vokter never sees it, stores it, or sends it to the model.", lgnWrongSite:"Not the site you meant? Cancel — nothing is sent.", lgnConfirm:"Sign in", lgnCancel:"Cancel"
     },
     es:{
       onDevice:"En tu dispositivo", settings:"Ajustes", send:"Enviar", stopGen:"Detener generación", speak:"Hablar", addDoc:"Añadir un documento o imagen (lee el texto)",
@@ -222,7 +223,8 @@
       advEnginePh:"http://127.0.0.1:11434", advEngineHint:"p. ej. tu Ollama del sistema. La lista de modelos y las descargas apuntarán a este motor.",
       advEngineBad:"Debe ser una URL http(s), o vacío para el motor empaquetado.",
       newChat:"Nuevo chat", theme:"Tema", themeAria:"Cambiar tema claro u oscuro", menu:"Menú", themeLight:"Claro", themeDark:"Oscuro",
-      chatsLabel:"Chats", noChats:"Aún no hay conversaciones"
+      chatsLabel:"Chats", noChats:"Aún no hay conversaciones",
+      lgnTitle:"Confirmar inicio de sesión", lgnVerifiedSite:"Sitio verificado", lgnVerifiedNote:"Leído del navegador tras cargar la página — no lo que se escribió o se afirmó.", lgnSignInAs:"Iniciar sesión como", lgnProvider:"Proveedor de acceso", lgnScopes:"Acceso solicitado", lgnOauthReassure:"Acceso revocable — Vokter guarda un token que puedes revocar cuando quieras, nunca una contraseña.", lgnPasswordNote:"Tu contraseña guardada se escribe directamente en este sitio. Vokter nunca la ve, ni la guarda, ni la envía al modelo.", lgnWrongSite:"¿No es el sitio que querías? Cancela — no se envía nada.", lgnConfirm:"Iniciar sesión", lgnCancel:"Cancelar"
     }
   };
   const LANGS=[{code:'en',name:'English'},{code:'es',name:'Español'}];
@@ -239,6 +241,76 @@
   function setLang(l){ lang=l; saveLang(l); applyStatic(); renderHome(); refreshShell(); }
 
   let tT; function toast(m){const el=$('toast');el.textContent=m;el.classList.add('on');clearTimeout(tT);tT=setTimeout(()=>el.classList.remove('on'),2000);}
+
+  // ── Tier-3 web.login human-confirm sheet (step 6). The LAST gate before any sign-in: shows the
+  //    RESOLVED origin (read from the browser, never the model's claim), which identity, and for
+  //    OAuth the provider + requested scopes. Returns a Promise<boolean>. Pure UI — it NEVER sees
+  //    or carries a secret; wiring this to the live web.login call (via the token bridge) lands only
+  //    after review. CSP-safe: every dynamic field (origin/identity/provider/scopes) via textContent.
+  function loginConfirm(details){
+    // details = { origin, identity, mode:'oauth'|'password', provider?, scopes?:[] }
+    return new Promise(resolve=>{
+      const ov=document.createElement('div'); ov.className='lgn-ov'; ov.setAttribute('role','dialog'); ov.setAttribute('aria-modal','true');
+      const card=document.createElement('div'); card.className='lgn-card'; ov.appendChild(card);
+
+      const hd=document.createElement('div'); hd.className='lgn-hd';
+      hd.innerHTML='<svg class="sh" viewBox="0 0 48 56" fill="none"><path d="M24 2.5 41.5 9.2V26.5C41.5 39.5 33.7 48.7 24 53.5 14.3 48.7 6.5 39.5 6.5 26.5V9.2Z" stroke-width="2.6" stroke-linejoin="round"/><circle cx="24" cy="27" r="4.2"/></svg>';
+      const h3=document.createElement('h3'); h3.textContent=t('lgnTitle'); hd.appendChild(h3); card.appendChild(hd);
+
+      // the RESOLVED origin — the anti-phishing anchor; biggest element, mono, lock glyph
+      const slbl=document.createElement('div'); slbl.className='lgn-lbl'; slbl.textContent=t('lgnVerifiedSite'); card.appendChild(slbl);
+      const site=document.createElement('div'); site.className='lgn-site';
+      site.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="4" y="10" width="16" height="10" rx="2" fill="currentColor"/><path d="M8 10V7a4 4 0 018 0v3" stroke="currentColor" stroke-width="2"/></svg>';
+      const u=document.createElement('span'); u.className='u'; u.textContent=details.origin; site.appendChild(u); card.appendChild(site);
+      const vnote=document.createElement('div'); vnote.className='lgn-note'; vnote.textContent=t('lgnVerifiedNote'); card.appendChild(vnote);
+
+      // which identity/account
+      const idrow=document.createElement('div'); idrow.className='lgn-row';
+      const idl=document.createElement('div'); idl.className='lgn-lbl'; idl.textContent=t('lgnSignInAs'); idrow.appendChild(idl);
+      const idv=document.createElement('div'); idv.className='v mono'; idv.textContent=details.identity; idrow.appendChild(idv); card.appendChild(idrow);
+
+      if(details.mode==='oauth'){
+        if(details.provider){ const pr=document.createElement('div'); pr.className='lgn-row';
+          const pl=document.createElement('div'); pl.className='lgn-lbl'; pl.textContent=t('lgnProvider'); pr.appendChild(pl);
+          const pv=document.createElement('div'); pv.className='v'; pv.textContent=details.provider; pr.appendChild(pv); card.appendChild(pr); }
+        if(details.scopes&&details.scopes.length){ const sr=document.createElement('div'); sr.className='lgn-row';
+          const sl=document.createElement('div'); sl.className='lgn-lbl'; sl.textContent=t('lgnScopes'); sr.appendChild(sl);
+          const ul=document.createElement('ul'); ul.className='lgn-scopes';
+          details.scopes.forEach(s=>{ const li=document.createElement('li'); li.textContent=s; ul.appendChild(li); }); sr.appendChild(ul); card.appendChild(sr); }
+        const re=document.createElement('div'); re.className='lgn-reassure'; re.textContent=t('lgnOauthReassure'); card.appendChild(re);
+      } else {
+        const pn=document.createElement('div'); pn.className='lgn-reassure'; pn.textContent=t('lgnPasswordNote'); card.appendChild(pn);
+      }
+
+      const wrong=document.createElement('div'); wrong.className='lgn-wrong'; wrong.textContent=t('lgnWrongSite'); card.appendChild(wrong);
+
+      const acts=document.createElement('div'); acts.className='lgn-acts';
+      const cancel=document.createElement('button'); cancel.className='lgn-cancel'; cancel.textContent=t('lgnCancel');
+      const ok=document.createElement('button'); ok.className='lgn-confirm'; ok.textContent=t('lgnConfirm');
+      acts.appendChild(cancel); acts.appendChild(ok); card.appendChild(acts);
+
+      let done=false;
+      function close(val){ if(done) return; done=true; document.removeEventListener('keydown',onKey); ov.remove(); resolve(val); }
+      function onKey(e){ if(e.key==='Escape') close(false); }
+      cancel.addEventListener('click',()=>close(false));
+      ok.addEventListener('click',()=>close(true));
+      ov.addEventListener('click',e=>{ if(e.target===ov) close(false); });   // backdrop = cancel
+      document.addEventListener('keydown',onKey);
+      document.body.appendChild(ov);
+      cancel.focus();   // safe default: a stray Enter cancels, never auto-confirms a sign-in
+    });
+  }
+
+  // Dev-preview ONLY (xvfb, never :0): ?__loginpreview=oauth|password renders the sheet with MOCK
+  // data so the UX can be screenshotted before web.login is wired live. No-op in normal use.
+  function _lgnPreview(){ try{
+    const p=new URLSearchParams(location.search); const m=p.get('__loginpreview'); if(!m) return;
+    const L=p.get('__lang'); if(L&&T[L]) lang=L;                                   // preview-only lang override
+    const TH=p.get('__theme'); if(TH==='dark'||TH==='light') document.documentElement.setAttribute('data-theme',TH);
+    if(m==='oauth') loginConfirm({origin:'https://accounts.google.com', identity:'bilal@example.com', mode:'oauth', provider:'Google', scopes:['View your email address','Read your calendar (read-only)','Send email on your behalf']});
+    else if(m==='password') loginConfirm({origin:'https://www.iberdrola.es', identity:'bilal.m', mode:'password'});
+  }catch{} }
+  if(document.readyState==='loading') addEventListener('DOMContentLoaded',_lgnPreview); else _lgnPreview();
 
   // ── Markdown for the agent's replies. Escape-first + a strict link-scheme allowlist,
   //    so no raw HTML from the model/RAG ever reaches the DOM (only <strong>/<em>/<a>/
