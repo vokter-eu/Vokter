@@ -809,6 +809,64 @@ def seed_voice() -> None:
         log(f"seeded voice model '{name}' → {dst}")
 
 
+# ── Tier-3 login SECRET gate: set VOKTER_TIER3_SECRET_GATE=passed ONLY when THIS exact frozen
+#    binary has passed the containment self-test (all tiers, incl. TIER 4 secret-non-leakage). ──
+SECRET_GATE_ENV = "VOKTER_TIER3_SECRET_GATE"
+_GATE_CACHE = DATA_DIR / "containment_selftest.pass"   # stores the sha256 of the binary that last passed
+
+
+def _frozen_binary_hash() -> str | None:
+    try:
+        h = hashlib.sha256()
+        with open(FROZEN_BIN, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except OSError:
+        return None
+
+
+def verify_secret_gate(env: dict, flavour: str) -> None:
+    """Gate the Tier-3 login SECRET path on a GREEN containment self-test for THIS binary.
+
+    Cached by binary hash: a matching cached pass skips the (slow) re-run; a NEW or MODIFIED binary
+    (different hash) is a cache miss and re-runs; a TAMPERED binary cannot inherit a pass (the cache
+    records the hash that passed, and the running binary's hash won't match it). On exit!=0 or any
+    error the gate is LEFT UNSET — the login secret path stays dormant (fail-safe). Dev/venv or a
+    platform without the cage attests nothing → gate stays unset (the browser is absent there anyway).
+    The self-test is self-contained (its TIER-4 probe opens its own throwaway gate + DB), so we run it
+    with the inherited env and never hand it the real DB/key."""
+    if flavour != "frozen":
+        return
+    binhash = _frozen_binary_hash()
+    if not binhash:
+        return
+    try:
+        if _GATE_CACHE.read_text().strip() == binhash:
+            env[SECRET_GATE_ENV] = "passed"
+            log("containment self-test: cached pass for this binary — Tier-3 secret gate ON")
+            return
+    except OSError:
+        pass
+    log("containment self-test: verifying this binary (TIER 1-4, incl. secret-non-leakage)…")
+    try:
+        r = subprocess.run([str(FROZEN_BIN), "--containment-selftest"], timeout=600)
+    except Exception as e:
+        log(f"containment self-test could not run ({e}) — Tier-3 secret gate stays OFF")
+        return
+    if r.returncode == 0:
+        try:
+            _GATE_CACHE.parent.mkdir(parents=True, exist_ok=True)
+            _GATE_CACHE.write_text(binhash)
+        except OSError:
+            pass
+        env[SECRET_GATE_ENV] = "passed"
+        log("containment self-test GREEN — Tier-3 secret gate ON")
+    else:
+        log(f"containment self-test FAILED (exit {r.returncode}) — Tier-3 secret gate stays OFF "
+            "(login secret path dormant)")
+
+
 def start_backend(db_key: str, flavour: str) -> None:
     env = os.environ.copy()
     env["VOKTER_OLLAMA_URL"] = OLLAMA_URL        # ← native Ollama, not Docker DNS
@@ -829,6 +887,9 @@ def start_backend(db_key: str, flavour: str) -> None:
     # export them so every backend flavour binds where wait_http() checks.
     env["VOKTER_BIND"] = "127.0.0.1"
     env["VOKTER_PORT"] = str(BACKEND_PORT)
+    # Attest the containment cage before the backend serves: turns the Tier-3 login secret path ON
+    # (env gate) ONLY if this exact binary passed the self-test; otherwise it stays dormant.
+    verify_secret_gate(env, flavour)
     if flavour == "frozen":
         # Self-contained: no interpreter, no cwd dependence.
         cmd, cwd = [str(FROZEN_BIN)], None

@@ -208,6 +208,21 @@ class Session:
         return "succeeded" if self._t.click(selector) else "failed"
 
 
+# ───────── login-routine-only SECRET keystroke path (NOT reachable from web.act) ─────────
+# The deterministic password/secret keystroke. DELIBERATELY a module function, NOT a Session method:
+# web.act drives Session.fill (innocuous-only via _require_innocuous), so it can NEVER reach this. The
+# only caller is the Path-2 login routine (web_login_injector), behind the web.login gateway + the ship
+# gate. Status-only, exactly like Session.fill — the value is handed to the transport (code) and is
+# NEVER returned, logged, or surfaced to the model. SECRET_KINDS / _require_innocuous stay untouched:
+# `password` never becomes a model-facing field kind; the secret rides a separate, code-only path.
+def type_secret(session: "Session", selector: str, secret: str) -> str:
+    """Type a SECRET into `selector` over the CDP pipe — the login routine's keystroke path. Returns
+    'succeeded'|'failed', NEVER the value. T15 (honest): a Python str can't be reliably zeroed, so the
+    secret transiently exists in this process (here, and as a copy inside the CDP json frame); it is
+    never persisted/returned/logged, and the caller drops its reference the instant this returns."""
+    return "succeeded" if session._t.type_into(selector, secret) else "failed"
+
+
 class _CDP:
     """Minimal CDP client over chrome's --remote-debugging-pipe (fd3 in / fd4 out, NUL-framed). Raw
     CDP (not Playwright) by design: identical security (inherited pipe, no TCP control port), and no

@@ -159,8 +159,96 @@ def _run_hostile_page(browser, vport, hostlan):
         proc.kill()
 
 
+# ───────────────────────── TIER 4: secret-non-leakage (Phase-1 login) ─────────────────────────
+# The ship gate for the Tier-3 login SECRET path (TIER3_PHASE1_LOGIN.md §6). Two halves:
+#   * POSITIVE (delivery): a sentinel, typed by the REAL login keystroke path (interactive_browser.
+#     type_secret) into a data: form inside the FROZEN cage, actually reaches the field (read back ==
+#     sentinel). Without this, the negative half could false-green on a silent no-op.
+#   * NEGATIVE (non-leakage): the FULL perform_password_login routine leaks a (different) sentinel into
+#     NONE of — its return, a throwaway DB's memory/chunks/conversation tables, or captured stdout/
+#     stderr — and the model-facing web.login request shape carries no secret field. Driving the whole
+#     routine (not just type_secret) makes this a real regression guard: a future log/persist/return of
+#     the secret fails the build.
+# Distinct sentinels so the two halves cannot cross-contaminate. NEITHER value is ever printed.
+_SENT_POS = "VKTR-POS-3f9c1a7e5b2d8046-reached-the-field"
+_SENT_NEG = "VKTR-NEG-a1b2c3d4e5f60718-must-not-leak"
+
+
+def _login_delivery_positive(browser) -> bool:
+    """Real cage: type the sentinel into a data: form via type_secret, read the field back == sentinel.
+    Proves the keystroke physically crosses the frozen cage. Never prints the sentinel."""
+    import urllib.parse
+    s = ib.launch()                                          # real contained browser (egress cage)
+    try:
+        s.navigate("data:text/html," + urllib.parse.quote("<input id=f>"))
+        status = ib.type_secret(s, "#f", _SENT_POS)         # the login-only keystroke path
+        got = s._t._cdp.eval("document.querySelector('#f').value", s._t._sid)  # read-back (white-box)
+        return status == "succeeded" and got == _SENT_POS
+    finally:
+        try:
+            s._t.close()
+        except Exception:
+            pass
+
+
+def _login_leakage_negative() -> tuple[bool, dict]:
+    """Full routine (fake transport reporting the registered https origin + a sentinel in an in-memory
+    store) leaks the sentinel into none of: its return, the throwaway DB tables, captured stdout/stderr;
+    and the web.login request shape carries no secret field. Returns (ok, detail-without-secret)."""
+    import contextlib
+    import io
+    import sys as _sys
+    import tempfile
+
+    reg = "https://sentinel-bank.example"
+    os.environ["VOKTER_DB"] = os.path.join(tempfile.mkdtemp(prefix="vkt_neg_"), "probe.db")
+    if getattr(_sys, "frozen", False) and not os.environ.get("VOKTER_DB_KEY"):
+        import secrets
+        os.environ["VOKTER_DB_KEY"] = "tier4-throwaway-" + secrets.token_hex(8)  # sqlcipher bundled in .deb
+    os.environ["VOKTER_TIER3_SECRET_GATE"] = "passed"       # open the gate for the probe (like the broker test)
+
+    import db                                                # imports config → reads the env set above
+    import web_login_injector as wli
+    from web_login import WebLoginRequest
+
+    class _FakeT:                                           # reports the resolved origin; records nothing
+        def top_origin(self): return reg
+        def type_into(self, sel, val): return True
+        def click(self, sel): return True
+        def navigate(self, u): return True
+        def read_text(self): return ""
+
+    conn = db.get_db()                                      # create schema so the table scan is REAL, not theater
+    store = wli.InMemoryCredentialStore(); store.put(reg, "me", _SENT_NEG)
+    sels = wli.LoginSelectors(username="#u", password="#p", submit="#s")
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+        ret = wli.perform_password_login(ib.Session(_FakeT()), store, registered_origin=reg,
+                                         identity="me", selectors=sels, username="alice")
+    captured = buf.getvalue()
+
+    db_hit = False
+    for tbl in ("memory", "chunks", "conversations"):
+        try:
+            if any(_SENT_NEG in str(cell)
+                   for row in conn.execute(f"SELECT * FROM {tbl}").fetchall() for cell in row):
+                db_hit = True
+        except Exception:
+            pass
+    conn.close()
+
+    secret_fields = {"value", "password", "secret", "token", "otp", "pan", "cvv"}
+    shape_clean = not (set(WebLoginRequest.model_fields) & secret_fields)
+
+    ok = (ret in ("succeeded", "failed") and _SENT_NEG not in ret
+          and _SENT_NEG not in captured and not db_hit and shape_clean)
+    return ok, {"routine_status": ret, "db_leak": db_hit,
+                "stdout_leak": (_SENT_NEG in captured), "request_shape_clean": shape_clean}
+
+
 def run() -> int:
-    """Run all three tiers. Returns 0 only if every tier is green."""
+    """Run all tiers. Returns 0 only if every tier is green."""
     FAILS.clear(); SKIPS.clear()
     if not (ib.bwrap_bin() and ib.pasta_bin() and ib.nft_bin()):
         print("FAIL: containment tooling missing (need bwrap + pasta + nft)"); return 1
@@ -207,6 +295,29 @@ def run() -> int:
                     _ok(f"page-JS blocked: {name}", page.get(name) == "blocked")
             except Exception as e:
                 _ok(f"TIER 3 chrome page-JS ran ({e})", False)
+
+        print("\n── TIER 4: secret-non-leakage (Phase-1 login) ──")
+        # NEGATIVE first (no browser needed): the full routine must not leak the sentinel anywhere.
+        try:
+            neg_ok, detail = _login_leakage_negative()
+            print("  negative probe:", json.dumps(detail))   # detail carries NO sentinel
+            _ok("negative: routine returns only a status (no sentinel in the return)",
+                detail["routine_status"] in ("succeeded", "failed"))
+            _ok("negative: no sentinel in memory/chunks/conversation tables", not detail["db_leak"])
+            _ok("negative: no sentinel in backend stdout/stderr", not detail["stdout_leak"])
+            _ok("negative: web.login request shape carries no secret field", detail["request_shape_clean"])
+            _ok("negative: secret-non-leakage holds overall", neg_ok)
+        except Exception as e:
+            _ok(f"TIER 4 negative probe ran ({e})", False)
+        # POSITIVE (real cage): the keystroke actually delivers the sentinel to the field.
+        if not browser:
+            _ok("positive: browser present", False)
+        else:
+            try:
+                _ok("positive: sentinel reached the field through the frozen cage (read-back matches)",
+                    _login_delivery_positive(browser))
+            except Exception as e:
+                _ok(f"TIER 4 positive probe ran ({e})", False)
     finally:
         srv.terminate()
         try:
