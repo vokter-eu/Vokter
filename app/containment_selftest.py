@@ -247,6 +247,110 @@ def _login_leakage_negative() -> tuple[bool, dict]:
                 "stdout_leak": (_SENT_NEG in captured), "request_shape_clean": shape_clean}
 
 
+# ───────── TIER 5: live two-phase web.login handler — e2e secret-non-leakage (hermetic) ─────────
+# Drives the REAL web_login() HTTP handler through BOTH phases — "not just the isolated routine" — with
+# a hermetic transport (no cage): the real normalize_origin/origin_matches run against a transport-
+# reported https origin. The physical keystroke-through-the-cage is already proven by the TIER-4 positive
+# probe; this proves the WIRING leaks nothing and actually works end to end.
+def _login_handler_e2e():
+    """Returns (ok, checks). Exercises, under captured stdout/stderr + a throwaway DB:
+      * phase 1 (human, no confirm) → enriched 428 (resolved_origin + identity + mode; NO secret),
+      * phase 2 (human, confirm)    → 'succeeded' AND the sentinel WAS typed into the password field
+                                       (positive functional — catches a silent no-op / 501 regression),
+      * wrong resolved origin       → refused ('failed'), nothing typed (origin gate in the live path),
+      * non-human phase 1           → 403 BEFORE any navigation (no cage opened),
+      * the sentinel leaks into NONE of: the 428 body, the return, stdout/stderr, the DB tables, or the
+        gateway-recorded target. (SSE is structurally N/A — web.login is a POST, not streamed.)"""
+    import contextlib, io, sys as _sys, tempfile, types
+    SENT = "VKTR-E2E-5d1c8b3f9a27-must-not-leak"; REG = "https://e2e-bank.example"; TOK = "e2e-human-session-tok"
+
+    os.environ.setdefault("VOKTER_DB", os.path.join(tempfile.mkdtemp(prefix="vkt_e2e_"), "probe.db"))
+    if getattr(_sys, "frozen", False) and not os.environ.get("VOKTER_DB_KEY"):
+        import secrets; os.environ["VOKTER_DB_KEY"] = "tier5-throwaway-" + secrets.token_hex(8)
+    os.environ["VOKTER_TIER3_SECRET_GATE"] = "passed"
+
+    import db
+    from fastapi import HTTPException
+    from interactive_browser import Session
+    import interactive_browser as ibmod
+    import web_login as wl
+    from web_login_injector import InMemoryCredentialStore
+
+    class _FakeT:   # hermetic transport: reports a chosen top origin; records keystrokes
+        def __init__(self, origin): self._o = origin; self.typed = []; self.clicked = []
+        def navigate(self, u): return True
+        def top_origin(self): return self._o
+        def type_into(self, sel, val): self.typed.append((sel, val)); return True
+        def click(self, sel): self.clicked.append(sel); return True
+        def read_text(self): return ""
+
+    opened = []
+    def _factory(origin): t = _FakeT(origin); opened.append(t); return Session(t)
+    store = InMemoryCredentialStore(); store.put(REG, "e2e-user", SENT)
+    wl._open_login_session = lambda: _factory(REG)
+    wl._credential_store = lambda: store
+    ibmod.browser_supported = lambda: True
+    wl._SITE_REGISTRY["__e2e__"] = {"login_url": "https://e2e-bank.example/login", "registered_origin": REG,
+                                    "mode": "password", "selectors": {"username": "#u", "password": "#p", "submit": "#s"}}
+    _sys.modules["chat"] = types.ModuleType("chat"); _sys.modules["chat"].is_local_human_session = lambda m: m == TOK
+    try:
+        db.get_db().close()   # create schema so the DB scan is real
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            p1_status = None; p1_detail = {}
+            try:
+                wl.web_login(wl.WebLoginRequest(site="__e2e__", identity_ref="e2e-user"), x_vokter_human_session=TOK)
+            except HTTPException as e:
+                p1_status = e.status_code; p1_detail = e.detail if isinstance(e.detail, dict) else {"d": str(e.detail)}
+            opened.clear()
+            p2 = wl.web_login(wl.WebLoginRequest(site="__e2e__", identity_ref="e2e-user", confirm=True), x_vokter_human_session=TOK)
+            typed_ph2 = opened[-1].typed if opened else []
+            wl._open_login_session = lambda: _factory("https://evil.example")   # wrong origin
+            opened.clear()
+            p3 = wl.web_login(wl.WebLoginRequest(site="__e2e__", identity_ref="e2e-user", confirm=True), x_vokter_human_session=TOK)
+            typed_wrong = opened[-1].typed if opened else []
+            wl._open_login_session = lambda: _factory(REG)
+            opened.clear()
+            nh_status = None
+            try:
+                wl.web_login(wl.WebLoginRequest(site="__e2e__", identity_ref="e2e-user"), x_vokter_human_session="not-the-token")
+            except HTTPException as e:
+                nh_status = e.status_code
+            nh_opened = len(opened)
+        captured = buf.getvalue()
+
+        db_hit = False
+        try:
+            conn = db.get_db()
+            for tbl in ("memory", "chunks", "conversations"):
+                try:
+                    if any(SENT in str(c) for row in conn.execute(f"SELECT * FROM {tbl}").fetchall() for c in row): db_hit = True
+                except Exception: pass
+            conn.close()
+        except Exception: pass
+    finally:
+        wl._SITE_REGISTRY.pop("__e2e__", None); _sys.modules.pop("chat", None)
+
+    checks = {
+        "phase1_428": p1_status == 428,
+        "phase1_resolved_origin": p1_detail.get("resolved_origin") == REG,
+        "phase1_identity+mode": p1_detail.get("identity") == "e2e-user" and p1_detail.get("mode") == "password",
+        "phase1_428_no_secret": SENT not in str(p1_detail),
+        "phase2_succeeded": isinstance(p2, dict) and p2.get("status") == "succeeded",
+        "phase2_secret_actually_typed": ("#p", SENT) in typed_ph2,
+        "phase2_return_no_secret": SENT not in str(p2),
+        "wrong_origin_refused": isinstance(p3, dict) and p3.get("status") == "failed",
+        "wrong_origin_not_typed": typed_wrong == [],
+        "nonhuman_403": nh_status == 403,
+        "nonhuman_no_navigation": nh_opened == 0,
+        "no_secret_in_stdout": SENT not in captured,
+        "no_secret_in_db": not db_hit,
+        "no_secret_in_gateway_target": SENT not in "__e2e__ as e2e-user",
+    }
+    return all(checks.values()), checks
+
+
 def run() -> int:
     """Run all tiers. Returns 0 only if every tier is green."""
     FAILS.clear(); SKIPS.clear()
@@ -318,6 +422,15 @@ def run() -> int:
                     _login_delivery_positive(browser))
             except Exception as e:
                 _ok(f"TIER 4 positive probe ran ({e})", False)
+
+        print("\n── TIER 5: live two-phase web.login handler — e2e secret-non-leakage (hermetic) ──")
+        try:
+            e2e_ok, checks = _login_handler_e2e()
+            for k, v in checks.items():
+                _ok(f"e2e: {k}", v)
+            _ok("e2e: live two-phase web.login leaks nothing + works end to end", e2e_ok)
+        except Exception as e:
+            _ok(f"TIER 5 e2e probe ran ({e})", False)
     finally:
         srv.terminate()
         try:

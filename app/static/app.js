@@ -112,7 +112,7 @@
       advEngineBad:"Must be an http(s) URL, or empty for the bundled engine.",
       newChat:"New chat", theme:"Theme", themeAria:"Toggle light or dark theme", menu:"Menu", themeLight:"Light", themeDark:"Dark",
       chatsLabel:"Chats", noChats:"No conversations yet",
-      lgnTitle:"Confirm sign-in", lgnVerifiedSite:"Verified site", lgnVerifiedNote:"Read from the browser after the page loaded — not what was typed or claimed.", lgnSignInAs:"Sign in as", lgnProvider:"Sign-in provider", lgnScopes:"Access requested", lgnOauthReassure:"Revocable access — Vokter stores a token you can revoke anytime, never a password.", lgnPasswordNote:"Your saved password is typed directly into this site. Vokter never sees it, stores it, or sends it to the model.", lgnWrongSite:"Not the site you meant? Cancel — nothing is sent.", lgnConfirm:"Sign in", lgnCancel:"Cancel"
+      lgnTitle:"Confirm sign-in", lgnVerifiedSite:"Verified site", lgnVerifiedNote:"Read from the browser after the page loaded — not what was typed or claimed.", lgnSignInAs:"Sign in as", lgnProvider:"Sign-in provider", lgnScopes:"Access requested", lgnOauthReassure:"Revocable access — Vokter stores a token you can revoke anytime, never a password.", lgnPasswordNote:"Your saved password is typed directly into this site. Vokter never sees it, stores it, or sends it to the model.", lgnWrongSite:"Not the site you meant? Cancel — nothing is sent.", lgnConfirm:"Sign in", lgnCancel:"Cancel", lgnDone:"Signed in.", lgnFailed:"Sign-in didn't complete.", lgnUnavailable:"Sign-in is only available in the Vokter desktop app."
     },
     es:{
       onDevice:"En tu dispositivo", settings:"Ajustes", send:"Enviar", stopGen:"Detener generación", speak:"Hablar", addDoc:"Añadir un documento o imagen (lee el texto)",
@@ -224,7 +224,7 @@
       advEngineBad:"Debe ser una URL http(s), o vacío para el motor empaquetado.",
       newChat:"Nuevo chat", theme:"Tema", themeAria:"Cambiar tema claro u oscuro", menu:"Menú", themeLight:"Claro", themeDark:"Oscuro",
       chatsLabel:"Chats", noChats:"Aún no hay conversaciones",
-      lgnTitle:"Confirmar inicio de sesión", lgnVerifiedSite:"Sitio verificado", lgnVerifiedNote:"Leído del navegador tras cargar la página — no lo que se escribió o se afirmó.", lgnSignInAs:"Iniciar sesión como", lgnProvider:"Proveedor de acceso", lgnScopes:"Acceso solicitado", lgnOauthReassure:"Acceso revocable — Vokter guarda un token que puedes revocar cuando quieras, nunca una contraseña.", lgnPasswordNote:"Tu contraseña guardada se escribe directamente en este sitio. Vokter nunca la ve, ni la guarda, ni la envía al modelo.", lgnWrongSite:"¿No es el sitio que querías? Cancela — no se envía nada.", lgnConfirm:"Iniciar sesión", lgnCancel:"Cancelar"
+      lgnTitle:"Confirmar inicio de sesión", lgnVerifiedSite:"Sitio verificado", lgnVerifiedNote:"Leído del navegador tras cargar la página — no lo que se escribió o se afirmó.", lgnSignInAs:"Iniciar sesión como", lgnProvider:"Proveedor de acceso", lgnScopes:"Acceso solicitado", lgnOauthReassure:"Acceso revocable — Vokter guarda un token que puedes revocar cuando quieras, nunca una contraseña.", lgnPasswordNote:"Tu contraseña guardada se escribe directamente en este sitio. Vokter nunca la ve, ni la guarda, ni la envía al modelo.", lgnWrongSite:"¿No es el sitio que querías? Cancela — no se envía nada.", lgnConfirm:"Iniciar sesión", lgnCancel:"Cancelar", lgnDone:"Sesión iniciada.", lgnFailed:"No se pudo iniciar sesión.", lgnUnavailable:"El inicio de sesión solo está disponible en la app de escritorio de Vokter."
     }
   };
   const LANGS=[{code:'en',name:'English'},{code:'es',name:'Español'}];
@@ -300,6 +300,25 @@
       cancel.focus();   // safe default: a stray Enter cancels, never auto-confirms a sign-in
     });
   }
+
+  // Two-phase web.login driver — the ONLY initiator of a Tier-3 sign-in from the UI. Phase 1 asks the
+  // backend to navigate read-only and return the RESOLVED origin; we show loginConfirm(); on approval,
+  // phase 2 (confirm:true) tells the backend to inject. The password is never here — status only. The
+  // call goes through the token bridge (window.vokter.webLogin); outside Electron there is no bridge, so
+  // sign-in is simply unavailable (the human-session token never lives in page JS).
+  async function startWebLogin(site, identity){
+    if(!(window.vokter && window.vokter.webLogin)){ toast(t('lgnUnavailable')); return {status:'unavailable'}; }
+    const p1=await window.vokter.webLogin({site, identity_ref:identity});
+    if(p1.status!==428){ return (p1.body)||{status:'failed'}; }         // 403/404/503/0 → surface as-is
+    const d=(p1.body&&p1.body.detail)||{};
+    const ok=await loginConfirm({origin:d.resolved_origin, identity:d.identity||identity, mode:d.mode||'password', provider:d.provider, scopes:d.scopes});
+    if(!ok) return {status:'cancelled'};                                // human declined → nothing injected
+    const p2=await window.vokter.webLogin({site, identity_ref:identity, confirm:true});
+    const body=(p2.body)||{};
+    toast(p2.status===200 && body.status==='succeeded' ? t('lgnDone') : t('lgnFailed'));
+    return body;
+  }
+  try{ window.__vokterStartWebLogin=startWebLogin; }catch{}   // programmatic entry; harmless (bridge-gated + CONFIRM-human-only)
 
   // Dev-preview ONLY (xvfb, never :0): ?__loginpreview=oauth|password renders the sheet with MOCK
   // data so the UX can be screenshotted before web.login is wired live. No-op in normal use.

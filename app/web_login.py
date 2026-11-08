@@ -56,37 +56,136 @@ def read_resolved_origin(session) -> str:
     return normalize_origin(session.top_origin())
 
 
-# ───────────────────────── gateway-choked route (§7) ─────────────────────────
+# ───────────────────────── per-site registry (code-side; NEVER the model) ─────────────────────────
+# What the login routine navigates, the origin a credential is bound to, and which fields to drive.
+# The MODEL only names a site key; CODE resolves it here — login_url + registered_origin are NEVER taken
+# from the model's claim. Start SMALL (verified entries only); add sites as their selectors are confirmed
+# against the live page. Security does NOT depend on completeness: a missing entry refuses (404), and the
+# gate is the registered origin + the injector's EXACT origin re-read — a wrong selector only makes a
+# login fail, never leak. (OAuth sub-shape — idp/provider/scopes — is added when Path 1 goes live.)
+_SITE_REGISTRY = {
+    "github": {
+        "login_url": "https://github.com/login",
+        "registered_origin": "https://github.com",
+        "mode": "password",
+        "selectors": {"username": "#login_field", "password": "#password", "submit": "input[name='commit']"},
+    },
+}
+
+
+def _registry_lookup(site: str):
+    return _SITE_REGISTRY.get((site or "").strip().lower())
+
+
+# ───────────────────────── cage seams (patchable in the hermetic e2e fire test) ─────────────────────────
+def _open_login_session():
+    """Open a CONTAINED browser session for a login. Patchable so the hermetic e2e fire test can drive the
+    FULL handler with a fake transport (no cage), while the real cage path ships unchanged."""
+    import interactive_browser as ib
+    return ib.launch()
+
+
+def _credential_store():
+    """The production read-only keychain credential store. Patchable in tests."""
+    from web_login_injector import KeychainCredentialStore
+    return KeychainCredentialStore()
+
+
+def _close_session(s):
+    try:
+        s._t.close()
+    except Exception:
+        pass
+
+
+def _resolve_origin_readonly(entry) -> str:
+    """Phase 1 (read-only, NO secret): navigate the registry's login_url in the cage and read the RESOLVED
+    top-level origin from the browser — the destination the human will confirm (honesty, not the gate)."""
+    s = _open_login_session()
+    try:
+        s.navigate(entry["login_url"])
+        return read_resolved_origin(s)
+    finally:
+        _close_session(s)
+
+
+def _run_password_login(entry, identity: str) -> str:
+    """Phase 2 (confirmed): navigate + inject. perform_password_login RE-READS the resolved origin and
+    refuses unless it exactly equals the registered origin (THE gate), dereferences the secret keyed on
+    that origin, types it, and returns status only — the secret never reaches here or the model."""
+    from web_login_injector import perform_password_login, LoginSelectors
+    s = _open_login_session()
+    try:
+        s.navigate(entry["login_url"])
+        return perform_password_login(
+            s, _credential_store(),
+            registered_origin=entry["registered_origin"], identity=identity,
+            selectors=LoginSelectors(**entry["selectors"]), username=identity)
+    finally:
+        _close_session(s)
+
+
+# ───────────────────────── gateway-choked two-phase route ─────────────────────────
 class WebLoginRequest(BaseModel):
-    site: str              # the model's CLAIMED URL — used only to navigate; the binding + the human
-                           # confirm use the RESOLVED origin read back from the browser, not this.
-    identity_ref: str      # WHICH account/alias — a REFERENCE, dereferenced to a secret by CODE later.
-    confirm: bool = False  # the human's explicit approval.
+    site: str              # the model's CLAIMED site KEY — resolved via the code-side registry; its
+                           # login_url + registered_origin are never taken from the model's claim.
+    identity_ref: str      # WHICH account/alias — a REFERENCE, dereferenced to a secret by CODE.
+    confirm: bool = False  # the human's explicit approval (phase 2).
     # Deliberately NO password / value / token / otp field: a secret can never ride this request.
 
 
 @router.post("/api/web/login")
 def web_login(req: WebLoginRequest, x_vokter_human_session: str | None = Header(default=None)):
-    """Sign in to a site as `identity_ref` WITHOUT the secret reaching the model. Gateway-choked:
-    web.login is CONFIRM-human-only (428 until the human approves; 403/BLOCK for peer/mcp/autonomous).
-    The request carries only a REFERENCE, never a secret.
+    """Sign in as `identity_ref` WITHOUT the secret reaching the model. Two phases, STATELESS:
 
-    SKELETON: the secret path — navigate → read the RESOLVED origin from the browser → origin-checked
-    OAuth(broker)/keychain lookup → injector types it (status-only) — lands on the gated/clean-VM
-    route AFTER the fire-test secret-non-leakage probe is green. Nothing secret runs here yet."""
+      Phase 1 (confirm=false) — CONSENT. enforce_http BLOCKs non-human (403) BEFORE any navigation; the
+        human-unconfirmed 428 is intercepted and ENRICHED with the RESOLVED origin (read read-only from
+        the browser) + identity + mode(+provider/scopes), so the confirm UI shows the real destination.
+        The live origin read is HONESTY, not the gate.
+      Phase 2 (confirm=true) — the human approved. enforce_http allows (human+confirm), BLOCKs non-human.
+        Navigate + inject; perform_password_login RE-READS the resolved origin and refuses unless it
+        EXACTLY equals the registered origin. THAT (registry origin + injector re-check) is the whole
+        gate — NOT the confirm step. Status-only; the secret never reaches the model/memory/logs.
+
+    Stateless by design: phase 2 is the same {site, identity_ref, confirm:true} round-tripped by the
+    TRUSTED renderer. No server-side session/flow state: a page/peer/model cannot reach web.login at all
+    (CONFIRM-human-only + bridge-only human-session token), so the origin check is the entire boundary.
+    """
     from chat import is_local_human_session
     from safety import HUMAN, enforce_http
     import interactive_browser as ib
+    from oauth_broker import GateNotPassed
 
-    # Only the local human can confirm; any other context → web.login BLOCKs (403).
     context = HUMAN if is_local_human_session(x_vokter_human_session) else "autonomous"
+    target = f"{req.site} as {req.identity_ref}"   # gateway-recorded target — secret-free by construction
 
-    # CONFIRM-human-only, BEFORE anything acts (CI tripwire). NOTE: the target here is the model's
-    # CLAIMED site; the SHIPPED path re-gates on the RESOLVED origin (read from the browser) so the
-    # human confirms the real destination, not a claim (§1.4 origin-binding).
-    enforce_http("web.login", f"{req.site} as {req.identity_ref}", context=context, confirmed=req.confirm)
+    if not req.confirm:
+        # Phase 1 — gate FIRST: 403 for non-human BEFORE launching any cage; 428 (enriched below) for human.
+        try:
+            enforce_http("web.login", target, context=context, confirmed=False)
+        except HTTPException as e:
+            if e.status_code != 428:
+                raise                           # non-human → 403 propagates; NO navigation happens
+        entry = _registry_lookup(req.site)
+        if entry is None:
+            raise HTTPException(404, f"no login registered for site '{req.site}'")
+        if not ib.browser_supported():
+            raise HTTPException(503, "interactive browser not available on this platform (contained Linux only)")
+        resolved = _resolve_origin_readonly(entry)
+        raise HTTPException(428, detail={
+            "error": "confirmation_required", "action": "web.login",
+            "resolved_origin": resolved, "identity": req.identity_ref, "mode": entry["mode"],
+            "provider": entry.get("provider"), "scopes": entry.get("scopes")})
 
+    # Phase 2 — confirmed: enforce_http allows human+confirm, BLOCKs non-human (403).
+    enforce_http("web.login", target, context=context, confirmed=True)
+    entry = _registry_lookup(req.site)
+    if entry is None:
+        raise HTTPException(404, f"no login registered for site '{req.site}'")
     if not ib.browser_supported():
         raise HTTPException(503, "interactive browser not available on this platform (contained Linux only)")
-    raise HTTPException(501, "web.login secret path lands on the packaged/clean-VM route after the "
-                             "fire-test secret-non-leakage probe is green (Phase 1 skeleton)")
+    try:
+        status = _run_password_login(entry, req.identity_ref)
+    except GateNotPassed:
+        raise HTTPException(503, "login unavailable: the containment self-test has not passed on this install")
+    return {"status": status}

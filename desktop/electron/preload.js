@@ -61,6 +61,12 @@ contextBridge.exposeInMainWorld('vokter', {
   // {status, body}. Used only by the Memory settings view.
   memory: (req) => ipcRenderer.invoke('vokter:memory', req),
 
+  // webLogin(req): proxy /api/web/login (Tier-3 sign-in) through main so the human-session token never
+  // lives in page JS. Two-phase + stateless: webLogin({site, identity_ref}) → {status:428, body with the
+  // resolved origin for the confirm sheet}; then webLogin({site, identity_ref, confirm:true}) → status.
+  // No secret ever crosses this boundary — the password is dereferenced + typed entirely in the backend.
+  webLogin: (req) => ipcRenderer.invoke('vokter:web-login', req),
+
   // backup(req): proxy /api/backup/* through main (the human-session token never lives in page JS).
   // ops: status | setup | confirmWritten | export | restoreValidate. The recovery phrase comes back
   // from setup for one-time display and is never persisted. Used only by the Backup settings view.

@@ -495,6 +495,37 @@ ipcMain.handle('vokter:memory', (_event, reqIn) => new Promise((resolve) => {
   rq.end();
 }));
 
+// web.login bridge: proxy /api/web/login through MAIN so the human-session token never touches page
+// JS (same discipline as vokter:memory). Two-phase + stateless — the page sends {site, identity_ref}
+// (phase 1 → 428 carrying the RESOLVED origin for the confirm sheet), then {…, confirm:true} (phase 2
+// → the backend dereferences + types the password entirely server-side, status-only). The page never
+// carries a secret: there is no value field, and the token lives only here.
+ipcMain.handle('vokter:web-login', (_event, reqIn) => new Promise((resolve) => {
+  if (!ready || backendPort == null) { resolve({ status: 0, body: null }); return; }
+  const r = (reqIn && typeof reqIn === 'object') ? reqIn : {};
+  const site = String(r.site || ''); const identity = String(r.identity_ref || '');
+  if (!site || !identity) { resolve({ status: 400, body: null }); return; }
+  const payload = JSON.stringify({ site, identity_ref: identity, confirm: r.confirm === true });
+  const headers = {
+    'X-Vokter-Human-Session': HUMAN_SESSION_TOKEN,
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(payload),
+  };
+  const rq = http.request({ host: '127.0.0.1', port: backendPort, path: '/api/web/login', method: 'POST', headers }, (res) => {
+    let data = '';
+    res.setEncoding('utf8');
+    res.on('data', (c) => { data += c; });
+    res.on('end', () => {
+      let parsed = null;
+      try { parsed = JSON.parse(data); } catch { /* non-JSON → null */ }
+      resolve({ status: res.statusCode || 0, body: parsed });
+    });
+  });
+  rq.on('error', () => resolve({ status: 0, body: null }));
+  rq.setTimeout(120000, () => { rq.destroy(); resolve({ status: 0, body: null }); });  // a real login navigates + injects
+  rq.write(payload); rq.end();
+}));
+
 // Backup & recovery bridge: proxy /api/backup/* through MAIN so the human-session token never
 // touches page JS (same discipline as vokter:memory). The page sends {op,...}; MAIN whitelists
 // op → method+path. The recovery phrase is returned to the page for display ONCE and never stored.
