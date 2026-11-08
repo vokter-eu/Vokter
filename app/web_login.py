@@ -68,15 +68,38 @@ _SITE_REGISTRY = {
     # never typed). Consent happens in the user's OWN system browser (never the cage); only a scoped,
     # REVOCABLE token is stored. Provision a real client_id (a registered OAuth app) before an entry
     # works — an empty client_id is refused (503), never a broken authorize URL.
+    # Canonical public IdP endpoints (stable, documented) — confirm against the provider's current
+    # /.well-known/openid-configuration before activation. client_id MUST be provisioned (a registered
+    # OAuth app per provider) or the entry refuses with 503. Scopes are minimal; widen per use case.
     "github": {
         "mode": "oauth",
         "provider": "GitHub",
         "registered_origin": "https://github.com",
         "authorize": "https://github.com/login/oauth/authorize",
         "token": "https://github.com/login/oauth/access_token",
-        "revoke": None,
-        "client_id": "",   # ← set to your registered OAuth app's client_id to enable this entry
+        "revoke": None,            # GitHub revokes via API, not an RFC7009 endpoint
+        "client_id": "",           # ← set to your registered OAuth app's client_id to enable
         "scopes": ["read:user"],
+    },
+    "google": {
+        "mode": "oauth",
+        "provider": "Google",
+        "registered_origin": "https://accounts.google.com",
+        "authorize": "https://accounts.google.com/o/oauth2/v2/auth",
+        "token": "https://oauth2.googleapis.com/token",
+        "revoke": "https://oauth2.googleapis.com/revoke",
+        "client_id": "",
+        "scopes": ["openid", "email"],
+    },
+    "microsoft": {
+        "mode": "oauth",
+        "provider": "Microsoft",
+        "registered_origin": "https://login.microsoftonline.com",
+        "authorize": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+        "token": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+        "revoke": None,
+        "client_id": "",
+        "scopes": ["openid", "email", "offline_access"],
     },
     # Password / keychain-injector (Path 2 — fallback for password-only sites; the weaker path, T14
     # residual: a hostile target page can capture what is typed). login_url + registered_origin + the
@@ -253,3 +276,12 @@ def web_login(req: WebLoginRequest, x_vokter_human_session: str | None = Header(
     except GateNotPassed:
         raise HTTPException(503, "login unavailable: the containment self-test has not passed on this install")
     return {"status": status}
+
+
+@router.get("/api/web/login/sites")
+def web_login_sites():
+    """The login MENU for the UI — site key + mode + provider ONLY. Deliberately NO endpoints, client_ids,
+    selectors, or origins: nothing sensitive, so it needs no human-session gate (it's a public list of
+    which sites a sign-in is wired for). The chat affordance lists these so the user can pick one."""
+    return [{"site": k, "mode": v.get("mode"), "provider": v.get("provider")}
+            for k, v in sorted(_SITE_REGISTRY.items())]

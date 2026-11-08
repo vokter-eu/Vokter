@@ -112,7 +112,7 @@
       advEngineBad:"Must be an http(s) URL, or empty for the bundled engine.",
       newChat:"New chat", theme:"Theme", themeAria:"Toggle light or dark theme", menu:"Menu", themeLight:"Light", themeDark:"Dark",
       chatsLabel:"Chats", noChats:"No conversations yet",
-      lgnTitle:"Confirm sign-in", lgnVerifiedSite:"Verified site", lgnVerifiedNote:"Read from the browser after the page loaded — not what was typed or claimed.", lgnVerifiedNoteOauth:"You'll sign in on the provider's own page, in your browser — check the address bar there.", lgnSignInAs:"Sign in as", lgnProvider:"Sign-in provider", lgnScopes:"Access requested", lgnOauthReassure:"Revocable access — Vokter stores a token you can revoke anytime, never a password.", lgnPasswordNote:"Your saved password is typed directly into this site. Vokter never sees it, stores it, or sends it to the model.", lgnWrongSite:"Not the site you meant? Cancel — nothing is sent.", lgnConfirm:"Sign in", lgnCancel:"Cancel", lgnDone:"Signed in.", lgnFailed:"Sign-in didn't complete.", lgnUnavailable:"Sign-in is only available in the Vokter desktop app."
+      lgnTitle:"Confirm sign-in", lgnVerifiedSite:"Verified site", lgnVerifiedNote:"Read from the browser after the page loaded — not what was typed or claimed.", lgnVerifiedNoteOauth:"You'll sign in on the provider's own page, in your browser — check the address bar there.", lgnSignInAs:"Sign in as", lgnProvider:"Sign-in provider", lgnScopes:"Access requested", lgnOauthReassure:"Revocable access — Vokter stores a token you can revoke anytime, never a password.", lgnPasswordNote:"Your saved password is typed directly into this site. Vokter never sees it, stores it, or sends it to the model.", lgnWrongSite:"Not the site you meant? Cancel — nothing is sent.", lgnConfirm:"Sign in", lgnCancel:"Cancel", lgnDone:"Signed in.", lgnFailed:"Sign-in didn't complete.", lgnUnavailable:"Sign-in is only available in the Vokter desktop app.", lgnModeOauth:"secure sign-in, no password stored", lgnModePassword:"password sign-in", lgnCmdHelp:"To sign in to a site, type `/login <site>` — e.g. `/login github`. You'll see exactly what you're authorizing before anything happens. Sites set up for sign-in:", lgnNoSites:"No sites are set up for sign-in yet.", lgnCmdDone:"Signed in to {site}.", lgnCmdCancelled:"Sign-in cancelled — nothing was sent.", lgnCmdUnknown:"No sign-in is set up for \"{site}\". Type `/login` to see available sites.", lgnCmdNotReady:"Sign-in isn't available on this install yet.", lgnCmdFailed:"Couldn't sign in to {site}."
     },
     es:{
       onDevice:"En tu dispositivo", settings:"Ajustes", send:"Enviar", stopGen:"Detener generación", speak:"Hablar", addDoc:"Añadir un documento o imagen (lee el texto)",
@@ -224,7 +224,7 @@
       advEngineBad:"Debe ser una URL http(s), o vacío para el motor empaquetado.",
       newChat:"Nuevo chat", theme:"Tema", themeAria:"Cambiar tema claro u oscuro", menu:"Menú", themeLight:"Claro", themeDark:"Oscuro",
       chatsLabel:"Chats", noChats:"Aún no hay conversaciones",
-      lgnTitle:"Confirmar inicio de sesión", lgnVerifiedSite:"Sitio verificado", lgnVerifiedNote:"Leído del navegador tras cargar la página — no lo que se escribió o se afirmó.", lgnVerifiedNoteOauth:"Iniciarás sesión en la página del proveedor, en tu navegador — comprueba la barra de direcciones allí.", lgnSignInAs:"Iniciar sesión como", lgnProvider:"Proveedor de acceso", lgnScopes:"Acceso solicitado", lgnOauthReassure:"Acceso revocable — Vokter guarda un token que puedes revocar cuando quieras, nunca una contraseña.", lgnPasswordNote:"Tu contraseña guardada se escribe directamente en este sitio. Vokter nunca la ve, ni la guarda, ni la envía al modelo.", lgnWrongSite:"¿No es el sitio que querías? Cancela — no se envía nada.", lgnConfirm:"Iniciar sesión", lgnCancel:"Cancelar", lgnDone:"Sesión iniciada.", lgnFailed:"No se pudo iniciar sesión.", lgnUnavailable:"El inicio de sesión solo está disponible en la app de escritorio de Vokter."
+      lgnTitle:"Confirmar inicio de sesión", lgnVerifiedSite:"Sitio verificado", lgnVerifiedNote:"Leído del navegador tras cargar la página — no lo que se escribió o se afirmó.", lgnVerifiedNoteOauth:"Iniciarás sesión en la página del proveedor, en tu navegador — comprueba la barra de direcciones allí.", lgnSignInAs:"Iniciar sesión como", lgnProvider:"Proveedor de acceso", lgnScopes:"Acceso solicitado", lgnOauthReassure:"Acceso revocable — Vokter guarda un token que puedes revocar cuando quieras, nunca una contraseña.", lgnPasswordNote:"Tu contraseña guardada se escribe directamente en este sitio. Vokter nunca la ve, ni la guarda, ni la envía al modelo.", lgnWrongSite:"¿No es el sitio que querías? Cancela — no se envía nada.", lgnConfirm:"Iniciar sesión", lgnCancel:"Cancelar", lgnDone:"Sesión iniciada.", lgnFailed:"No se pudo iniciar sesión.", lgnUnavailable:"El inicio de sesión solo está disponible en la app de escritorio de Vokter.", lgnModeOauth:"inicio seguro, sin guardar contraseña", lgnModePassword:"inicio con contraseña", lgnCmdHelp:"Para iniciar sesión en un sitio, escribe `/login <sitio>` — p. ej. `/login github`. Verás exactamente qué autorizas antes de que ocurra nada. Sitios configurados para iniciar sesión:", lgnNoSites:"Aún no hay sitios configurados para iniciar sesión.", lgnCmdDone:"Sesión iniciada en {site}.", lgnCmdCancelled:"Inicio de sesión cancelado — no se envió nada.", lgnCmdUnknown:"No hay inicio de sesión configurado para «{site}». Escribe `/login` para ver los sitios disponibles.", lgnCmdNotReady:"El inicio de sesión aún no está disponible en esta instalación.", lgnCmdFailed:"No se pudo iniciar sesión en {site}."
     }
   };
   const LANGS=[{code:'en',name:'English'},{code:'es',name:'Español'}];
@@ -306,19 +306,47 @@
   // phase 2 (confirm:true) tells the backend to inject. The password is never here — status only. The
   // call goes through the token bridge (window.vokter.webLogin); outside Electron there is no bridge, so
   // sign-in is simply unavailable (the human-session token never lives in page JS).
+  function _lgnDetail(r){ try{ const d=r&&r.body&&r.body.detail; return (typeof d==='string'?d:'')||''; }catch{ return ''; } }
   async function startWebLogin(site, identity){
-    if(!(window.vokter && window.vokter.webLogin)){ toast(t('lgnUnavailable')); return {status:'unavailable'}; }
+    if(!(window.vokter && window.vokter.webLogin)) return {status:'unavailable'};
     const p1=await window.vokter.webLogin({site, identity_ref:identity});
-    if(p1.status!==428){ return (p1.body)||{status:'failed'}; }         // 403/404/503/0 → surface as-is
+    if(p1.status===403) return {status:'blocked'};
+    if(p1.status===404) return {status:'unknown_site'};
+    if(p1.status===503) return {status:'not_ready', detail:_lgnDetail(p1)};
+    if(p1.status!==428)  return {status:'error', detail:_lgnDetail(p1)};
     const d=(p1.body&&p1.body.detail)||{};
     const ok=await loginConfirm({origin:d.resolved_origin, identity:d.identity||identity, mode:d.mode||'password', provider:d.provider, scopes:d.scopes});
     if(!ok) return {status:'cancelled'};                                // human declined → nothing injected
     const p2=await window.vokter.webLogin({site, identity_ref:identity, confirm:true});
-    const body=(p2.body)||{};
-    toast(p2.status===200 && body.status==='succeeded' ? t('lgnDone') : t('lgnFailed'));
-    return body;
+    if(p2.status===200 && p2.body && p2.body.status) return {status:p2.body.status};
+    if(p2.status===503) return {status:'not_ready', detail:_lgnDetail(p2)};
+    return {status:'failed', detail:_lgnDetail(p2)};
   }
   try{ window.__vokterStartWebLogin=startWebLogin; }catch{}   // programmatic entry; harmless (bridge-gated + CONFIRM-human-only)
+
+  // The /login composer command — the USER-initiated sign-in affordance. Handled ENTIRELY in the
+  // renderer: the agent/model never sees it and never drives a login (no model-in-the-loop, so a
+  // prompt-injected model can't initiate one). The human types it, then the confirm sheet (resolved
+  // origin + identity + provider/scopes) gates it. web.login stays CONFIRM-human-only + bridge-only.
+  //   /login                    → list the sites a sign-in is wired for
+  //   /login <site> [as <id>]   → start a sign-in (identity defaults to "me")
+  async function handleLoginCommand(text){
+    addUser(text);                                                 // echo the command as a user bubble
+    const m=text.trim().match(/^\/login(?:\s+(\S+)(?:\s+as\s+(.+))?)?\s*$/i);
+    const site=(m&&m[1]||'').trim(); const identity=((m&&m[2])||'me').trim();
+    if(!site || site.toLowerCase()==='help'){
+      let sites=[]; try{ const r=await fetch('/api/web/login/sites'); if(r.ok) sites=await r.json(); }catch{}
+      const lines=(sites||[]).map(s=>`• \`${s.site}\`${s.provider?` — ${s.provider}`:''} (${s.mode==='oauth'?t('lgnModeOauth'):t('lgnModePassword')})`);
+      addAgent(t('lgnCmdHelp')+(lines.length?('\n\n'+lines.join('\n')):('\n\n'+t('lgnNoSites')))); return;
+    }
+    const res=await startWebLogin(site, identity); const st=res&&res.status;
+    if(st==='succeeded')        addAgent(t('lgnCmdDone',{site}));
+    else if(st==='cancelled')   addAgent(t('lgnCmdCancelled'));
+    else if(st==='unavailable') addAgent(t('lgnUnavailable'));
+    else if(st==='unknown_site')addAgent(t('lgnCmdUnknown',{site}));
+    else if(st==='not_ready')   addAgent(t('lgnCmdNotReady')+(res.detail?('\n\n'+res.detail):''));
+    else                        addAgent(t('lgnCmdFailed',{site}));
+  }
 
   // Dev-preview ONLY (xvfb, never :0): ?__loginpreview=oauth|password renders the sheet with MOCK
   // data so the UX can be screenshotted before web.login is wired live. No-op in normal use.
@@ -328,6 +356,7 @@
     const TH=p.get('__theme'); if(TH==='dark'||TH==='light') document.documentElement.setAttribute('data-theme',TH);
     if(m==='oauth') loginConfirm({origin:'https://accounts.google.com', identity:'bilal@example.com', mode:'oauth', provider:'Google', scopes:['View your email address','Read your calendar (read-only)','Send email on your behalf']});
     else if(m==='password') loginConfirm({origin:'https://www.iberdrola.es', identity:'bilal.m', mode:'password'});
+    else if(m==='cmd') handleLoginCommand('/login');   // the /login help listing in the chat (needs backend)
   }catch{} }
   if(document.readyState==='loading') addEventListener('DOMContentLoaded',_lgnPreview); else _lgnPreview();
 
@@ -462,6 +491,8 @@
     const text=q.value.trim();
     const img=_askImage;                        // Phase 2: a staged image to ask about (or null)
     if(!text && !img) return;                   // nothing to send
+    // /login — user-initiated sign-in, handled in the renderer; the agent never sees or drives it.
+    if(text && /^\/login\b/i.test(text)){ q.value=''; await handleLoginCommand(text); return; }
     addUser(text || ('🖼️ '+t('askImage'))); q.value='';
     if(img) clearVisionStage();                 // consume the staged image for THIS turn only
 

@@ -348,6 +348,15 @@ def _login_handler_e2e():
         "no_secret_in_db": not db_hit,
         "no_secret_in_gateway_target": SENT not in "__e2e__ as e2e-user",
     }
+    # the /login menu exposes ONLY site/mode/provider — never endpoints/client_id/selectors/origins.
+    try:
+        menu = wl.web_login_sites()
+        checks["sites_menu_shape_only"] = all(set(e.keys()) <= {"site", "mode", "provider"} for e in menu)
+        checks["sites_menu_no_config"] = not any(
+            any(bad in str(e) for bad in ("client_id", "authorize", "/token", "selectors", "login_url", "#login_field", "registered_origin"))
+            for e in menu)
+    except Exception:
+        checks["sites_menu_shape_only"] = False
     return all(checks.values()), checks
 
 
