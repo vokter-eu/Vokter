@@ -196,12 +196,21 @@ def _ledger_record(domain: str, sats: int) -> None:
     _LEDGER.append((time.time(), domain, sats))
 
 
+def _nwc_store():
+    """The production NWC connection store (keychain). Patchable in the hermetic TIER-6 fire-test."""
+    from web_pay_nwc import NWCStore
+    return NWCStore()
+
+
 # ───────────────────────── gateway-choked two-phase route ─────────────────────────
 class WebPayRequest(BaseModel):
     payee: str             # a Lightning Address (name@domain) — the human-verifiable destination. Vokter
                            # constructs the payment request itself from this domain, so the model/page
                            # cannot substitute a destination (confirm-integrity).
     amount_sats: int       # the amount to pay, in satoshis.
+    via: str = "handoff"   # "handoff" = deep-link to the user's wallet (stores nothing); "nwc" = pay over
+                           # the user's budget-limited NWC connection (the capped-session rail).
+    nwc_alias: str = "default"   # which NWC connection to use when via="nwc".
     confirm: bool = False  # the human's explicit per-payment approval (MANDATORY — crypto is irreversible).
     # Deliberately no payable field (no raw request, no signing material): nothing payable rides a caller.
 
@@ -240,15 +249,18 @@ def web_pay(req: WebPayRequest, x_vokter_human_session: str | None = Header(defa
         breach = check_ceilings(parsed[1], req.amount_sats)
         if breach:
             raise HTTPException(403, f"payment refused: {breach}")
+        if req.via == "nwc" and not _nwc_store().has(req.nwc_alias):
+            raise HTTPException(404, "no NWC connection — connect your wallet in Settings first")
         try:
             res = resolve_and_invoice(req.payee, req.amount_sats)   # integrity-checked here too
         except ValueError as e:
             raise HTTPException(422, str(e))
         raise HTTPException(428, detail={
-            "error": "confirmation_required", "action": "web.pay", "path": "lightning",
+            "error": "confirmation_required", "action": "web.pay",
+            "via": "nwc" if req.via == "nwc" else "handoff",
             "payee_domain": res["domain"], "amount_sats": req.amount_sats, "verifiable": True})
 
-    # Phase 2 — confirmed.
+    # Phase 2 — confirmed. Per-payment human-confirm already happened (the 428 the human approved).
     enforce_http("web.pay", target, context=context, confirmed=True)
     if not ship_gate_ok():
         raise HTTPException(503, "payment unavailable: the containment self-test has not passed on this install")
@@ -261,8 +273,65 @@ def web_pay(req: WebPayRequest, x_vokter_human_session: str | None = Header(defa
     try:
         res = resolve_and_invoice(req.payee, req.amount_sats)       # re-verify integrity on the fresh invoice
     except ValueError as e:
-        raise HTTPException(422, str(e))                            # substituted/inflated → rejected, no hand-off
+        raise HTTPException(422, str(e))                            # substituted/inflated → rejected, no send
+
+    if req.via == "nwc":
+        # Pay over the user's budget-limited NWC connection. The WALLET signs + enforces its cap; the
+        # connection secret stays in the keychain and NEVER reaches this response or the model (status only).
+        from web_pay_nwc import pay_via_nwc
+        store = _nwc_store()
+        if not store.has(req.nwc_alias):
+            raise HTTPException(404, "no NWC connection — connect your wallet in Settings first")
+        ok, status = pay_via_nwc(store, req.nwc_alias, res["bolt11"])
+        if ok:
+            _ledger_record(domain, req.amount_sats)
+        return {"status": "paid" if ok else "failed", "via": "nwc",
+                "payee_domain": domain, "amount_sats": req.amount_sats}
+
+    # Default: hand off to the user's OWN wallet — Vokter stores nothing, signs nothing. bolt11 is public.
     _ledger_record(domain, req.amount_sats)
-    # Hand off to the user's OWN wallet — Vokter stores nothing, signs nothing. The bolt11 is public.
     return {"status": "ready", "handoff": f"lightning:{res['bolt11']}",
             "payee_domain": domain, "amount_sats": req.amount_sats}
+
+
+# ───────────────────────── NWC connection provisioning (human-only; the URI is a secret) ─────────────────────────
+class NWCConnectRequest(BaseModel):
+    uri: str                       # the user's nostr+walletconnect:// URI (contains the connection secret).
+    alias: str = "default"         # a label for this connection.
+    unattended_cap_sats: int = 0   # 0 = confirm every payment (default, conservative). >0 = the EXPLICIT
+                                   # opt-in ceiling for unattended-within-budget (not wired to bypass the
+                                   # per-payment confirm in this slice — a CEILING, not a consent bypass).
+
+
+def _require_human(x_vokter_human_session: str | None):
+    from chat import is_local_human_session
+    if not is_local_human_session(x_vokter_human_session):
+        raise HTTPException(403, "only the local human session can manage wallet connections")
+
+
+@router.post("/api/web/pay/nwc/connect")
+def nwc_connect(req: NWCConnectRequest, x_vokter_human_session: str | None = Header(default=None)):
+    """Store the user's budget-limited NWC connection in the keychain. Human-only (the URI carries the
+    connection secret). The URI is NEVER echoed back — the response confirms the alias + cap only."""
+    _require_human(x_vokter_human_session)
+    from web_pay_nwc import validate_nwc_uri
+    if not validate_nwc_uri(req.uri):
+        raise HTTPException(400, "not a valid nostr+walletconnect:// connection URI")
+    _nwc_store().put(req.alias, req.uri, req.unattended_cap_sats)
+    return {"status": "connected", "alias": (req.alias or "default").strip(),
+            "unattended_cap_sats": int(req.unattended_cap_sats or 0)}   # deliberately NO uri in the response
+
+
+@router.post("/api/web/pay/nwc/revoke")
+def nwc_revoke(req: dict, x_vokter_human_session: str | None = Header(default=None)):
+    """One-action local revocation (also delete the connection in your wallet). Human-only."""
+    _require_human(x_vokter_human_session)
+    removed = _nwc_store().delete(str((req or {}).get("alias", "default")))
+    return {"status": "revoked" if removed else "absent"}
+
+
+@router.get("/api/web/pay/nwc")
+def nwc_list(x_vokter_human_session: str | None = Header(default=None)):
+    """List connected wallets — alias + unattended cap ONLY, never the URI/secret. Human-only."""
+    _require_human(x_vokter_human_session)
+    return _nwc_store().list_public()

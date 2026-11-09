@@ -505,6 +505,30 @@ def _pay_handler_e2e():
                 return {"pr": mk_inv(hrp, dh), "preimage": SENT_SECRET}   # callback also returns an extra secret
             raise AssertionError(url)
         return _get
+    def _hrp(sats):
+        m = sats * 1000
+        return f"lnbc{m // 100000}u" if m % 100000 == 0 else f"lnbc{m // 100}n"
+    def mk_http_amt(sats):   # a correct (integrity-passing) invoice for exactly `sats`
+        def _get(url):
+            if url.endswith("/.well-known/lnurlp/alice"):
+                return {"tag": "payRequest", "callback": f"https://{DOMAIN}/cb", "metadata": META,
+                        "minSendable": 1000, "maxSendable": 1_000_000_000}
+            if url.startswith(f"https://{DOMAIN}/cb"):
+                return {"pr": mk_inv(_hrp(sats), DH)}
+            raise AssertionError(url)
+        return _get
+
+    # NWC capped-session rail: a sentinel connection + a mock wallet enforcing a 5000-sat budget.
+    NWC_SECRET = "VKTR-NWC-secret-never-to-model-7a2f"
+    NWC_URI = f"nostr+walletconnect://deadbeef?relay=wss://r&secret={NWC_SECRET}"
+    import web_pay_nwc as wpn
+    from web_pay_nwc import InMemoryNWCStore
+    nstore = InMemoryNWCStore(); nstore.put("default", NWC_URI, 0)
+    wp._nwc_store = lambda: nstore
+    def mock_nwc_transport(uri, bolt11):   # the WALLET enforces its budget; we get status only
+        amt = wp.decode_bolt11(bolt11)["amount_msat"] or 0
+        return (True, "paid") if amt <= 5_000_000 else (False, "failed")
+    wpn._nwc_transport = mock_nwc_transport
 
     _sys.modules["chat"] = types.ModuleType("chat"); _sys.modules["chat"].is_local_human_session = lambda m: m == TOK
     checks = {}
@@ -541,7 +565,32 @@ def _pay_handler_e2e():
                 wp.web_pay(wp.WebPayRequest(payee=PAYEE, amount_sats=1000), x_vokter_human_session="nope")
             except HTTPException as e:
                 nh = e.status_code
+
+            # ── NWC capped-session rail ──
+            wp._http_get_json = mk_http_amt(1000); wp._LEDGER.clear()
+            nnp1s = None; nnp1d = {}
+            try:
+                wp.web_pay(wp.WebPayRequest(payee=PAYEE, amount_sats=1000, via="nwc"), x_vokter_human_session=TOK)
+            except HTTPException as e:
+                nnp1s = e.status_code; nnp1d = e.detail if isinstance(e.detail, dict) else {}
+            wp._LEDGER.clear()
+            nnp2 = wp.web_pay(wp.WebPayRequest(payee=PAYEE, amount_sats=1000, via="nwc", confirm=True), x_vokter_human_session=TOK)
+            wp._http_get_json = mk_http_amt(6000); wp._LEDGER.clear()   # 6000 sats > 5000 wallet budget
+            nnover = wp.web_pay(wp.WebPayRequest(payee=PAYEE, amount_sats=6000, via="nwc", confirm=True), x_vokter_human_session=TOK)
+            wp._http_get_json = mk_http(dh=hashlib.sha256(b"attacker2").digest()); wp._LEDGER.clear()  # substituted
+            nnsub = None
+            try:
+                wp.web_pay(wp.WebPayRequest(payee=PAYEE, amount_sats=1000, via="nwc", confirm=True), x_vokter_human_session=TOK)
+            except HTTPException as e:
+                nnsub = e.status_code
+            nstore.delete("default"); wp._http_get_json = mk_http_amt(1000)   # revoke → no connection
+            nn404 = None
+            try:
+                wp.web_pay(wp.WebPayRequest(payee=PAYEE, amount_sats=1000, via="nwc"), x_vokter_human_session=TOK)
+            except HTTPException as e:
+                nn404 = e.status_code
         captured = buf.getvalue()
+        _nwc_responses = str(nnp1d) + str(nnp2) + str(nnover)
         checks = {
             "pay_phase1_428": p1s == 428,
             "pay_phase1_payee+amount+verifiable": p1d.get("payee_domain") == DOMAIN and p1d.get("amount_sats") == 1000 and p1d.get("verifiable") is True,
@@ -552,6 +601,12 @@ def _pay_handler_e2e():
             "pay_nonhuman_403": nh == 403,
             "no_callback_secret_in_response": SENT_SECRET not in str(p2) and SENT_SECRET not in str(p1d),
             "no_callback_secret_in_stdout": SENT_SECRET not in captured,
+            "nwc_phase1_428_via": nnp1s == 428 and nnp1d.get("via") == "nwc",
+            "nwc_phase2_paid": isinstance(nnp2, dict) and nnp2.get("status") == "paid" and nnp2.get("via") == "nwc",
+            "nwc_over_budget_failed": isinstance(nnover, dict) and nnover.get("status") == "failed",
+            "nwc_substituted_rejected": nnsub == 422,
+            "nwc_no_connection_404": nn404 == 404,
+            "nwc_connection_secret_absent": NWC_SECRET not in _nwc_responses and NWC_SECRET not in captured,
         }
     finally:
         _sys.modules.pop("chat", None)

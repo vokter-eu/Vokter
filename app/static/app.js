@@ -113,7 +113,7 @@
       newChat:"New chat", theme:"Theme", themeAria:"Toggle light or dark theme", menu:"Menu", themeLight:"Light", themeDark:"Dark",
       chatsLabel:"Chats", noChats:"No conversations yet",
       lgnTitle:"Confirm sign-in", lgnVerifiedSite:"Verified site", lgnVerifiedNote:"Read from the browser after the page loaded — not what was typed or claimed.", lgnVerifiedNoteOauth:"You'll sign in on the provider's own page, in your browser — check the address bar there.", lgnSignInAs:"Sign in as", lgnProvider:"Sign-in provider", lgnScopes:"Access requested", lgnOauthReassure:"Revocable access — Vokter stores a token you can revoke anytime, never a password.", lgnPasswordNote:"Your saved password is typed directly into this site. Vokter never sees it, stores it, or sends it to the model.", lgnWrongSite:"Not the site you meant? Cancel — nothing is sent.", lgnConfirm:"Sign in", lgnCancel:"Cancel", lgnDone:"Signed in.", lgnFailed:"Sign-in didn't complete.", lgnUnavailable:"Sign-in is only available in the Vokter desktop app.", lgnModeOauth:"secure sign-in, no password stored", lgnModePassword:"password sign-in", lgnCmdHelp:"To sign in to a site, type `/login <site>` — e.g. `/login github`. You'll see exactly what you're authorizing before anything happens. Sites set up for sign-in:", lgnNoSites:"No sites are set up for sign-in yet.", lgnCmdDone:"Signed in to {site}.", lgnCmdCancelled:"Sign-in cancelled — nothing was sent.", lgnCmdUnknown:"No sign-in is set up for \"{site}\". Type `/login` to see available sites.", lgnCmdNotReady:"Sign-in isn't available on this install yet.", lgnCmdFailed:"Couldn't sign in to {site}.",
-      payTitle:"Confirm payment", payVerifiedPayee:"Paying", payVerifiedNote:"You typed this address — check the domain is who you mean to pay.", payUnverifiableNote:"Destination not verifiable — you're trusting the agent's claim of who you're paying.", payAmount:"Amount", paySats:"{n} sats", payWalletNote:"Your own wallet opens to confirm and sign — Vokter never holds your funds or keys. Lightning payments are irreversible.", payConfirmBtn:"Open wallet to pay", payCmdUsage:"To pay, type `/pay <lightning-address> <amount>` — e.g. `/pay alice@getalby.com 1000`.", payDone:"Opened your wallet to pay {domain}.", payCancelled:"Payment cancelled — nothing was sent.", payRejected:"Refused: the invoice didn't match the amount and payee you confirmed — nothing was sent.", payCeiling:"Refused: that would exceed a spending limit.", payNotReady:"Payment isn't available on this install yet.", payFailed:"Couldn't prepare the payment.", payUnavailable:"Payment is only available in the Vokter desktop app."
+      payTitle:"Confirm payment", payVerifiedPayee:"Paying", payVerifiedNote:"You typed this address — check the domain is who you mean to pay.", payUnverifiableNote:"Destination not verifiable — you're trusting the agent's claim of who you're paying.", payAmount:"Amount", paySats:"{n} sats", payWalletNote:"Your own wallet opens to confirm and sign — Vokter never holds your funds or keys. Lightning payments are irreversible.", payConfirmBtn:"Open wallet to pay", payCmdUsage:"To pay, type `/pay <lightning-address> <amount>` — e.g. `/pay alice@getalby.com 1000`.", payDone:"Opened your wallet to pay {domain}.", payCancelled:"Payment cancelled — nothing was sent.", payRejected:"Refused: the invoice didn't match the amount and payee you confirmed — nothing was sent.", payCeiling:"Refused: that would exceed a spending limit.", payNotReady:"Payment isn't available on this install yet.", payFailed:"Couldn't prepare the payment.", payUnavailable:"Payment is only available in the Vokter desktop app.", payWalletNoteNwc:"Paid from your connected wallet, within the budget it enforces — Vokter never holds your funds or keys, and can't spend beyond your cap. Lightning payments are irreversible.", payPaid:"Paid {domain} from your connected wallet.", payNoConnection:"No wallet connected. Connect one with `/wallet connect <nostr+walletconnect-uri>`, or just `/pay` to open your own wallet.", walletStatus:"Your connected wallet(s). Connect: `/wallet connect <nostr+walletconnect-uri> [daily-cap-sats]`. Revoke: `/wallet revoke`.", walletNone:"No wallet connected yet.", walletConnectUsage:"Usage: `/wallet connect <nostr+walletconnect-uri> [daily-cap-sats]`", walletConnected:"Wallet connected. Payments stay confirm-each by default; it enforces its own budget and you can revoke it anytime with `/wallet revoke`.", walletConnectFailed:"Couldn't connect that wallet — check the nostr+walletconnect URI.", walletRevoked:"Wallet disconnected. Also remove the connection in your wallet app.", walletRevokeFailed:"No wallet connection to remove."
     },
     es:{
       onDevice:"En tu dispositivo", settings:"Ajustes", send:"Enviar", stopGen:"Detener generación", speak:"Hablar", addDoc:"Añadir un documento o imagen (lee el texto)",
@@ -226,7 +226,7 @@
       newChat:"Nuevo chat", theme:"Tema", themeAria:"Cambiar tema claro u oscuro", menu:"Menú", themeLight:"Claro", themeDark:"Oscuro",
       chatsLabel:"Chats", noChats:"Aún no hay conversaciones",
       lgnTitle:"Confirmar inicio de sesión", lgnVerifiedSite:"Sitio verificado", lgnVerifiedNote:"Leído del navegador tras cargar la página — no lo que se escribió o se afirmó.", lgnVerifiedNoteOauth:"Iniciarás sesión en la página del proveedor, en tu navegador — comprueba la barra de direcciones allí.", lgnSignInAs:"Iniciar sesión como", lgnProvider:"Proveedor de acceso", lgnScopes:"Acceso solicitado", lgnOauthReassure:"Acceso revocable — Vokter guarda un token que puedes revocar cuando quieras, nunca una contraseña.", lgnPasswordNote:"Tu contraseña guardada se escribe directamente en este sitio. Vokter nunca la ve, ni la guarda, ni la envía al modelo.", lgnWrongSite:"¿No es el sitio que querías? Cancela — no se envía nada.", lgnConfirm:"Iniciar sesión", lgnCancel:"Cancelar", lgnDone:"Sesión iniciada.", lgnFailed:"No se pudo iniciar sesión.", lgnUnavailable:"El inicio de sesión solo está disponible en la app de escritorio de Vokter.", lgnModeOauth:"inicio seguro, sin guardar contraseña", lgnModePassword:"inicio con contraseña", lgnCmdHelp:"Para iniciar sesión en un sitio, escribe `/login <sitio>` — p. ej. `/login github`. Verás exactamente qué autorizas antes de que ocurra nada. Sitios configurados para iniciar sesión:", lgnNoSites:"Aún no hay sitios configurados para iniciar sesión.", lgnCmdDone:"Sesión iniciada en {site}.", lgnCmdCancelled:"Inicio de sesión cancelado — no se envió nada.", lgnCmdUnknown:"No hay inicio de sesión configurado para «{site}». Escribe `/login` para ver los sitios disponibles.", lgnCmdNotReady:"El inicio de sesión aún no está disponible en esta instalación.", lgnCmdFailed:"No se pudo iniciar sesión en {site}.",
-      payTitle:"Confirmar pago", payVerifiedPayee:"Pagando a", payVerifiedNote:"Tú escribiste esta dirección — comprueba que el dominio es a quien quieres pagar.", payUnverifiableNote:"Destino no verificable — estás confiando en quién dice el agente que pagas.", payAmount:"Importe", paySats:"{n} sats", payWalletNote:"Se abre tu propia cartera para confirmar y firmar — Vokter nunca guarda tus fondos ni claves. Los pagos Lightning son irreversibles.", payConfirmBtn:"Abrir cartera para pagar", payCmdUsage:"Para pagar, escribe `/pay <dirección-lightning> <importe>` — p. ej. `/pay alice@getalby.com 1000`.", payDone:"Abrí tu cartera para pagar a {domain}.", payCancelled:"Pago cancelado — no se envió nada.", payRejected:"Rechazado: la factura no coincidía con el importe y el destinatario que confirmaste — no se envió nada.", payCeiling:"Rechazado: superaría un límite de gasto.", payNotReady:"El pago aún no está disponible en esta instalación.", payFailed:"No se pudo preparar el pago.", payUnavailable:"El pago solo está disponible en la app de escritorio de Vokter."
+      payTitle:"Confirmar pago", payVerifiedPayee:"Pagando a", payVerifiedNote:"Tú escribiste esta dirección — comprueba que el dominio es a quien quieres pagar.", payUnverifiableNote:"Destino no verificable — estás confiando en quién dice el agente que pagas.", payAmount:"Importe", paySats:"{n} sats", payWalletNote:"Se abre tu propia cartera para confirmar y firmar — Vokter nunca guarda tus fondos ni claves. Los pagos Lightning son irreversibles.", payConfirmBtn:"Abrir cartera para pagar", payCmdUsage:"Para pagar, escribe `/pay <dirección-lightning> <importe>` — p. ej. `/pay alice@getalby.com 1000`.", payDone:"Abrí tu cartera para pagar a {domain}.", payCancelled:"Pago cancelado — no se envió nada.", payRejected:"Rechazado: la factura no coincidía con el importe y el destinatario que confirmaste — no se envió nada.", payCeiling:"Rechazado: superaría un límite de gasto.", payNotReady:"El pago aún no está disponible en esta instalación.", payFailed:"No se pudo preparar el pago.", payUnavailable:"El pago solo está disponible en la app de escritorio de Vokter.", payWalletNoteNwc:"Pagado desde tu cartera conectada, dentro del presupuesto que ella impone — Vokter nunca guarda tus fondos ni claves, ni puede gastar más allá de tu límite. Los pagos Lightning son irreversibles.", payPaid:"Pagado a {domain} desde tu cartera conectada.", payNoConnection:"No hay cartera conectada. Conecta una con `/wallet connect <uri-nostr+walletconnect>`, o usa `/pay` para abrir tu propia cartera.", walletStatus:"Tus carteras conectadas. Conectar: `/wallet connect <uri-nostr+walletconnect> [límite-diario-sats]`. Revocar: `/wallet revoke`.", walletNone:"Aún no hay cartera conectada.", walletConnectUsage:"Uso: `/wallet connect <uri-nostr+walletconnect> [límite-diario-sats]`", walletConnected:"Cartera conectada. Los pagos siguen confirmándose uno a uno por defecto; ella impone su presupuesto y puedes revocarla cuando quieras con `/wallet revoke`.", walletConnectFailed:"No se pudo conectar esa cartera — revisa la URI nostr+walletconnect.", walletRevoked:"Cartera desconectada. Elimina también la conexión en tu app de cartera.", walletRevokeFailed:"No hay conexión de cartera que eliminar."
     }
   };
   const LANGS=[{code:'en',name:'English'},{code:'es',name:'Español'}];
@@ -369,7 +369,7 @@
       const amr=document.createElement('div'); amr.className='lgn-row';
       const aml=document.createElement('div'); aml.className='lgn-lbl'; aml.textContent=t('payAmount'); amr.appendChild(aml);
       const amv=document.createElement('div'); amv.className='v mono'; amv.textContent=t('paySats',{n:details.amount_sats}); amr.appendChild(amv); card.appendChild(amr);
-      const re=document.createElement('div'); re.className='lgn-reassure'; re.textContent=t('payWalletNote'); card.appendChild(re);
+      const re=document.createElement('div'); re.className='lgn-reassure'; re.textContent=t(details.via==='nwc'?'payWalletNoteNwc':'payWalletNote'); card.appendChild(re);
       const acts=document.createElement('div'); acts.className='lgn-acts';
       const cancel=document.createElement('button'); cancel.className='lgn-cancel'; cancel.textContent=t('lgnCancel');
       const ok=document.createElement('button'); ok.className='lgn-confirm'; ok.textContent=t('payConfirmBtn');
@@ -389,21 +389,24 @@
   // Two-phase web.pay driver. Phase 1 resolves + integrity-checks + returns the payee domain + amount;
   // payConfirm() gates it; phase 2 hands off to the user's wallet (opened by MAIN). The invoice never
   // reaches page JS; Vokter holds no funds or keys.
-  async function startWebPay(payee, amount){
+  async function startWebPay(payee, amount, via){
+    via = via==='nwc' ? 'nwc' : 'handoff';
     if(!(window.vokter && window.vokter.webPay)) return {status:'unavailable'};
-    const p1=await window.vokter.webPay({payee, amount_sats:amount});
+    const p1=await window.vokter.webPay({payee, amount_sats:amount, via});
     if(p1.status===403) return {status:'ceiling', detail:_lgnDetail(p1)};
     if(p1.status===422) return {status:'rejected', detail:_lgnDetail(p1)};
     if(p1.status===400) return {status:'bad_payee'};
+    if(p1.status===404) return {status:'no_connection'};
     if(p1.status===503) return {status:'not_ready', detail:_lgnDetail(p1)};
     if(p1.status!==428)  return {status:'error', detail:_lgnDetail(p1)};
     const d=(p1.body&&p1.body.detail)||{};
-    const ok=await payConfirm({payee_domain:d.payee_domain, amount_sats:d.amount_sats, verifiable:d.verifiable!==false});
+    const ok=await payConfirm({payee_domain:d.payee_domain, amount_sats:d.amount_sats, verifiable:d.verifiable!==false, via:d.via||via});
     if(!ok) return {status:'cancelled'};
-    const p2=await window.vokter.webPay({payee, amount_sats:amount, confirm:true});
-    if(p2.status===200 && p2.body && p2.body.status==='ready') return {status:'ready', domain:p2.body.payee_domain};
+    const p2=await window.vokter.webPay({payee, amount_sats:amount, via, confirm:true});
+    if(p2.status===200 && p2.body && (p2.body.status==='ready'||p2.body.status==='paid')) return {status:p2.body.status, domain:p2.body.payee_domain};
     if(p2.status===422) return {status:'rejected', detail:_lgnDetail(p2)};
     if(p2.status===403) return {status:'ceiling', detail:_lgnDetail(p2)};
+    if(p2.status===404) return {status:'no_connection'};
     return {status:'failed', detail:_lgnDetail(p2)};
   }
   try{ window.__vokterStartWebPay=startWebPay; }catch{}
@@ -415,15 +418,40 @@
     const m=text.trim().match(/^\/pay\s+(\S+)\s+([\d.,]+)(?:\s*sats?)?\s*$/i);
     const amount=m?parseInt(m[2].replace(/[.,]/g,''),10):0;
     if(!m || !amount || amount<=0){ addAgent(t('payCmdUsage')); return; }
-    const res=await startWebPay(m[1].trim(), amount); const st=res&&res.status;
-    if(st==='ready')            addAgent(t('payDone',{domain:res.domain||m[1].trim()}));
+    // auto-detect: if a default NWC connection exists, pay over it; else deep-link hand-off.
+    let via='handoff';
+    try{ if(window.vokter && window.vokter.nwc){ const r=await window.vokter.nwc({op:'list'}); if(r&&r.status===200&&Array.isArray(r.body)&&r.body.some(c=>c.alias==='default')) via='nwc'; } }catch{}
+    const res=await startWebPay(m[1].trim(), amount, via); const st=res&&res.status;
+    if(st==='paid')             addAgent(t('payPaid',{domain:res.domain||m[1].trim()}));
+    else if(st==='ready')       addAgent(t('payDone',{domain:res.domain||m[1].trim()}));
     else if(st==='cancelled')   addAgent(t('payCancelled'));
     else if(st==='unavailable') addAgent(t('payUnavailable'));
     else if(st==='rejected')    addAgent(t('payRejected'));
     else if(st==='ceiling')     addAgent(t('payCeiling'));
+    else if(st==='no_connection') addAgent(t('payNoConnection'));
     else if(st==='bad_payee')   addAgent(t('payCmdUsage'));
     else if(st==='not_ready')   addAgent(t('payNotReady'));
     else                        addAgent(t('payFailed'));
+  }
+
+  // /wallet — connect/revoke/list the budget-limited NWC wallet connection. The URI (secret) goes via
+  // the bridge to the keychain; the echo redacts it so it never sits in the visible chat.
+  async function handleWalletCommand(text){
+    addUser(text.replace(/(connect\s+)\S+/i,'$1·····'));
+    if(!(window.vokter && window.vokter.nwc)){ addAgent(t('payUnavailable')); return; }
+    const parts=text.trim().split(/\s+/); const sub=(parts[1]||'').toLowerCase();
+    if(sub==='connect'){
+      const uri=parts[2]||''; const cap=parseInt(parts[3]||'0',10)||0;
+      if(!uri){ addAgent(t('walletConnectUsage')); return; }
+      const r=await window.vokter.nwc({op:'connect', uri, alias:'default', unattended_cap_sats:cap});
+      addAgent(r&&r.status===200 ? t('walletConnected') : t('walletConnectFailed'));
+    } else if(sub==='revoke'){
+      const r=await window.vokter.nwc({op:'revoke', alias:parts[2]||'default'});
+      addAgent(r&&r.status===200 && r.body && r.body.status==='revoked' ? t('walletRevoked') : t('walletRevokeFailed'));
+    } else {
+      const r=await window.vokter.nwc({op:'list'}); const list=(r&&r.status===200&&Array.isArray(r.body))?r.body:[];
+      addAgent(t('walletStatus')+'\n\n'+(list.length?list.map(c=>`• \`${c.alias}\`${c.unattended_cap_sats?` (cap ${c.unattended_cap_sats} sats)`:''}`).join('\n'):t('walletNone')));
+    }
   }
 
   // Dev-preview ONLY (xvfb, never :0): ?__loginpreview=oauth|password renders the sheet with MOCK
@@ -573,6 +601,7 @@
     // /login, /pay — user-initiated Tier-3 actions, handled in the renderer; the agent never sees them.
     if(text && /^\/login\b/i.test(text)){ q.value=''; await handleLoginCommand(text); return; }
     if(text && /^\/pay\b/i.test(text)){ q.value=''; await handlePayCommand(text); return; }
+    if(text && /^\/wallet\b/i.test(text)){ q.value=''; await handleWalletCommand(text); return; }
     addUser(text || ('🖼️ '+t('askImage'))); q.value='';
     if(img) clearVisionStage();                 // consume the staged image for THIS turn only
 
