@@ -29,6 +29,7 @@ from engine import warm_up
 from browser import router as browser_router
 from interactive_browser import router as interactive_browser_router
 from web_login import router as web_login_router
+from web_pay import router as web_pay_router
 from backup_routes import router as backup_router
 from planner import router as planner_router
 from schedule_routes import router as schedule_router
@@ -132,6 +133,7 @@ app.include_router(voice_fetch_router)
 app.include_router(browser_router)
 app.include_router(interactive_browser_router)
 app.include_router(web_login_router)
+app.include_router(web_pay_router)
 app.include_router(backup_router)
 app.include_router(planner_router)
 app.include_router(schedule_router)

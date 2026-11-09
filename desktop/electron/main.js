@@ -14,7 +14,7 @@
 // (Phase 3.3-D later adds ONE thing: a one-way, receive-only preload channel
 // that relays the orchestrator's model-download progress to the loading screen.)
 
-const { app, BrowserWindow, ipcMain, session } = require('electron');
+const { app, BrowserWindow, ipcMain, session, shell } = require('electron');
 const { spawn } = require('child_process');
 const http = require('http');
 const crypto = require('crypto');
@@ -523,6 +523,45 @@ ipcMain.handle('vokter:web-login', (_event, reqIn) => new Promise((resolve) => {
   });
   rq.on('error', () => resolve({ status: 0, body: null }));
   rq.setTimeout(120000, () => { rq.destroy(); resolve({ status: 0, body: null }); });  // a real login navigates + injects
+  rq.write(payload); rq.end();
+}));
+
+// web.pay bridge: proxy /api/web/pay through MAIN so the human-session token never touches page JS.
+// Two-phase + stateless — the page sends {payee, amount_sats} (phase 1 → 428 with payee_domain+amount
+// for the confirm sheet), then {…, confirm:true} (phase 2 → a `lightning:` hand-off). Vokter holds no
+// funds/keys; MAIN opens the hand-off in the user's OWN wallet (shell.openExternal) so the raw invoice
+// never reaches page JS, and the page only learns {status}. The user confirms + signs in their wallet.
+ipcMain.handle('vokter:web-pay', (_event, reqIn) => new Promise((resolve) => {
+  if (!ready || backendPort == null) { resolve({ status: 0, body: null }); return; }
+  const r = (reqIn && typeof reqIn === 'object') ? reqIn : {};
+  const payee = String(r.payee || ''); const amount = Number.isInteger(r.amount_sats) ? r.amount_sats : 0;
+  if (!payee || amount <= 0) { resolve({ status: 400, body: null }); return; }
+  const payload = JSON.stringify({ payee, amount_sats: amount, confirm: r.confirm === true });
+  const headers = {
+    'X-Vokter-Human-Session': HUMAN_SESSION_TOKEN,
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(payload),
+  };
+  const rq = http.request({ host: '127.0.0.1', port: backendPort, path: '/api/web/pay', method: 'POST', headers }, (res) => {
+    let data = '';
+    res.setEncoding('utf8');
+    res.on('data', (c) => { data += c; });
+    res.on('end', () => {
+      let parsed = null;
+      try { parsed = JSON.parse(data); } catch { /* non-JSON → null */ }
+      // Phase 2 success: open the lightning: hand-off in the user's wallet; strip the raw invoice from
+      // what the page sees (it only needs the status + the public payee/amount).
+      if (res.statusCode === 200 && parsed && typeof parsed.handoff === 'string' && parsed.handoff.startsWith('lightning:')) {
+        try { shell.openExternal(parsed.handoff); } catch { /* no wallet handler registered */ }
+        const { handoff, ...safe } = parsed;
+        resolve({ status: 200, body: { ...safe, opened: true } });
+        return;
+      }
+      resolve({ status: res.statusCode || 0, body: parsed });
+    });
+  });
+  rq.on('error', () => resolve({ status: 0, body: null }));
+  rq.setTimeout(60000, () => { rq.destroy(); resolve({ status: 0, body: null }); });
   rq.write(payload); rq.end();
 }));
 

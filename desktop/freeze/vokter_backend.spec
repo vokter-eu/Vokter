@@ -27,7 +27,8 @@ hiddenimports = ["orchestrator", "keysource", "keychain", "datadir", "model_pull
                  "ocr",  # image OCR — lazily imported inside ingestion.extract_text
                  "interactive_browser", "containment_selftest",  # Tier-3 cage + --containment-selftest
                  "web_login", "oauth_broker",  # Tier-3 Phase-1 login gateway + OAuth broker
-                 "web_login_injector"]  # Path-2 password injector (lazily imported by containment_selftest TIER 4)
+                 "web_login_injector",  # Path-2 password injector (lazily imported by containment_selftest TIER 4)
+                 "web_pay"]  # Tier-3 Phase-2 payments (LNURL hand-off)
 
 # collect_all (never collect_data_files) for every package with native pieces:
 # kokoro-onnx (TTS) needs its phonemizer + espeak-ng data to travel together (the same

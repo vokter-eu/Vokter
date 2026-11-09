@@ -67,6 +67,12 @@ contextBridge.exposeInMainWorld('vokter', {
   // No secret ever crosses this boundary — the password is dereferenced + typed entirely in the backend.
   webLogin: (req) => ipcRenderer.invoke('vokter:web-login', req),
 
+  // webPay(req): proxy /api/web/pay (Tier-3 crypto payment) through main so the human-session token never
+  // lives in page JS. Two-phase: webPay({payee, amount_sats}) → {status:428, body with payee_domain+amount
+  // for the confirm sheet}; then webPay({payee, amount_sats, confirm:true}) → main opens the `lightning:`
+  // hand-off in the user's OWN wallet and returns {status}. No funds/keys/invoice ever cross to page JS.
+  webPay: (req) => ipcRenderer.invoke('vokter:web-pay', req),
+
   // backup(req): proxy /api/backup/* through main (the human-session token never lives in page JS).
   // ops: status | setup | confirmWritten | export | restoreValidate. The recovery phrase comes back
   // from setup for one-time display and is never persisted. Used only by the Backup settings view.

@@ -147,6 +147,31 @@ def main():
     check("origin_matches rejects scheme downgrade", _wl.origin_matches("http://bank.example", "https://bank.example"), False)
     check("normalize_origin rejects non-absolute", _safe_raises(lambda: _wl.normalize_origin("bank.example")), True)
 
+    # Tier-3 Phase 2: web.pay (pay on the human's behalf) is CONFIRM-human-only — a page or a peer can
+    # never trigger a payment. Crypto-first; the request carries a payee + amount, NEVER an invoice/key.
+    check("web.pay known action",            "web.pay" in safety.KNOWN_ACTIONS,                   True)
+    for ctx in ("peer", "mcp", "autonomous"):
+        check(f"web.pay/{ctx} BLOCK",        g("web.pay", "1000 sats to a@b.com", context=ctx),   D.BLOCK)
+    check("web.pay/human CONFIRM",           g("web.pay", "1000 sats to a@b.com", context="human"), D.CONFIRM)
+    try:
+        safety.enforce_http("web.pay", "x", context="autonomous")
+        check("enforce_http web.pay autonomous raises", False, True)
+    except HTTPException as e:
+        check("enforce_http web.pay autonomous → 403", e.status_code, 403)
+    try:
+        safety.enforce_http("web.pay", "x", context="human", confirmed=False)
+        check("enforce_http web.pay human unconfirmed raises", False, True)
+    except HTTPException as e:
+        check("enforce_http web.pay human unconfirmed → 428", e.status_code, 428)
+    # SOURCE-LEVEL TRIPWIRE: the web_pay handler must gate through enforce_http("web.pay", …) before
+    # acting, AND the request must carry NO payable secret (no invoice/bolt11/key/preimage/pan/cvv).
+    wp_src = open(_os.path.join(_os.path.dirname(__file__), "..", "app", "web_pay.py"), encoding="utf-8").read()
+    check("tripwire: web_pay handler calls enforce_http(\"web.pay\")", 'enforce_http("web.pay"' in wp_src, True)
+    _pay_body = wp_src.split("class WebPayRequest")[1].split("@router")[0].lower()
+    check("tripwire: WebPayRequest carries no payable-secret field",
+          not any(f"{k}:" in _pay_body for k in
+                  ("invoice", "bolt11", "key", "preimage", "secret", "pan", "cvv", "seed", "privkey")), True)
+
     # deny-by-default for actions the gateway has never heard of
     check("unknown action peer BLOCK",   g("frobnicate", None, context="peer"),  D.BLOCK)
     check("unknown action human CONFIRM", g("frobnicate", None, context="human"), D.CONFIRM)

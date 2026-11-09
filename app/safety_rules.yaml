@@ -35,6 +35,14 @@ rules:
   # was verified — the model only learns succeeded|failed. See TIER3_PHASE1_LOGIN.md. No secret path
   # executes until the fire-test secret-non-leakage probe is green on the frozen .deb.
   web.login:       { human: confirm, nonhuman: block }
+  # Tier-3 Phase 2: PAYING on the human's behalf (web_pay routine). CONFIRM-human-only — collapses to
+  # BLOCK for peer/mcp/autonomous, so a page or a peer can never trigger a payment. Crypto-first: Vokter
+  # NEVER holds funds or keys — it constructs a payment request (LNURL/Lightning-Address) and hands off
+  # to the user's OWN wallet, which confirms+signs. Per-payment human-confirm is MANDATORY (crypto is
+  # irreversible). Origin-bound: the payee domain must match the resolved merchant origin, or the sheet
+  # flags the destination as unverifiable. Gateway ceilings (per-tx/window/payee) are a second limit.
+  # See TIER3_PHASE2_PAYMENTS.md. No payment runs until the TIER-6 fire-test is green on the frozen .deb.
+  web.pay:         { human: confirm, nonhuman: block }
   # Outbound agent messages — channel-confined to peers we already know.
   dm.send:
     human: allow_if_known

@@ -461,6 +461,103 @@ def _oauth_handler_e2e():
     return all(checks.values()), checks
 
 
+# ───────── TIER 6: live web.pay (LNURL) — e2e, BOTH halves: non-leakage + confirm-integrity ─────────
+# Drives the REAL web_pay() handler both phases with a hermetic mock LNURL (no network, no funds). The
+# crypto-critical half is CONFIRM-INTEGRITY: a substituted/inflated invoice is REJECTED and never handed
+# off. Non-leakage here = the handler passes through only the public invoice, never an extra secret the
+# callback returns, and Vokter holds no key/funds.
+def _pay_handler_e2e():
+    import contextlib, hashlib, io, sys as _sys, types
+    SENT_SECRET = "VKTR-PAY-preimage-9f3c1a-never-to-model"; TOK = "e2e-human-session-tok"
+    DOMAIN = "e2e-pay.example"; PAYEE = f"alice@{DOMAIN}"; META = '[["text/plain","e2e"]]'
+    DH = hashlib.sha256(META.encode()).digest()
+    os.environ["VOKTER_TIER3_SECRET_GATE"] = "passed"
+
+    from fastapi import HTTPException
+    import web_pay as wp
+    _B32 = wp._B32
+
+    def _poly(vs):
+        G = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3]; c = 1
+        for v in vs:
+            b = c >> 25; c = ((c & 0x1ffffff) << 5) ^ v
+            for i in range(5): c ^= G[i] if ((b >> i) & 1) else 0
+        return c
+    def _enc(hrp, data):
+        pm = _poly([ord(x) >> 5 for x in hrp] + [0] + [ord(x) & 31 for x in hrp] + data + [0] * 6) ^ 1
+        return hrp + "1" + "".join(_B32[d] for d in data + [(pm >> 5 * (5 - i)) & 31 for i in range(6)])
+    def _b5(b):
+        acc = bits = 0; o = []
+        for x in b:
+            acc = (acc << 8) | x; bits += 8
+            while bits >= 5: bits -= 5; o.append((acc >> bits) & 31)
+        if bits: o.append((acc << (5 - bits)) & 31)
+        return o
+    def _fld(t, v): return [t, len(v) // 32, len(v) % 32] + v
+    def mk_inv(hrp, dh): return _enc(hrp, [0] * 7 + _fld(1, _b5(b"\x11" * 32)) + _fld(23, _b5(dh)))
+
+    def mk_http(hrp="lnbc10u", dh=DH):   # 1000 sats = 1_000_000 msat → lnbc10u
+        def _get(url):
+            if url.endswith("/.well-known/lnurlp/alice"):
+                return {"tag": "payRequest", "callback": f"https://{DOMAIN}/cb", "metadata": META,
+                        "minSendable": 1000, "maxSendable": 100_000_000}
+            if url.startswith(f"https://{DOMAIN}/cb"):
+                return {"pr": mk_inv(hrp, dh), "preimage": SENT_SECRET}   # callback also returns an extra secret
+            raise AssertionError(url)
+        return _get
+
+    _sys.modules["chat"] = types.ModuleType("chat"); _sys.modules["chat"].is_local_human_session = lambda m: m == TOK
+    checks = {}
+    try:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            wp._http_get_json = mk_http(); wp._LEDGER.clear()
+            p1s = None; p1d = {}
+            try:
+                wp.web_pay(wp.WebPayRequest(payee=PAYEE, amount_sats=1000), x_vokter_human_session=TOK)
+            except HTTPException as e:
+                p1s = e.status_code; p1d = e.detail if isinstance(e.detail, dict) else {}
+            wp._LEDGER.clear()
+            p2 = wp.web_pay(wp.WebPayRequest(payee=PAYEE, amount_sats=1000, confirm=True), x_vokter_human_session=TOK)
+            handoff = (p2 or {}).get("handoff", ""); integrity_ok = False
+            if handoff.startswith("lightning:"):
+                d = wp.decode_bolt11(handoff[len("lightning:"):])
+                integrity_ok = d["amount_msat"] == 1_000_000 and d["description_hash"] == DH.hex()
+            wp._http_get_json = mk_http(hrp="lnbc2500u"); wp._LEDGER.clear()   # inflated: 250_000_000 msat
+            inf = None
+            try:
+                wp.web_pay(wp.WebPayRequest(payee=PAYEE, amount_sats=1000, confirm=True), x_vokter_human_session=TOK)
+            except HTTPException as e:
+                inf = e.status_code
+            wp._http_get_json = mk_http(dh=hashlib.sha256(b"attacker").digest()); wp._LEDGER.clear()  # substituted
+            sub = None
+            try:
+                wp.web_pay(wp.WebPayRequest(payee=PAYEE, amount_sats=1000, confirm=True), x_vokter_human_session=TOK)
+            except HTTPException as e:
+                sub = e.status_code
+            wp._http_get_json = mk_http()
+            nh = None
+            try:
+                wp.web_pay(wp.WebPayRequest(payee=PAYEE, amount_sats=1000), x_vokter_human_session="nope")
+            except HTTPException as e:
+                nh = e.status_code
+        captured = buf.getvalue()
+        checks = {
+            "pay_phase1_428": p1s == 428,
+            "pay_phase1_payee+amount+verifiable": p1d.get("payee_domain") == DOMAIN and p1d.get("amount_sats") == 1000 and p1d.get("verifiable") is True,
+            "pay_phase2_ready_handoff": isinstance(p2, dict) and p2.get("status") == "ready" and str(p2.get("handoff", "")).startswith("lightning:"),
+            "integrity_handoff_matches_confirmed": integrity_ok,
+            "integrity_inflated_amount_rejected": inf == 422,
+            "integrity_substituted_invoice_rejected": sub == 422,
+            "pay_nonhuman_403": nh == 403,
+            "no_callback_secret_in_response": SENT_SECRET not in str(p2) and SENT_SECRET not in str(p1d),
+            "no_callback_secret_in_stdout": SENT_SECRET not in captured,
+        }
+    finally:
+        _sys.modules.pop("chat", None)
+    return all(checks.values()), checks
+
+
 def run() -> int:
     """Run all tiers. Returns 0 only if every tier is green."""
     FAILS.clear(); SKIPS.clear()
@@ -548,6 +645,15 @@ def run() -> int:
             _ok("e2e[oauth]: live OAuth two-phase works + token never reaches the model", oa_ok)
         except Exception as e:
             _ok(f"TIER 5 oauth e2e probe ran ({e})", False)
+
+        print("\n── TIER 6: live web.pay (LNURL) — e2e, non-leakage + CONFIRM-INTEGRITY ──")
+        try:
+            pay_ok, pchecks = _pay_handler_e2e()
+            for k, v in pchecks.items():
+                _ok(f"e2e[pay]: {k}", v)
+            _ok("e2e[pay]: live web.pay hands off a confirmed invoice, rejects substitution, no key/funds", pay_ok)
+        except Exception as e:
+            _ok(f"TIER 6 pay e2e probe ran ({e})", False)
     finally:
         srv.terminate()
         try:

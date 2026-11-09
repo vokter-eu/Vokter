@@ -112,7 +112,8 @@
       advEngineBad:"Must be an http(s) URL, or empty for the bundled engine.",
       newChat:"New chat", theme:"Theme", themeAria:"Toggle light or dark theme", menu:"Menu", themeLight:"Light", themeDark:"Dark",
       chatsLabel:"Chats", noChats:"No conversations yet",
-      lgnTitle:"Confirm sign-in", lgnVerifiedSite:"Verified site", lgnVerifiedNote:"Read from the browser after the page loaded — not what was typed or claimed.", lgnVerifiedNoteOauth:"You'll sign in on the provider's own page, in your browser — check the address bar there.", lgnSignInAs:"Sign in as", lgnProvider:"Sign-in provider", lgnScopes:"Access requested", lgnOauthReassure:"Revocable access — Vokter stores a token you can revoke anytime, never a password.", lgnPasswordNote:"Your saved password is typed directly into this site. Vokter never sees it, stores it, or sends it to the model.", lgnWrongSite:"Not the site you meant? Cancel — nothing is sent.", lgnConfirm:"Sign in", lgnCancel:"Cancel", lgnDone:"Signed in.", lgnFailed:"Sign-in didn't complete.", lgnUnavailable:"Sign-in is only available in the Vokter desktop app.", lgnModeOauth:"secure sign-in, no password stored", lgnModePassword:"password sign-in", lgnCmdHelp:"To sign in to a site, type `/login <site>` — e.g. `/login github`. You'll see exactly what you're authorizing before anything happens. Sites set up for sign-in:", lgnNoSites:"No sites are set up for sign-in yet.", lgnCmdDone:"Signed in to {site}.", lgnCmdCancelled:"Sign-in cancelled — nothing was sent.", lgnCmdUnknown:"No sign-in is set up for \"{site}\". Type `/login` to see available sites.", lgnCmdNotReady:"Sign-in isn't available on this install yet.", lgnCmdFailed:"Couldn't sign in to {site}."
+      lgnTitle:"Confirm sign-in", lgnVerifiedSite:"Verified site", lgnVerifiedNote:"Read from the browser after the page loaded — not what was typed or claimed.", lgnVerifiedNoteOauth:"You'll sign in on the provider's own page, in your browser — check the address bar there.", lgnSignInAs:"Sign in as", lgnProvider:"Sign-in provider", lgnScopes:"Access requested", lgnOauthReassure:"Revocable access — Vokter stores a token you can revoke anytime, never a password.", lgnPasswordNote:"Your saved password is typed directly into this site. Vokter never sees it, stores it, or sends it to the model.", lgnWrongSite:"Not the site you meant? Cancel — nothing is sent.", lgnConfirm:"Sign in", lgnCancel:"Cancel", lgnDone:"Signed in.", lgnFailed:"Sign-in didn't complete.", lgnUnavailable:"Sign-in is only available in the Vokter desktop app.", lgnModeOauth:"secure sign-in, no password stored", lgnModePassword:"password sign-in", lgnCmdHelp:"To sign in to a site, type `/login <site>` — e.g. `/login github`. You'll see exactly what you're authorizing before anything happens. Sites set up for sign-in:", lgnNoSites:"No sites are set up for sign-in yet.", lgnCmdDone:"Signed in to {site}.", lgnCmdCancelled:"Sign-in cancelled — nothing was sent.", lgnCmdUnknown:"No sign-in is set up for \"{site}\". Type `/login` to see available sites.", lgnCmdNotReady:"Sign-in isn't available on this install yet.", lgnCmdFailed:"Couldn't sign in to {site}.",
+      payTitle:"Confirm payment", payVerifiedPayee:"Paying", payVerifiedNote:"You typed this address — check the domain is who you mean to pay.", payUnverifiableNote:"Destination not verifiable — you're trusting the agent's claim of who you're paying.", payAmount:"Amount", paySats:"{n} sats", payWalletNote:"Your own wallet opens to confirm and sign — Vokter never holds your funds or keys. Lightning payments are irreversible.", payConfirmBtn:"Open wallet to pay", payCmdUsage:"To pay, type `/pay <lightning-address> <amount>` — e.g. `/pay alice@getalby.com 1000`.", payDone:"Opened your wallet to pay {domain}.", payCancelled:"Payment cancelled — nothing was sent.", payRejected:"Refused: the invoice didn't match the amount and payee you confirmed — nothing was sent.", payCeiling:"Refused: that would exceed a spending limit.", payNotReady:"Payment isn't available on this install yet.", payFailed:"Couldn't prepare the payment.", payUnavailable:"Payment is only available in the Vokter desktop app."
     },
     es:{
       onDevice:"En tu dispositivo", settings:"Ajustes", send:"Enviar", stopGen:"Detener generación", speak:"Hablar", addDoc:"Añadir un documento o imagen (lee el texto)",
@@ -224,7 +225,8 @@
       advEngineBad:"Debe ser una URL http(s), o vacío para el motor empaquetado.",
       newChat:"Nuevo chat", theme:"Tema", themeAria:"Cambiar tema claro u oscuro", menu:"Menú", themeLight:"Claro", themeDark:"Oscuro",
       chatsLabel:"Chats", noChats:"Aún no hay conversaciones",
-      lgnTitle:"Confirmar inicio de sesión", lgnVerifiedSite:"Sitio verificado", lgnVerifiedNote:"Leído del navegador tras cargar la página — no lo que se escribió o se afirmó.", lgnVerifiedNoteOauth:"Iniciarás sesión en la página del proveedor, en tu navegador — comprueba la barra de direcciones allí.", lgnSignInAs:"Iniciar sesión como", lgnProvider:"Proveedor de acceso", lgnScopes:"Acceso solicitado", lgnOauthReassure:"Acceso revocable — Vokter guarda un token que puedes revocar cuando quieras, nunca una contraseña.", lgnPasswordNote:"Tu contraseña guardada se escribe directamente en este sitio. Vokter nunca la ve, ni la guarda, ni la envía al modelo.", lgnWrongSite:"¿No es el sitio que querías? Cancela — no se envía nada.", lgnConfirm:"Iniciar sesión", lgnCancel:"Cancelar", lgnDone:"Sesión iniciada.", lgnFailed:"No se pudo iniciar sesión.", lgnUnavailable:"El inicio de sesión solo está disponible en la app de escritorio de Vokter.", lgnModeOauth:"inicio seguro, sin guardar contraseña", lgnModePassword:"inicio con contraseña", lgnCmdHelp:"Para iniciar sesión en un sitio, escribe `/login <sitio>` — p. ej. `/login github`. Verás exactamente qué autorizas antes de que ocurra nada. Sitios configurados para iniciar sesión:", lgnNoSites:"Aún no hay sitios configurados para iniciar sesión.", lgnCmdDone:"Sesión iniciada en {site}.", lgnCmdCancelled:"Inicio de sesión cancelado — no se envió nada.", lgnCmdUnknown:"No hay inicio de sesión configurado para «{site}». Escribe `/login` para ver los sitios disponibles.", lgnCmdNotReady:"El inicio de sesión aún no está disponible en esta instalación.", lgnCmdFailed:"No se pudo iniciar sesión en {site}."
+      lgnTitle:"Confirmar inicio de sesión", lgnVerifiedSite:"Sitio verificado", lgnVerifiedNote:"Leído del navegador tras cargar la página — no lo que se escribió o se afirmó.", lgnVerifiedNoteOauth:"Iniciarás sesión en la página del proveedor, en tu navegador — comprueba la barra de direcciones allí.", lgnSignInAs:"Iniciar sesión como", lgnProvider:"Proveedor de acceso", lgnScopes:"Acceso solicitado", lgnOauthReassure:"Acceso revocable — Vokter guarda un token que puedes revocar cuando quieras, nunca una contraseña.", lgnPasswordNote:"Tu contraseña guardada se escribe directamente en este sitio. Vokter nunca la ve, ni la guarda, ni la envía al modelo.", lgnWrongSite:"¿No es el sitio que querías? Cancela — no se envía nada.", lgnConfirm:"Iniciar sesión", lgnCancel:"Cancelar", lgnDone:"Sesión iniciada.", lgnFailed:"No se pudo iniciar sesión.", lgnUnavailable:"El inicio de sesión solo está disponible en la app de escritorio de Vokter.", lgnModeOauth:"inicio seguro, sin guardar contraseña", lgnModePassword:"inicio con contraseña", lgnCmdHelp:"Para iniciar sesión en un sitio, escribe `/login <sitio>` — p. ej. `/login github`. Verás exactamente qué autorizas antes de que ocurra nada. Sitios configurados para iniciar sesión:", lgnNoSites:"Aún no hay sitios configurados para iniciar sesión.", lgnCmdDone:"Sesión iniciada en {site}.", lgnCmdCancelled:"Inicio de sesión cancelado — no se envió nada.", lgnCmdUnknown:"No hay inicio de sesión configurado para «{site}». Escribe `/login` para ver los sitios disponibles.", lgnCmdNotReady:"El inicio de sesión aún no está disponible en esta instalación.", lgnCmdFailed:"No se pudo iniciar sesión en {site}.",
+      payTitle:"Confirmar pago", payVerifiedPayee:"Pagando a", payVerifiedNote:"Tú escribiste esta dirección — comprueba que el dominio es a quien quieres pagar.", payUnverifiableNote:"Destino no verificable — estás confiando en quién dice el agente que pagas.", payAmount:"Importe", paySats:"{n} sats", payWalletNote:"Se abre tu propia cartera para confirmar y firmar — Vokter nunca guarda tus fondos ni claves. Los pagos Lightning son irreversibles.", payConfirmBtn:"Abrir cartera para pagar", payCmdUsage:"Para pagar, escribe `/pay <dirección-lightning> <importe>` — p. ej. `/pay alice@getalby.com 1000`.", payDone:"Abrí tu cartera para pagar a {domain}.", payCancelled:"Pago cancelado — no se envió nada.", payRejected:"Rechazado: la factura no coincidía con el importe y el destinatario que confirmaste — no se envió nada.", payCeiling:"Rechazado: superaría un límite de gasto.", payNotReady:"El pago aún no está disponible en esta instalación.", payFailed:"No se pudo preparar el pago.", payUnavailable:"El pago solo está disponible en la app de escritorio de Vokter."
     }
   };
   const LANGS=[{code:'en',name:'English'},{code:'es',name:'Español'}];
@@ -348,6 +350,82 @@
     else                        addAgent(t('lgnCmdFailed',{site}));
   }
 
+  // ── Tier-3 web.pay confirm sheet — per-payment, MANDATORY (crypto is irreversible). Shows the
+  //    human-verifiable payee DOMAIN + amount; the user's OWN wallet does the signing. Returns a
+  //    Promise<boolean>. Pure UI — no funds, no keys, no invoice ever here. Reuses the .lgn-* styles.
+  function payConfirm(details){
+    // details = { payee_domain, amount_sats, verifiable }
+    return new Promise(resolve=>{
+      const ov=document.createElement('div'); ov.className='lgn-ov'; ov.setAttribute('role','dialog'); ov.setAttribute('aria-modal','true');
+      const card=document.createElement('div'); card.className='lgn-card'; ov.appendChild(card);
+      const hd=document.createElement('div'); hd.className='lgn-hd';
+      hd.innerHTML='<svg class="sh" viewBox="0 0 48 56" fill="none"><path d="M24 2.5 41.5 9.2V26.5C41.5 39.5 33.7 48.7 24 53.5 14.3 48.7 6.5 39.5 6.5 26.5V9.2Z" stroke-width="2.6" stroke-linejoin="round"/><circle cx="24" cy="27" r="4.2"/></svg>';
+      const h3=document.createElement('h3'); h3.textContent=t('payTitle'); hd.appendChild(h3); card.appendChild(hd);
+      const plbl=document.createElement('div'); plbl.className='lgn-lbl'; plbl.textContent=t('payVerifiedPayee'); card.appendChild(plbl);
+      const site=document.createElement('div'); site.className='lgn-site';
+      if(details.verifiable) site.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="4" y="10" width="16" height="10" rx="2" fill="currentColor"/><path d="M8 10V7a4 4 0 018 0v3" stroke="currentColor" stroke-width="2"/></svg>';
+      const u=document.createElement('span'); u.className='u'; u.textContent=details.payee_domain; site.appendChild(u); card.appendChild(site);
+      const vnote=document.createElement('div'); vnote.className='lgn-note'; vnote.textContent=t(details.verifiable?'payVerifiedNote':'payUnverifiableNote'); card.appendChild(vnote);
+      const amr=document.createElement('div'); amr.className='lgn-row';
+      const aml=document.createElement('div'); aml.className='lgn-lbl'; aml.textContent=t('payAmount'); amr.appendChild(aml);
+      const amv=document.createElement('div'); amv.className='v mono'; amv.textContent=t('paySats',{n:details.amount_sats}); amr.appendChild(amv); card.appendChild(amr);
+      const re=document.createElement('div'); re.className='lgn-reassure'; re.textContent=t('payWalletNote'); card.appendChild(re);
+      const acts=document.createElement('div'); acts.className='lgn-acts';
+      const cancel=document.createElement('button'); cancel.className='lgn-cancel'; cancel.textContent=t('lgnCancel');
+      const ok=document.createElement('button'); ok.className='lgn-confirm'; ok.textContent=t('payConfirmBtn');
+      acts.appendChild(cancel); acts.appendChild(ok); card.appendChild(acts);
+      let done=false;
+      function close(val){ if(done) return; done=true; document.removeEventListener('keydown',onKey); ov.remove(); resolve(val); }
+      function onKey(e){ if(e.key==='Escape') close(false); }
+      cancel.addEventListener('click',()=>close(false));
+      ok.addEventListener('click',()=>close(true));
+      ov.addEventListener('click',e=>{ if(e.target===ov) close(false); });
+      document.addEventListener('keydown',onKey);
+      document.body.appendChild(ov);
+      cancel.focus();   // irreversible payment → a stray Enter cancels, never auto-pays
+    });
+  }
+
+  // Two-phase web.pay driver. Phase 1 resolves + integrity-checks + returns the payee domain + amount;
+  // payConfirm() gates it; phase 2 hands off to the user's wallet (opened by MAIN). The invoice never
+  // reaches page JS; Vokter holds no funds or keys.
+  async function startWebPay(payee, amount){
+    if(!(window.vokter && window.vokter.webPay)) return {status:'unavailable'};
+    const p1=await window.vokter.webPay({payee, amount_sats:amount});
+    if(p1.status===403) return {status:'ceiling', detail:_lgnDetail(p1)};
+    if(p1.status===422) return {status:'rejected', detail:_lgnDetail(p1)};
+    if(p1.status===400) return {status:'bad_payee'};
+    if(p1.status===503) return {status:'not_ready', detail:_lgnDetail(p1)};
+    if(p1.status!==428)  return {status:'error', detail:_lgnDetail(p1)};
+    const d=(p1.body&&p1.body.detail)||{};
+    const ok=await payConfirm({payee_domain:d.payee_domain, amount_sats:d.amount_sats, verifiable:d.verifiable!==false});
+    if(!ok) return {status:'cancelled'};
+    const p2=await window.vokter.webPay({payee, amount_sats:amount, confirm:true});
+    if(p2.status===200 && p2.body && p2.body.status==='ready') return {status:'ready', domain:p2.body.payee_domain};
+    if(p2.status===422) return {status:'rejected', detail:_lgnDetail(p2)};
+    if(p2.status===403) return {status:'ceiling', detail:_lgnDetail(p2)};
+    return {status:'failed', detail:_lgnDetail(p2)};
+  }
+  try{ window.__vokterStartWebPay=startWebPay; }catch{}
+
+  // The /pay composer command — user-initiated, model-out-of-the-loop (same discipline as /login).
+  //   /pay <lightning-address> <amount>   (amount in sats)
+  async function handlePayCommand(text){
+    addUser(text);
+    const m=text.trim().match(/^\/pay\s+(\S+)\s+([\d.,]+)(?:\s*sats?)?\s*$/i);
+    const amount=m?parseInt(m[2].replace(/[.,]/g,''),10):0;
+    if(!m || !amount || amount<=0){ addAgent(t('payCmdUsage')); return; }
+    const res=await startWebPay(m[1].trim(), amount); const st=res&&res.status;
+    if(st==='ready')            addAgent(t('payDone',{domain:res.domain||m[1].trim()}));
+    else if(st==='cancelled')   addAgent(t('payCancelled'));
+    else if(st==='unavailable') addAgent(t('payUnavailable'));
+    else if(st==='rejected')    addAgent(t('payRejected'));
+    else if(st==='ceiling')     addAgent(t('payCeiling'));
+    else if(st==='bad_payee')   addAgent(t('payCmdUsage'));
+    else if(st==='not_ready')   addAgent(t('payNotReady'));
+    else                        addAgent(t('payFailed'));
+  }
+
   // Dev-preview ONLY (xvfb, never :0): ?__loginpreview=oauth|password renders the sheet with MOCK
   // data so the UX can be screenshotted before web.login is wired live. No-op in normal use.
   function _lgnPreview(){ try{
@@ -357,6 +435,7 @@
     if(m==='oauth') loginConfirm({origin:'https://accounts.google.com', identity:'bilal@example.com', mode:'oauth', provider:'Google', scopes:['View your email address','Read your calendar (read-only)','Send email on your behalf']});
     else if(m==='password') loginConfirm({origin:'https://www.iberdrola.es', identity:'bilal.m', mode:'password'});
     else if(m==='cmd') handleLoginCommand('/login');   // the /login help listing in the chat (needs backend)
+    else if(m==='pay') payConfirm({payee_domain:'getalby.com', amount_sats:1000, verifiable:true});
   }catch{} }
   if(document.readyState==='loading') addEventListener('DOMContentLoaded',_lgnPreview); else _lgnPreview();
 
@@ -491,8 +570,9 @@
     const text=q.value.trim();
     const img=_askImage;                        // Phase 2: a staged image to ask about (or null)
     if(!text && !img) return;                   // nothing to send
-    // /login — user-initiated sign-in, handled in the renderer; the agent never sees or drives it.
+    // /login, /pay — user-initiated Tier-3 actions, handled in the renderer; the agent never sees them.
     if(text && /^\/login\b/i.test(text)){ q.value=''; await handleLoginCommand(text); return; }
+    if(text && /^\/pay\b/i.test(text)){ q.value=''; await handlePayCommand(text); return; }
     addUser(text || ('🖼️ '+t('askImage'))); q.value='';
     if(img) clearVisionStage();                 // consume the staged image for THIS turn only
 
