@@ -10,8 +10,9 @@ and opens NO session. (DELIBERATELY NOT WalletConnect: a pairing/session protoco
 poisoned pairing links, session hijacking, blind-signed drainer transactions — and paying a merchant needs
 none of it. Interactive dApp/DeFi sessions, if ever, are a separate heavily-gated NON-payment feature.) The
 QR is a second, off-Vokter human check: the user's wallet shows the real destination independently of
-Vokter's screen. (A CAPPED x402 session that auto-settles within a budget mirrors the NWC capped-session
-Lightning rail in web_pay_nwc.py — deferred; this slice is per-payment hand-off.)
+Vokter's screen. (A CAPPED session that auto-settles within a budget — zaps/micro — would require Vokter
+to STORE a fund-moving secret; that is deliberately NOT built. If ever wanted, it is a separate opt-in
+feature, default OFF, behind its own gate — never part of payments, which store nothing.)
 
 Two guards, both CODE (never the model):
 

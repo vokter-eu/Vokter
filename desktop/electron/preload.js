@@ -83,10 +83,6 @@ contextBridge.exposeInMainWorld('vokter', {
   // wallet — the "Open in wallet" button beside the QR hand-off. MAIN whitelists the scheme; no session.
   openPayUri: (uri) => ipcRenderer.invoke('vokter:open-pay-uri', uri),
 
-  // nwc(req): manage the user's budget-limited NWC wallet connection (op: connect|revoke|list) through
-  // main. The connection URI (secret) is stored in the keychain by the backend and NEVER echoed back.
-  nwc: (req) => ipcRenderer.invoke('vokter:nwc', req),
-
   // backup(req): proxy /api/backup/* through main (the human-session token never lives in page JS).
   // ops: status | setup | confirmWritten | export | restoreValidate. The recovery phrase comes back
   // from setup for one-time display and is never persisted. Used only by the Backup settings view.

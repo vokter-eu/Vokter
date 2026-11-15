@@ -528,16 +528,15 @@ ipcMain.handle('vokter:web-login', (_event, reqIn) => new Promise((resolve) => {
 
 // web.pay bridge: proxy /api/web/pay through MAIN so the human-session token never touches page JS.
 // Two-phase + stateless — the page sends {payee, amount_sats} (phase 1 → 428 with payee_domain+amount
-// for the confirm sheet), then {…, confirm:true} (phase 2 → a `lightning:` hand-off). Vokter holds no
-// funds/keys; MAIN opens the hand-off in the user's OWN wallet (shell.openExternal) so the raw invoice
-// never reaches page JS, and the page only learns {status}. The user confirms + signs in their wallet.
+// for the confirm sheet), then {…, confirm:true} (phase 2 → a public `lightning:` request). Vokter holds
+// nothing that can move money; the request is surfaced as handoff_uri for the renderer to present as a
+// QR + deep-link, and the user confirms + signs entirely in their own wallet.
 ipcMain.handle('vokter:web-pay', (_event, reqIn) => new Promise((resolve) => {
   if (!ready || backendPort == null) { resolve({ status: 0, body: null }); return; }
   const r = (reqIn && typeof reqIn === 'object') ? reqIn : {};
   const payee = String(r.payee || ''); const amount = Number.isInteger(r.amount_sats) ? r.amount_sats : 0;
   if (!payee || amount <= 0) { resolve({ status: 400, body: null }); return; }
-  const via = r.via === 'nwc' ? 'nwc' : 'handoff';
-  const payload = JSON.stringify({ payee, amount_sats: amount, via, nwc_alias: String(r.nwc_alias || 'default'), confirm: r.confirm === true });
+  const payload = JSON.stringify({ payee, amount_sats: amount, confirm: r.confirm === true });
   const headers = {
     'X-Vokter-Human-Session': HUMAN_SESSION_TOKEN,
     'Content-Type': 'application/json',
@@ -564,38 +563,6 @@ ipcMain.handle('vokter:web-pay', (_event, reqIn) => new Promise((resolve) => {
   rq.on('error', () => resolve({ status: 0, body: null }));
   rq.setTimeout(60000, () => { rq.destroy(); resolve({ status: 0, body: null }); });
   rq.write(payload); rq.end();
-}));
-
-// NWC wallet-connection management: proxy /api/web/pay/nwc/* through MAIN with the human-session token.
-// op: connect {uri, alias?, unattended_cap_sats?} | revoke {alias?} | list. The connection URI (which
-// carries the secret) is sent to the backend (stored in the keychain) and is NEVER echoed back; list
-// returns aliases + caps only. Same token discipline as vokter:memory.
-ipcMain.handle('vokter:nwc', (_event, reqIn) => new Promise((resolve) => {
-  if (!ready || backendPort == null) { resolve({ status: 0, body: null }); return; }
-  const r = (reqIn && typeof reqIn === 'object') ? reqIn : {};
-  let method, path, payload = null;
-  if (r.op === 'list') { method = 'GET'; path = '/api/web/pay/nwc'; }
-  else if (r.op === 'connect') {
-    if (!r.uri) { resolve({ status: 400, body: null }); return; }
-    method = 'POST'; path = '/api/web/pay/nwc/connect';
-    payload = JSON.stringify({ uri: String(r.uri), alias: String(r.alias || 'default'),
-                               unattended_cap_sats: Number.isInteger(r.unattended_cap_sats) ? r.unattended_cap_sats : 0 });
-  } else if (r.op === 'revoke') {
-    method = 'POST'; path = '/api/web/pay/nwc/revoke';
-    payload = JSON.stringify({ alias: String(r.alias || 'default') });
-  } else { resolve({ status: 400, body: null }); return; }
-  const headers = { 'X-Vokter-Human-Session': HUMAN_SESSION_TOKEN };
-  if (payload != null) { headers['Content-Type'] = 'application/json'; headers['Content-Length'] = Buffer.byteLength(payload); }
-  const rq = http.request({ host: '127.0.0.1', port: backendPort, path, method, headers }, (res) => {
-    let data = '';
-    res.setEncoding('utf8');
-    res.on('data', (c) => { data += c; });
-    res.on('end', () => { let p = null; try { p = JSON.parse(data); } catch {} resolve({ status: res.statusCode || 0, body: p }); });
-  });
-  rq.on('error', () => resolve({ status: 0, body: null }));
-  rq.setTimeout(30000, () => { rq.destroy(); resolve({ status: 0, body: null }); });
-  if (payload != null) rq.write(payload);
-  rq.end();
 }));
 
 // web.pay opaque-crypto bridge (x402 + direct on-chain). Like vokter:web-pay but the destination is NOT
