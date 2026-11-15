@@ -73,6 +73,12 @@ contextBridge.exposeInMainWorld('vokter', {
   // hand-off in the user's OWN wallet and returns {status}. No funds/keys/invoice ever cross to page JS.
   webPay: (req) => ipcRenderer.invoke('vokter:web-pay', req),
 
+  // webPayOnchain(req): proxy /api/web/pay/onchain (x402 + direct on-chain) through main. The destination
+  // is OPAQUE (no verifiable domain), so phase 1 → {status:428, body with verifiable:false + caveat for the
+  // confirm sheet} and phase 2 → {confirm:true} (no payable fields: main replays the confirmed destination).
+  // The confirm-token that binds the two phases stays in MAIN and never reaches page JS.
+  webPayOnchain: (req) => ipcRenderer.invoke('vokter:web-pay-onchain', req),
+
   // nwc(req): manage the user's budget-limited NWC wallet connection (op: connect|revoke|list) through
   // main. The connection URI (secret) is stored in the keychain by the backend and NEVER echoed back.
   nwc: (req) => ipcRenderer.invoke('vokter:nwc', req),

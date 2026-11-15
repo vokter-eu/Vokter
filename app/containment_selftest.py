@@ -589,6 +589,44 @@ def _pay_handler_e2e():
                 wp.web_pay(wp.WebPayRequest(payee=PAYEE, amount_sats=1000, via="nwc"), x_vokter_human_session=TOK)
             except HTTPException as e:
                 nn404 = e.status_code
+
+            # ── opaque-crypto rail: x402 + direct on-chain (confirm-token bound; no funds/keys/wallet) ──
+            import web_pay_x402 as x4
+            x4._OC_LEDGER.clear()
+            USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"; PAYTO = "0x1111111111111111111111111111111111111111"
+            EVIL = "0x2222222222222222222222222222222222222222"
+            CHAL = {"accepts": [{"scheme": "exact", "network": "base", "asset": USDC, "payTo": PAYTO,
+                                 "maxAmountRequired": "1000000", "resource": "https://shop.example/a/42"}]}
+            def _oc_p1(**kw):
+                try:
+                    wp.web_pay_onchain(wp.OnchainPayRequest(**kw), x_vokter_human_session=TOK); return None, {}
+                except HTTPException as e:
+                    return e.status_code, (e.detail if isinstance(e.detail, dict) else {})
+            def _oc_p2(**kw):
+                try:
+                    return 200, wp.web_pay_onchain(wp.OnchainPayRequest(confirm=True, **kw), x_vokter_human_session=TOK)
+                except HTTPException as e:
+                    return e.status_code, (e.detail if isinstance(e.detail, dict) else {})
+            ocx1s, ocx1d = _oc_p1(rail="x402", challenge=CHAL)
+            ocxtok = ocx1d.get("confirm_token", "")
+            ocx2s, ocx2b = _oc_p2(rail="x402", challenge=CHAL, confirm_token=ocxtok)
+            ocx_handoff = (ocx2b or {}).get("handoff", {}) if isinstance(ocx2b, dict) else {}
+            x4._OC_LEDGER.clear()
+            ocxsub_s, _ = _oc_p2(rail="x402", challenge={"accepts": [dict(CHAL["accepts"][0], payTo=EVIL)]}, confirm_token=ocxtok)
+            x4._OC_LEDGER.clear()
+            ETH_TO = "0x3333333333333333333333333333333333333333"; ETH_EVIL = "0x4444444444444444444444444444444444444444"
+            oce1s, oce1d = _oc_p1(rail="onchain", asset="ETH", network="base", destination=ETH_TO, amount="0.5")
+            ocetok = oce1d.get("confirm_token", "")
+            oce2s, oce2b = _oc_p2(rail="onchain", asset="ETH", network="base", destination=ETH_TO, amount="0.5", confirm_token=ocetok)
+            oce_uri = (oce2b or {}).get("handoff", {}).get("uri", "") if isinstance(oce2b, dict) else ""
+            x4._OC_LEDGER.clear()
+            ocesub_s, _ = _oc_p2(rail="onchain", asset="ETH", network="base", destination=ETH_EVIL, amount="0.5", confirm_token=ocetok)
+            ocnotok_s, _ = _oc_p2(rail="onchain", asset="ETH", network="base", destination=ETH_TO, amount="0.5", confirm_token="")
+            ocnh_s = None
+            try:
+                wp.web_pay_onchain(wp.OnchainPayRequest(rail="onchain", asset="ETH", network="base", destination=ETH_TO, amount="0.5"), x_vokter_human_session="nope")
+            except HTTPException as e:
+                ocnh_s = e.status_code
         captured = buf.getvalue()
         _nwc_responses = str(nnp1d) + str(nnp2) + str(nnover)
         checks = {
@@ -607,6 +645,19 @@ def _pay_handler_e2e():
             "nwc_substituted_rejected": nnsub == 422,
             "nwc_no_connection_404": nn404 == 404,
             "nwc_connection_secret_absent": NWC_SECRET not in _nwc_responses and NWC_SECRET not in captured,
+            # opaque-crypto rail (x402 + direct on-chain): hand-off only, caveat enforced, substitution rejected
+            "x402_phase1_428_opaque": ocx1s == 428 and ocx1d.get("verifiable") is False
+                and "not verifiable" in str(ocx1d.get("caveat", "")) and ocx1d.get("resource_origin") == "shop.example"
+                and ocx1d.get("destination") == PAYTO,
+            "x402_phase2_handoff_eip681": isinstance(ocx2b, dict) and ocx2b.get("status") == "ready"
+                and ocx_handoff.get("scheme") == "x402" and ocx_handoff.get("uri", "").startswith(f"ethereum:{USDC}")
+                and f"address={PAYTO}" in ocx_handoff.get("uri", ""),
+            "x402_substituted_payTo_rejected": ocxsub_s == 422,
+            "onchain_phase1_428_opaque": oce1s == 428 and oce1d.get("verifiable") is False and bool(ocetok),
+            "onchain_phase2_handoff_eip681": oce2s == 200 and oce_uri == f"ethereum:{ETH_TO}@8453?value=500000000000000000",
+            "onchain_substituted_address_rejected": ocesub_s == 422,
+            "onchain_missing_confirm_token_rejected": ocnotok_s == 422,
+            "onchain_nonhuman_403": ocnh_s == 403,
         }
     finally:
         _sys.modules.pop("chat", None)

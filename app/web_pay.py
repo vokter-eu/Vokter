@@ -335,3 +335,100 @@ def nwc_list(x_vokter_human_session: str | None = Header(default=None)):
     """List connected wallets — alias + unattended cap ONLY, never the URI/secret. Human-only."""
     _require_human(x_vokter_human_session)
     return _nwc_store().list_public()
+
+
+# ───────────────────────── opaque-crypto rail: x402 + direct on-chain (confirm-token bound) ─────────────────────────
+class OnchainPayRequest(BaseModel):
+    rail: str = "onchain"          # "onchain" = direct BIP21/EIP-681 deep-link; "x402" = HTTP-402 agent rail.
+    asset: str = ""                # "BTC"/"ETH" for onchain; an ERC-20 contract (0x…) for x402.
+    network: str = ""              # "bitcoin"/"ethereum"/"base"/… or a numeric EVM chain id.
+    destination: str = ""          # the opaque payTo address (for x402, resolved from the challenge).
+    amount: str = ""               # exact amount, as a STRING (bound byte-for-byte by the confirm-token).
+    challenge: dict | None = None  # for rail="x402": the server's HTTP-402 body (accepts[...] requirements).
+    confirm: bool = False          # the human's explicit per-payment approval (MANDATORY — irreversible).
+    confirm_token: str = ""        # echoed from the phase-1 428 — BINDS phase-2 to the confirmed address+amount.
+
+
+@router.post("/api/web/pay/onchain")
+def web_pay_onchain(req: OnchainPayRequest, x_vokter_human_session: str | None = Header(default=None)):
+    """Pay an OPAQUE crypto destination (a raw on-chain address, or an x402 payTo) WITHOUT Vokter holding
+    funds or keys. Two phases, stateless — same shape as the LNURL route, with two differences a human can't
+    paper over:
+
+      * The destination is NOT human-verifiable (no domain). The phase-1 428 carries, as a backend-asserted
+        field, `verifiable=False` + a caveat the confirm sheet MUST show. (x402 also carries the resolvable
+        resource `origin`, but its payTo is still opaque.)
+      * There is no public invoice to re-verify against, so CONFIRM-INTEGRITY rides a CONFIRM-TOKEN: phase-1
+        issues an HMAC over (asset|network|destination|amount); phase-2 requires it and recomputes it over
+        the SUBMITTED fields. A substituted address or inflated amount → 422, never handed off.
+
+    GateNotPassed → 503 (TIER-6 not green on this install). Per-payment human-confirm is mandatory.
+    """
+    from chat import is_local_human_session
+    from safety import HUMAN, enforce_http
+    import web_pay_x402 as x4
+
+    context = HUMAN if is_local_human_session(x_vokter_human_session) else "autonomous"
+
+    def _resolve() -> dict:
+        """Normalise the request into {asset, network, destination, amount, resource_origin} for BOTH rails."""
+        if req.rail == "x402":
+            p = x4.parse_x402_challenge(req.challenge or {})
+            return p
+        if not x4.validate_destination(req.network, req.destination):
+            raise ValueError("destination is not a valid address for this network")
+        return {"asset": req.asset, "network": req.network, "destination": req.destination,
+                "amount": x4.normalize_amount(req.amount), "resource": "", "resource_origin": ""}
+
+    target = f"{req.amount or '?'} {req.asset or '?'} to {req.destination or '(x402)'} via {req.rail}"
+
+    if not req.confirm:
+        try:
+            enforce_http("web.pay", target, context=context, confirmed=False)
+        except HTTPException as e:
+            if e.status_code != 428:
+                raise                                   # non-human → 403 propagates; nothing resolved
+        if not ship_gate_ok():
+            raise HTTPException(503, "payment unavailable: the containment self-test has not passed on this install")
+        if req.rail not in ("onchain", "x402"):
+            raise HTTPException(400, "rail must be 'onchain' or 'x402'")
+        try:
+            p = _resolve()
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        if req.rail == "onchain" and not x4.validate_destination(p["network"], p["destination"]):
+            raise HTTPException(422, "destination is not a valid address for this network")
+        breach = x4.check_opaque_ceilings(p["destination"])
+        if breach:
+            raise HTTPException(403, f"payment refused: {breach}")
+        token = x4.confirm_token(p["asset"], p["network"], p["destination"], p["amount"])
+        raise HTTPException(428, detail={
+            "error": "confirmation_required", "action": "web.pay", "rail": req.rail,
+            "asset": p["asset"], "network": p["network"], "destination": p["destination"],
+            "amount": p["amount"], "resource_origin": p.get("resource_origin", ""),
+            "verifiable": False, "caveat": x4.CAVEAT, "confirm_token": token})
+
+    # Phase 2 — confirmed. The human approved the exact fields the phase-1 428 displayed.
+    enforce_http("web.pay", target, context=context, confirmed=True)
+    if not ship_gate_ok():
+        raise HTTPException(503, "payment unavailable: the containment self-test has not passed on this install")
+    try:
+        p = _resolve()
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    # ── CONFIRM-INTEGRITY: phase-2 fields must match the confirm-token the human approved (code, not model) ──
+    if not x4.verify_confirm_token(req.confirm_token, p["asset"], p["network"], p["destination"], p["amount"]):
+        raise HTTPException(422, "REJECTED: destination/amount do not match what you confirmed (confirm-integrity)")
+    breach = x4.check_opaque_ceilings(p["destination"])
+    if breach:
+        raise HTTPException(403, f"payment refused: {breach}")
+    try:
+        handoff = x4.build_x402_handoff(p) if req.rail == "x402" else \
+            x4.build_onchain_handoff(p["asset"], p["network"], p["destination"], p["amount"])
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    x4.record_opaque(p["destination"])
+    return {"status": "ready", "rail": req.rail, "asset": p["asset"], "network": p["network"],
+            "destination": p["destination"], "amount": p["amount"],
+            "resource_origin": p.get("resource_origin", ""), "verifiable": False, "caveat": x4.CAVEAT,
+            "handoff": handoff}

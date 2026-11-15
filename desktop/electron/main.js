@@ -598,6 +598,68 @@ ipcMain.handle('vokter:nwc', (_event, reqIn) => new Promise((resolve) => {
   rq.end();
 }));
 
+// web.pay opaque-crypto bridge (x402 + direct on-chain). Like vokter:web-pay but the destination is NOT
+// human-verifiable, so MAIN holds the CONFIRM-TOKEN between phases — it never reaches page JS. Phase 1
+// {rail, asset, network, destination, amount, challenge} → MAIN calls the backend, gets a 428 with a
+// confirm_token, STASHES the exact request + token, and returns to the page only the sheet fields
+// (incl. verifiable:false + caveat), confirm_token STRIPPED. Phase 2 {confirm:true} → MAIN REPLAYS the
+// stashed fields + token (the page cannot substitute an address: it supplies nothing payable in phase 2),
+// opens the hand-off (BIP21/EIP-681) in the user's OWN wallet, and returns {status} only. Vokter holds
+// no funds/keys and signs nothing.
+let pendingOnchainPay = null;   // the single in-flight confirm (fields + token), MAIN-side only
+ipcMain.handle('vokter:web-pay-onchain', (_event, reqIn) => new Promise((resolve) => {
+  if (!ready || backendPort == null) { resolve({ status: 0, body: null }); return; }
+  const r = (reqIn && typeof reqIn === 'object') ? reqIn : {};
+  let reqObj, confirm_token = '';
+  if (r.confirm === true) {
+    if (!pendingOnchainPay) { resolve({ status: 409, body: null }); return; }  // no sheet was confirmed
+    reqObj = { ...pendingOnchainPay.req, confirm: true };
+    confirm_token = pendingOnchainPay.token;
+    pendingOnchainPay = null;                                                   // single-use
+  } else {
+    reqObj = {
+      rail: r.rail === 'x402' ? 'x402' : 'onchain',
+      asset: String(r.asset || ''), network: String(r.network || ''),
+      destination: String(r.destination || ''), amount: String(r.amount || ''),
+      challenge: (r.challenge && typeof r.challenge === 'object') ? r.challenge : null,
+      confirm: false,
+    };
+  }
+  const payload = JSON.stringify({ ...reqObj, confirm_token });
+  const headers = {
+    'X-Vokter-Human-Session': HUMAN_SESSION_TOKEN,
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(payload),
+  };
+  const rq = http.request({ host: '127.0.0.1', port: backendPort, path: '/api/web/pay/onchain', method: 'POST', headers }, (res) => {
+    let data = '';
+    res.setEncoding('utf8');
+    res.on('data', (c) => { data += c; });
+    res.on('end', () => {
+      let parsed = null; try { parsed = JSON.parse(data); } catch {}
+      // Phase 1: a 428 carries the confirm_token — STASH it in MAIN, strip it from what the page sees.
+      if (res.statusCode === 428 && parsed && typeof parsed === 'object') {
+        const detail = parsed.detail || parsed;
+        pendingOnchainPay = { req: reqObj, token: String(detail.confirm_token || '') };
+        const { confirm_token: _drop, ...sheet } = detail;
+        resolve({ status: 428, body: sheet });
+        return;
+      }
+      // Phase 2 success: open the hand-off in the user's wallet; strip it from what the page sees.
+      if (res.statusCode === 200 && parsed && parsed.handoff && typeof parsed.handoff.uri === 'string') {
+        try { shell.openExternal(parsed.handoff.uri); } catch {}
+        const { handoff, ...safe } = parsed;
+        resolve({ status: 200, body: { ...safe, opened: true } });
+        return;
+      }
+      resolve({ status: res.statusCode || 0, body: parsed });
+    });
+  });
+  rq.on('error', () => resolve({ status: 0, body: null }));
+  rq.setTimeout(60000, () => { rq.destroy(); resolve({ status: 0, body: null }); });
+  rq.write(payload); rq.end();
+}));
+
 // Backup & recovery bridge: proxy /api/backup/* through MAIN so the human-session token never
 // touches page JS (same discipline as vokter:memory). The page sends {op,...}; MAIN whitelists
 // op → method+path. The recovery phrase is returned to the page for display ONCE and never stored.
