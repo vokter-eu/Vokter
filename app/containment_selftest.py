@@ -629,6 +629,12 @@ def _pay_handler_e2e():
                 ocnh_s = e.status_code
         captured = buf.getvalue()
         _nwc_responses = str(nnp1d) + str(nnp2) + str(nnover)
+        # Every crypto hand-off must be an INERT one-way request (QR/deep-link) — NEVER a WalletConnect-style
+        # session/pairing. Scan all rails' hand-offs for a session scheme (Bilal's directive, 2026-11-15).
+        _handoff_blob = (str(ocx_handoff) + "|" + oce_uri + "|" + str(p2)).lower()
+        _no_session = (not any(x in _handoff_blob for x in ("walletconnect", "wc:", "pairing", "session"))
+                       and ocx_handoff.get("scheme") == "x402" and oce_uri.startswith("ethereum:")
+                       and "lightning:" in str(p2))
         checks = {
             "pay_phase1_428": p1s == 428,
             "pay_phase1_payee+amount+verifiable": p1d.get("payee_domain") == DOMAIN and p1d.get("amount_sats") == 1000 and p1d.get("verifiable") is True,
@@ -658,6 +664,7 @@ def _pay_handler_e2e():
             "onchain_substituted_address_rejected": ocesub_s == 422,
             "onchain_missing_confirm_token_rejected": ocnotok_s == 422,
             "onchain_nonhuman_403": ocnh_s == 403,
+            "no_session_scheme_any_rail": _no_session,   # inert QR/deep-link only — NO WalletConnect session
         }
     finally:
         _sys.modules.pop("chat", None)

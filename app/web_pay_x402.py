@@ -1,12 +1,17 @@
-"""Tier-3 Phase 2 — web.pay opaque-crypto slice: x402 (HTTP-402 agent rail) + on-chain via WalletConnect.
+"""Tier-3 Phase 2 — web.pay opaque-crypto slice: x402 (HTTP-402 agent rail) + direct on-chain (QR hand-off).
 
 The LNURL slice (web_pay.py) binds a HUMAN-VERIFIABLE domain (a Lightning Address) — the destination is
 origin-bindable and readable by eye. THIS slice covers destinations a human CANNOT validate by eye: a raw
 EVM/BTC address (direct on-chain) or an x402 `payTo` address. Sovereign-maximal, exactly like LNURL —
-Vokter CONSTRUCTS the payment request and HANDS OFF to the user's OWN wallet (a BIP21 / EIP-681 deep-link,
-or a one-shot WalletConnect request). Vokter holds no funds, holds no keys, signs nothing, settles nothing;
-the user confirms + signs IN their wallet. (A CAPPED x402 session that auto-settles within a budget is the
-SAME pattern as the NWC capped-session rail in web_pay_nwc.py — deferred; this slice is per-payment hand-off.)
+Vokter CONSTRUCTS an INERT, one-way payment request (an address/invoice + amount) and HANDS IT OFF as a
+BIP21 / EIP-681 deep-link the renderer presents as a scannable QR + a clickable link. The user pays from
+their OWN wallet by scanning/tapping; Vokter holds no funds, holds no keys, signs nothing, settles nothing,
+and opens NO session. (DELIBERATELY NOT WalletConnect: a pairing/session protocol is an attack surface —
+poisoned pairing links, session hijacking, blind-signed drainer transactions — and paying a merchant needs
+none of it. Interactive dApp/DeFi sessions, if ever, are a separate heavily-gated NON-payment feature.) The
+QR is a second, off-Vokter human check: the user's wallet shows the real destination independently of
+Vokter's screen. (A CAPPED x402 session that auto-settles within a budget mirrors the NWC capped-session
+Lightning rail in web_pay_nwc.py — deferred; this slice is per-payment hand-off.)
 
 Two guards, both CODE (never the model):
 
@@ -190,9 +195,10 @@ CAVEAT = ("destination not verifiable — you're trusting the agent's claim of w
 
 def build_x402_handoff(parsed: dict) -> dict:
     """Build the hand-off for an x402 payment. The `asset` is the ERC-20 token CONTRACT and `amount` is
-    atomic, so we emit an EIP-681 token-transfer the user's wallet signs, plus the raw requirement for an
-    x402-native wallet. Vokter does not sign the EIP-3009 authorization and does not settle — the wallet
-    does, then the wallet (or the renderer) retries the resource with the signed X-PAYMENT."""
+    atomic, so we emit an EIP-681 token-transfer URI the renderer presents as a QR + deep-link for the
+    user's own wallet to sign, plus the raw requirement for an x402-native wallet. Vokter does not sign the
+    EIP-3009 authorization, does not settle, and opens no session — the wallet does, then the wallet retries
+    the resource with the signed X-PAYMENT."""
     asset = parsed["asset"]; network = parsed["network"]
     dest = parsed["destination"]; amount = parsed["amount"]
     cid = _chain_id(network) or 1

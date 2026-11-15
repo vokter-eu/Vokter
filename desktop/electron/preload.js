@@ -79,6 +79,10 @@ contextBridge.exposeInMainWorld('vokter', {
   // The confirm-token that binds the two phases stays in MAIN and never reaches page JS.
   webPayOnchain: (req) => ipcRenderer.invoke('vokter:web-pay-onchain', req),
 
+  // openPayUri(uri): open an inert payment deep-link (lightning:/bitcoin:/ethereum:) in the user's own
+  // wallet — the "Open in wallet" button beside the QR hand-off. MAIN whitelists the scheme; no session.
+  openPayUri: (uri) => ipcRenderer.invoke('vokter:open-pay-uri', uri),
+
   // nwc(req): manage the user's budget-limited NWC wallet connection (op: connect|revoke|list) through
   // main. The connection URI (secret) is stored in the keychain by the backend and NEVER echoed back.
   nwc: (req) => ipcRenderer.invoke('vokter:nwc', req),

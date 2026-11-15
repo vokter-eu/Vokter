@@ -353,6 +353,8 @@
   .lgn-scopes li::before{content:"";flex:0 0 auto;width:5px;height:5px;border-radius:50%;background:var(--green)}
   .lgn-reassure{font-size:12.5px;color:var(--green-deep);background:var(--tint);border-radius:var(--r-sm);padding:9px 11px;margin:0 0 14px}
   .lgn-wrong{font-size:12px;color:var(--grey);margin:0 0 16px}
+  .pay-qr-wrap{display:flex;justify-content:center;margin:6px 0 12px}
+  .pay-qr{background:#fff;border:1px solid var(--sand);border-radius:var(--r-sm);padding:10px;width:220px;height:220px}
   .lgn-acts{display:flex;gap:10px;justify-content:flex-end}
   .lgn-acts button{cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;border-radius:var(--r);padding:10px 18px;border:1px solid var(--sand);transition:background .14s,border-color .14s}
   .lgn-cancel{background:transparent;color:var(--ink-2)} .lgn-cancel:hover{background:var(--tint)}
@@ -481,6 +483,7 @@
   <div class="toast" id="toast"></div>
 </div>
 
+<script src="/static/qrcode-generator.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

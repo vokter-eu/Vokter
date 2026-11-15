@@ -113,7 +113,7 @@
       newChat:"New chat", theme:"Theme", themeAria:"Toggle light or dark theme", menu:"Menu", themeLight:"Light", themeDark:"Dark",
       chatsLabel:"Chats", noChats:"No conversations yet",
       lgnTitle:"Confirm sign-in", lgnVerifiedSite:"Verified site", lgnVerifiedNote:"Read from the browser after the page loaded — not what was typed or claimed.", lgnVerifiedNoteOauth:"You'll sign in on the provider's own page, in your browser — check the address bar there.", lgnSignInAs:"Sign in as", lgnProvider:"Sign-in provider", lgnScopes:"Access requested", lgnOauthReassure:"Revocable access — Vokter stores a token you can revoke anytime, never a password.", lgnPasswordNote:"Your saved password is typed directly into this site. Vokter never sees it, stores it, or sends it to the model.", lgnWrongSite:"Not the site you meant? Cancel — nothing is sent.", lgnConfirm:"Sign in", lgnCancel:"Cancel", lgnDone:"Signed in.", lgnFailed:"Sign-in didn't complete.", lgnUnavailable:"Sign-in is only available in the Vokter desktop app.", lgnModeOauth:"secure sign-in, no password stored", lgnModePassword:"password sign-in", lgnCmdHelp:"To sign in to a site, type `/login <site>` — e.g. `/login github`. You'll see exactly what you're authorizing before anything happens. Sites set up for sign-in:", lgnNoSites:"No sites are set up for sign-in yet.", lgnCmdDone:"Signed in to {site}.", lgnCmdCancelled:"Sign-in cancelled — nothing was sent.", lgnCmdUnknown:"No sign-in is set up for \"{site}\". Type `/login` to see available sites.", lgnCmdNotReady:"Sign-in isn't available on this install yet.", lgnCmdFailed:"Couldn't sign in to {site}.",
-      payTitle:"Confirm payment", payVerifiedPayee:"Paying", payVerifiedNote:"You typed this address — check the domain is who you mean to pay.", payUnverifiableNote:"Destination not verifiable — you're trusting the agent's claim of who you're paying.", payAmount:"Amount", paySats:"{n} sats", payWalletNote:"Your own wallet opens to confirm and sign — Vokter never holds your funds or keys. Lightning payments are irreversible.", payConfirmBtn:"Open wallet to pay", payCmdUsage:"To pay, type `/pay <lightning-address> <amount>` — e.g. `/pay alice@getalby.com 1000`.", payDone:"Opened your wallet to pay {domain}.", payCancelled:"Payment cancelled — nothing was sent.", payRejected:"Refused: the invoice didn't match the amount and payee you confirmed — nothing was sent.", payCeiling:"Refused: that would exceed a spending limit.", payNotReady:"Payment isn't available on this install yet.", payFailed:"Couldn't prepare the payment.", payUnavailable:"Payment is only available in the Vokter desktop app.", payWalletNoteNwc:"Paid from your connected wallet, within the budget it enforces — Vokter never holds your funds or keys, and can't spend beyond your cap. Lightning payments are irreversible.", payPaid:"Paid {domain} from your connected wallet.", payNoConnection:"No wallet connected. Connect one with `/wallet connect <nostr+walletconnect-uri>`, or just `/pay` to open your own wallet.", walletStatus:"Your connected wallet(s). Connect: `/wallet connect <nostr+walletconnect-uri> [daily-cap-sats]`. Revoke: `/wallet revoke`.", walletNone:"No wallet connected yet.", walletConnectUsage:"Usage: `/wallet connect <nostr+walletconnect-uri> [daily-cap-sats]`", walletConnected:"Wallet connected. Payments stay confirm-each by default; it enforces its own budget and you can revoke it anytime with `/wallet revoke`.", walletConnectFailed:"Couldn't connect that wallet — check the nostr+walletconnect URI.", walletRevoked:"Wallet disconnected. Also remove the connection in your wallet app.", walletRevokeFailed:"No wallet connection to remove."
+      payTitle:"Confirm payment", payVerifiedPayee:"Paying", payVerifiedNote:"You typed this address — check the domain is who you mean to pay.", payUnverifiableNote:"Destination not verifiable — you're trusting the agent's claim of who you're paying.", payAmount:"Amount", paySats:"{n} sats", payWalletNote:"Your own wallet opens to confirm and sign — Vokter never holds your funds or keys. Lightning payments are irreversible.", payWalletNoteCrypto:"Your own wallet opens to confirm and sign — Vokter never holds your funds or keys. Crypto payments are irreversible.", payConfirmBtn:"Open wallet to pay", payScanNote:"You'll scan this with your own wallet and confirm the destination there, on your device.", payHandoffTitle:"Scan to pay", payHandoffScan:"Scan this QR with your wallet, or", payOpenWallet:"Open in wallet", payHandoffDoneBtn:"Done", payHandoffNote:"Your wallet shows the real destination — confirm it there. Vokter never holds your funds or keys.", payCmdUsage:"To pay, type `/pay <lightning-address> <amount>` — e.g. `/pay alice@getalby.com 1000`.", payDone:"Opened your wallet to pay {domain}.", payCancelled:"Payment cancelled — nothing was sent.", payRejected:"Refused: the invoice didn't match the amount and payee you confirmed — nothing was sent.", payCeiling:"Refused: that would exceed a spending limit.", payNotReady:"Payment isn't available on this install yet.", payFailed:"Couldn't prepare the payment.", payUnavailable:"Payment is only available in the Vokter desktop app.", payWalletNoteNwc:"Paid from your connected wallet, within the budget it enforces — Vokter never holds your funds or keys, and can't spend beyond your cap. Lightning payments are irreversible.", payPaid:"Paid {domain} from your connected wallet.", payNoConnection:"No wallet connected. Connect one with `/wallet connect <nostr+walletconnect-uri>`, or just `/pay` to open your own wallet.", walletStatus:"Your connected wallet(s). Connect: `/wallet connect <nostr+walletconnect-uri> [daily-cap-sats]`. Revoke: `/wallet revoke`.", walletNone:"No wallet connected yet.", walletConnectUsage:"Usage: `/wallet connect <nostr+walletconnect-uri> [daily-cap-sats]`", walletConnected:"Wallet connected. Payments stay confirm-each by default; it enforces its own budget and you can revoke it anytime with `/wallet revoke`.", walletConnectFailed:"Couldn't connect that wallet — check the nostr+walletconnect URI.", walletRevoked:"Wallet disconnected. Also remove the connection in your wallet app.", walletRevokeFailed:"No wallet connection to remove."
     },
     es:{
       onDevice:"En tu dispositivo", settings:"Ajustes", send:"Enviar", stopGen:"Detener generación", speak:"Hablar", addDoc:"Añadir un documento o imagen (lee el texto)",
@@ -226,7 +226,7 @@
       newChat:"Nuevo chat", theme:"Tema", themeAria:"Cambiar tema claro u oscuro", menu:"Menú", themeLight:"Claro", themeDark:"Oscuro",
       chatsLabel:"Chats", noChats:"Aún no hay conversaciones",
       lgnTitle:"Confirmar inicio de sesión", lgnVerifiedSite:"Sitio verificado", lgnVerifiedNote:"Leído del navegador tras cargar la página — no lo que se escribió o se afirmó.", lgnVerifiedNoteOauth:"Iniciarás sesión en la página del proveedor, en tu navegador — comprueba la barra de direcciones allí.", lgnSignInAs:"Iniciar sesión como", lgnProvider:"Proveedor de acceso", lgnScopes:"Acceso solicitado", lgnOauthReassure:"Acceso revocable — Vokter guarda un token que puedes revocar cuando quieras, nunca una contraseña.", lgnPasswordNote:"Tu contraseña guardada se escribe directamente en este sitio. Vokter nunca la ve, ni la guarda, ni la envía al modelo.", lgnWrongSite:"¿No es el sitio que querías? Cancela — no se envía nada.", lgnConfirm:"Iniciar sesión", lgnCancel:"Cancelar", lgnDone:"Sesión iniciada.", lgnFailed:"No se pudo iniciar sesión.", lgnUnavailable:"El inicio de sesión solo está disponible en la app de escritorio de Vokter.", lgnModeOauth:"inicio seguro, sin guardar contraseña", lgnModePassword:"inicio con contraseña", lgnCmdHelp:"Para iniciar sesión en un sitio, escribe `/login <sitio>` — p. ej. `/login github`. Verás exactamente qué autorizas antes de que ocurra nada. Sitios configurados para iniciar sesión:", lgnNoSites:"Aún no hay sitios configurados para iniciar sesión.", lgnCmdDone:"Sesión iniciada en {site}.", lgnCmdCancelled:"Inicio de sesión cancelado — no se envió nada.", lgnCmdUnknown:"No hay inicio de sesión configurado para «{site}». Escribe `/login` para ver los sitios disponibles.", lgnCmdNotReady:"El inicio de sesión aún no está disponible en esta instalación.", lgnCmdFailed:"No se pudo iniciar sesión en {site}.",
-      payTitle:"Confirmar pago", payVerifiedPayee:"Pagando a", payVerifiedNote:"Tú escribiste esta dirección — comprueba que el dominio es a quien quieres pagar.", payUnverifiableNote:"Destino no verificable — estás confiando en quién dice el agente que pagas.", payAmount:"Importe", paySats:"{n} sats", payWalletNote:"Se abre tu propia cartera para confirmar y firmar — Vokter nunca guarda tus fondos ni claves. Los pagos Lightning son irreversibles.", payConfirmBtn:"Abrir cartera para pagar", payCmdUsage:"Para pagar, escribe `/pay <dirección-lightning> <importe>` — p. ej. `/pay alice@getalby.com 1000`.", payDone:"Abrí tu cartera para pagar a {domain}.", payCancelled:"Pago cancelado — no se envió nada.", payRejected:"Rechazado: la factura no coincidía con el importe y el destinatario que confirmaste — no se envió nada.", payCeiling:"Rechazado: superaría un límite de gasto.", payNotReady:"El pago aún no está disponible en esta instalación.", payFailed:"No se pudo preparar el pago.", payUnavailable:"El pago solo está disponible en la app de escritorio de Vokter.", payWalletNoteNwc:"Pagado desde tu cartera conectada, dentro del presupuesto que ella impone — Vokter nunca guarda tus fondos ni claves, ni puede gastar más allá de tu límite. Los pagos Lightning son irreversibles.", payPaid:"Pagado a {domain} desde tu cartera conectada.", payNoConnection:"No hay cartera conectada. Conecta una con `/wallet connect <uri-nostr+walletconnect>`, o usa `/pay` para abrir tu propia cartera.", walletStatus:"Tus carteras conectadas. Conectar: `/wallet connect <uri-nostr+walletconnect> [límite-diario-sats]`. Revocar: `/wallet revoke`.", walletNone:"Aún no hay cartera conectada.", walletConnectUsage:"Uso: `/wallet connect <uri-nostr+walletconnect> [límite-diario-sats]`", walletConnected:"Cartera conectada. Los pagos siguen confirmándose uno a uno por defecto; ella impone su presupuesto y puedes revocarla cuando quieras con `/wallet revoke`.", walletConnectFailed:"No se pudo conectar esa cartera — revisa la URI nostr+walletconnect.", walletRevoked:"Cartera desconectada. Elimina también la conexión en tu app de cartera.", walletRevokeFailed:"No hay conexión de cartera que eliminar."
+      payTitle:"Confirmar pago", payVerifiedPayee:"Pagando a", payVerifiedNote:"Tú escribiste esta dirección — comprueba que el dominio es a quien quieres pagar.", payUnverifiableNote:"Destino no verificable — estás confiando en quién dice el agente que pagas.", payAmount:"Importe", paySats:"{n} sats", payWalletNote:"Se abre tu propia cartera para confirmar y firmar — Vokter nunca guarda tus fondos ni claves. Los pagos Lightning son irreversibles.", payConfirmBtn:"Abrir cartera para pagar", payScanNote:"Lo escanearás con tu propia cartera y confirmarás el destino allí, en tu dispositivo.", payHandoffTitle:"Escanea para pagar", payHandoffScan:"Escanea este QR con tu cartera, o", payOpenWallet:"Abrir en la cartera", payHandoffDoneBtn:"Hecho", payHandoffNote:"Tu cartera muestra el destino real — confírmalo allí. Vokter nunca guarda tus fondos ni claves.", payCmdUsage:"Para pagar, escribe `/pay <dirección-lightning> <importe>` — p. ej. `/pay alice@getalby.com 1000`.", payDone:"Abrí tu cartera para pagar a {domain}.", payCancelled:"Pago cancelado — no se envió nada.", payRejected:"Rechazado: la factura no coincidía con el importe y el destinatario que confirmaste — no se envió nada.", payCeiling:"Rechazado: superaría un límite de gasto.", payNotReady:"El pago aún no está disponible en esta instalación.", payFailed:"No se pudo preparar el pago.", payUnavailable:"El pago solo está disponible en la app de escritorio de Vokter.", payWalletNoteNwc:"Pagado desde tu cartera conectada, dentro del presupuesto que ella impone — Vokter nunca guarda tus fondos ni claves, ni puede gastar más allá de tu límite. Los pagos Lightning son irreversibles.", payWalletNoteCrypto:"Se abre tu propia cartera para confirmar y firmar — Vokter nunca guarda tus fondos ni claves. Los pagos cripto son irreversibles.", payPaid:"Pagado a {domain} desde tu cartera conectada.", payNoConnection:"No hay cartera conectada. Conecta una con `/wallet connect <uri-nostr+walletconnect>`, o usa `/pay` para abrir tu propia cartera.", walletStatus:"Tus carteras conectadas. Conectar: `/wallet connect <uri-nostr+walletconnect> [límite-diario-sats]`. Revocar: `/wallet revoke`.", walletNone:"Aún no hay cartera conectada.", walletConnectUsage:"Uso: `/wallet connect <uri-nostr+walletconnect> [límite-diario-sats]`", walletConnected:"Cartera conectada. Los pagos siguen confirmándose uno a uno por defecto; ella impone su presupuesto y puedes revocarla cuando quieras con `/wallet revoke`.", walletConnectFailed:"No se pudo conectar esa cartera — revisa la URI nostr+walletconnect.", walletRevoked:"Cartera desconectada. Elimina también la conexión en tu app de cartera.", walletRevokeFailed:"No hay conexión de cartera que eliminar."
     }
   };
   const LANGS=[{code:'en',name:'English'},{code:'es',name:'Español'}];
@@ -368,8 +368,11 @@
       const vnote=document.createElement('div'); vnote.className='lgn-note'; vnote.textContent=t(details.verifiable?'payVerifiedNote':'payUnverifiableNote'); card.appendChild(vnote);
       const amr=document.createElement('div'); amr.className='lgn-row';
       const aml=document.createElement('div'); aml.className='lgn-lbl'; aml.textContent=t('payAmount'); amr.appendChild(aml);
-      const amv=document.createElement('div'); amv.className='v mono'; amv.textContent=t('paySats',{n:details.amount_sats}); amr.appendChild(amv); card.appendChild(amr);
-      const re=document.createElement('div'); re.className='lgn-reassure'; re.textContent=t(details.via==='nwc'?'payWalletNoteNwc':'payWalletNote'); card.appendChild(re);
+      const amv=document.createElement('div'); amv.className='v mono'; amv.textContent=details.amountLabel||t('paySats',{n:details.amount_sats}); amr.appendChild(amv); card.appendChild(amr);
+      const re=document.createElement('div'); re.className='lgn-reassure'; re.textContent=t(details.via==='nwc'?'payWalletNoteNwc':(details.cryptoGeneric?'payWalletNoteCrypto':'payWalletNote')); card.appendChild(re);
+      // The off-Vokter second check: the user's own wallet shows + confirms the destination independently
+      // (NWC auto-pays within budget, so it has nothing to scan — the note is for the hand-off rails only).
+      if(details.via!=='nwc'){ const sc=document.createElement('div'); sc.className='lgn-note'; sc.textContent=t('payScanNote'); card.appendChild(sc); }
       const acts=document.createElement('div'); acts.className='lgn-acts';
       const cancel=document.createElement('button'); cancel.className='lgn-cancel'; cancel.textContent=t('lgnCancel');
       const ok=document.createElement('button'); ok.className='lgn-confirm'; ok.textContent=t('payConfirmBtn');
@@ -403,13 +406,104 @@
     const ok=await payConfirm({payee_domain:d.payee_domain, amount_sats:d.amount_sats, verifiable:d.verifiable!==false, via:d.via||via});
     if(!ok) return {status:'cancelled'};
     const p2=await window.vokter.webPay({payee, amount_sats:amount, via, confirm:true});
-    if(p2.status===200 && p2.body && (p2.body.status==='ready'||p2.body.status==='paid')) return {status:p2.body.status, domain:p2.body.payee_domain};
+    if(p2.status===200 && p2.body && p2.body.status==='paid') return {status:'paid', domain:p2.body.payee_domain};   // NWC auto-pays: nothing to scan
+    if(p2.status===200 && p2.body && p2.body.status==='ready'){
+      await payHandoff({uri:p2.body.handoff_uri||'', destLabel:p2.body.payee_domain, amountLabel:t('paySats',{n:amount}), verifiable:true});
+      return {status:'ready', domain:p2.body.payee_domain};
+    }
     if(p2.status===422) return {status:'rejected', detail:_lgnDetail(p2)};
     if(p2.status===403) return {status:'ceiling', detail:_lgnDetail(p2)};
     if(p2.status===404) return {status:'no_connection'};
     return {status:'failed', detail:_lgnDetail(p2)};
   }
   try{ window.__vokterStartWebPay=startWebPay; }catch{}
+
+  // Render an inert payment URI (lightning:/bitcoin:/ethereum:) as a scannable QR — the PRIMARY hand-off
+  // for every crypto rail. Built via DOM (createElementNS) so it's CSP-clean (no innerHTML, no data: img);
+  // qrcode-generator (vendored, MIT) is a thin encoder — the URI is the integrity artifact, the QR a
+  // faithful transform of it. White quiet-zone + background so any wallet camera reads it.
+  function renderQrSvg(uri, px){
+    px=px||220; const NS='http://www.w3.org/2000/svg';
+    const svg=document.createElementNS(NS,'svg'); svg.setAttribute('width',px); svg.setAttribute('height',px);
+    svg.setAttribute('role','img'); svg.setAttribute('aria-label','Payment QR code'); svg.setAttribute('class','pay-qr');
+    try{
+      if(!window.qrcode) throw new Error('qr lib missing');
+      const qr=window.qrcode(0,'M'); qr.addData(String(uri)); qr.make();
+      const n=qr.getModuleCount(), margin=4, total=n+margin*2;
+      svg.setAttribute('viewBox','0 0 '+total+' '+total);
+      const bg=document.createElementNS(NS,'rect');
+      bg.setAttribute('x','0'); bg.setAttribute('y','0'); bg.setAttribute('width',total); bg.setAttribute('height',total); bg.setAttribute('fill','#ffffff');
+      svg.appendChild(bg);
+      let d=''; for(let r=0;r<n;r++) for(let c=0;c<n;c++) if(qr.isDark(r,c)) d+='M'+(c+margin)+' '+(r+margin)+'h1v1h-1z';
+      const path=document.createElementNS(NS,'path'); path.setAttribute('d',d); path.setAttribute('fill','#000000'); svg.appendChild(path);
+    }catch(e){
+      const txt=document.createElementNS(NS,'text'); txt.setAttribute('x','8'); txt.setAttribute('y','20'); txt.textContent='QR unavailable'; svg.appendChild(txt);
+    }
+    return svg;
+  }
+
+  // The POST-confirm hand-off sheet: the integrity-verified payment request as a QR + a clickable deep-link.
+  // Shown only AFTER the human confirmed in payConfirm() and phase-2 passed integrity — so a substituted
+  // address is rejected BEFORE any QR exists. The user pays from their OWN wallet (scan or tap); Vokter
+  // opens no session and never gets signing authority.
+  function payHandoff(details){
+    return new Promise(resolve=>{
+      const ov=document.createElement('div'); ov.className='lgn-ov'; ov.setAttribute('role','dialog'); ov.setAttribute('aria-modal','true');
+      const card=document.createElement('div'); card.className='lgn-card'; ov.appendChild(card);
+      const hd=document.createElement('div'); hd.className='lgn-hd';
+      const h3=document.createElement('h3'); h3.textContent=t('payHandoffTitle'); hd.appendChild(h3); card.appendChild(hd);
+      if(details.destLabel){ const pl=document.createElement('div'); pl.className='lgn-lbl'; pl.textContent=t('payVerifiedPayee'); card.appendChild(pl);
+        const ds=document.createElement('div'); ds.className='lgn-site'; const u=document.createElement('span'); u.className='u mono'; u.textContent=details.destLabel; ds.appendChild(u); card.appendChild(ds); }
+      if(details.verifiable===false){ const cav=document.createElement('div'); cav.className='lgn-note'; cav.textContent=t('payUnverifiableNote'); card.appendChild(cav); }
+      if(details.amountLabel){ const ar=document.createElement('div'); ar.className='lgn-row';
+        const al=document.createElement('div'); al.className='lgn-lbl'; al.textContent=t('payAmount'); ar.appendChild(al);
+        const av=document.createElement('div'); av.className='v mono'; av.textContent=details.amountLabel; ar.appendChild(av); card.appendChild(ar); }
+      const qrw=document.createElement('div'); qrw.className='pay-qr-wrap'; qrw.appendChild(renderQrSvg(details.uri)); card.appendChild(qrw);
+      const scan=document.createElement('div'); scan.className='lgn-note'; scan.textContent=t('payHandoffScan'); card.appendChild(scan);
+      const acts=document.createElement('div'); acts.className='lgn-acts';
+      const open=document.createElement('button'); open.className='lgn-cancel'; open.textContent=t('payOpenWallet');
+      const done=document.createElement('button'); done.className='lgn-confirm'; done.textContent=t('payHandoffDoneBtn');
+      acts.appendChild(open); acts.appendChild(done); card.appendChild(acts);
+      const note=document.createElement('div'); note.className='lgn-reassure'; note.textContent=t('payHandoffNote'); card.appendChild(note);
+      let closed=false;
+      function close(){ if(closed) return; closed=true; document.removeEventListener('keydown',onKey); ov.remove(); resolve(true); }
+      function onKey(e){ if(e.key==='Escape') close(); }
+      open.addEventListener('click',()=>{ try{ if(window.vokter&&window.vokter.openPayUri) window.vokter.openPayUri(details.uri); }catch{} });
+      done.addEventListener('click',close);
+      ov.addEventListener('click',e=>{ if(e.target===ov) close(); });
+      document.addEventListener('keydown',onKey);
+      document.body.appendChild(ov); done.focus();
+    });
+  }
+  try{ window.__vokterPayHandoff=payHandoff; }catch{}
+
+  // Two-phase driver for the opaque-crypto rail (x402 + direct on-chain). Phase 1 resolves + returns the
+  // sheet fields (verifiable:false + caveat for an opaque address); payConfirm() gates it; phase 2 is
+  // integrity-checked (MAIN replays the confirmed fields + token — the page sends no address), then the
+  // QR hand-off is presented. The confirm-token lives in MAIN and never reaches here.
+  async function startWebPayOnchain(req){
+    if(!(window.vokter && window.vokter.webPayOnchain)) return {status:'unavailable'};
+    const p1=await window.vokter.webPayOnchain({rail:req.rail, asset:req.asset, network:req.network, destination:req.destination, amount:req.amount, challenge:req.challenge||null});
+    if(p1.status===403) return {status:'ceiling'};
+    if(p1.status===422) return {status:'rejected'};
+    if(p1.status===400) return {status:'error'};
+    if(p1.status===503) return {status:'not_ready'};
+    if(p1.status!==428)  return {status:'error'};
+    const d=p1.body||{};
+    const amountLabel=(d.amount||req.amount)+' '+(d.asset||req.asset||'');
+    const ok=await payConfirm({payee_domain:d.destination||req.destination, amountLabel, verifiable:d.verifiable===true, via:'handoff', cryptoGeneric:true});
+    if(!ok) return {status:'cancelled'};
+    const p2=await window.vokter.webPayOnchain({confirm:true});
+    if(p2.status===200 && p2.body && p2.body.status==='ready'){
+      const h=p2.body.handoff||{}; const uri=(h&&h.uri)||'';
+      await payHandoff({uri, destLabel:p2.body.destination, amountLabel:(p2.body.amount)+' '+(p2.body.asset||''), verifiable:p2.body.verifiable===true});
+      return {status:'ready'};
+    }
+    if(p2.status===422) return {status:'rejected'};
+    if(p2.status===403) return {status:'ceiling'};
+    return {status:'failed'};
+  }
+  try{ window.__vokterStartWebPayOnchain=startWebPayOnchain; }catch{}
 
   // The /pay composer command — user-initiated, model-out-of-the-loop (same discipline as /login).
   //   /pay <lightning-address> <amount>   (amount in sats)
@@ -464,6 +558,10 @@
     else if(m==='password') loginConfirm({origin:'https://www.iberdrola.es', identity:'bilal.m', mode:'password'});
     else if(m==='cmd') handleLoginCommand('/login');   // the /login help listing in the chat (needs backend)
     else if(m==='pay') payConfirm({payee_domain:'getalby.com', amount_sats:1000, verifiable:true});
+    // QR hand-off previews (xvfb-only): the post-confirm sheet for an opaque on-chain address + a Lightning uri.
+    else if(m==='payqr') payHandoff({uri:'ethereum:0x833589fcd6edb6e08f4c7c32d4f71b54bda02913@8453/transfer?address=0x1111111111111111111111111111111111111111&uint256=1000000', destLabel:'0x1111…1111', amountLabel:'1000000 (USDC, Base)', verifiable:false});
+    else if(m==='payqrln') payHandoff({uri:'lightning:lnbc10u1p3pj257pp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdq', destLabel:'getalby.com', amountLabel:'1000 sats', verifiable:true});
+    else if(m==='payconfirmoc') payConfirm({payee_domain:'0x1111…1111', amountLabel:'1000000 (USDC, Base)', verifiable:false, via:'handoff', cryptoGeneric:true});
   }catch{} }
   if(document.readyState==='loading') addEventListener('DOMContentLoaded',_lgnPreview); else _lgnPreview();
 

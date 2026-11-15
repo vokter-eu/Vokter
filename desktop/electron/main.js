@@ -550,12 +550,12 @@ ipcMain.handle('vokter:web-pay', (_event, reqIn) => new Promise((resolve) => {
     res.on('end', () => {
       let parsed = null;
       try { parsed = JSON.parse(data); } catch { /* non-JSON → null */ }
-      // Phase 2 success: open the lightning: hand-off in the user's wallet; strip the raw invoice from
-      // what the page sees (it only needs the status + the public payee/amount).
+      // Phase 2 success: the lightning: invoice is a PUBLIC, inert payment request — the renderer presents
+      // it as a QR + deep-link (same as the on-chain rails), so the user pays from their own wallet by
+      // scanning or tapping. Surface it as handoff_uri; the raw `handoff` key is dropped to keep one shape.
       if (res.statusCode === 200 && parsed && typeof parsed.handoff === 'string' && parsed.handoff.startsWith('lightning:')) {
-        try { shell.openExternal(parsed.handoff); } catch { /* no wallet handler registered */ }
         const { handoff, ...safe } = parsed;
-        resolve({ status: 200, body: { ...safe, opened: true } });
+        resolve({ status: 200, body: { ...safe, handoff_uri: handoff } });
         return;
       }
       resolve({ status: res.statusCode || 0, body: parsed });
@@ -645,11 +645,11 @@ ipcMain.handle('vokter:web-pay-onchain', (_event, reqIn) => new Promise((resolve
         resolve({ status: 428, body: sheet });
         return;
       }
-      // Phase 2 success: open the hand-off in the user's wallet; strip it from what the page sees.
+      // Phase 2 success: the hand-off is an INERT, public payment request (address/invoice + amount) — the
+      // renderer presents it as a QR + deep-link (no secret, no session). Pass the uri through for display;
+      // the user opens their own wallet by scanning or tapping "Open in wallet" (→ vokter:open-pay-uri).
       if (res.statusCode === 200 && parsed && parsed.handoff && typeof parsed.handoff.uri === 'string') {
-        try { shell.openExternal(parsed.handoff.uri); } catch {}
-        const { handoff, ...safe } = parsed;
-        resolve({ status: 200, body: { ...safe, opened: true } });
+        resolve({ status: 200, body: parsed });
         return;
       }
       resolve({ status: res.statusCode || 0, body: parsed });
@@ -659,6 +659,15 @@ ipcMain.handle('vokter:web-pay-onchain', (_event, reqIn) => new Promise((resolve
   rq.setTimeout(60000, () => { rq.destroy(); resolve({ status: 0, body: null }); });
   rq.write(payload); rq.end();
 }));
+
+// Open an inert payment deep-link in the user's OWN wallet (the "Open in wallet" button beside the QR).
+// WHITELIST the scheme to the three crypto payment URIs — the page cannot ask MAIN to open an arbitrary
+// URL (no http/file/custom-protocol pivot). No session, no signing authority: the wallet shows + confirms.
+ipcMain.handle('vokter:open-pay-uri', (_event, uri) => {
+  const u = String(uri || '');
+  if (/^(lightning:|bitcoin:|ethereum:)/i.test(u)) { try { shell.openExternal(u); } catch {} return true; }
+  return false;
+});
 
 // Backup & recovery bridge: proxy /api/backup/* through MAIN so the human-session token never
 // touches page JS (same discipline as vokter:memory). The page sends {op,...}; MAIN whitelists
