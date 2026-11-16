@@ -78,7 +78,8 @@ _SITE_REGISTRY = {
         "authorize": "https://github.com/login/oauth/authorize",
         "token": "https://github.com/login/oauth/access_token",
         "revoke": None,            # GitHub revokes via API, not an RFC7009 endpoint
-        "client_id": "",           # ← set to your registered OAuth app's client_id to enable
+        "client_id": "",           # ← provision via env VOKTER_OAUTH_CLIENT_ID_GITHUB (a registered OAuth app);
+                                   #   NEVER commit a real client_id here — provider config comes from env, not source.
         "client_secret": "",       # ← GitHub (confidential client) REQUIRES a secret at the token endpoint
                                    #   even with PKCE. Provide it via env VOKTER_OAUTH_CLIENT_SECRET_GITHUB —
                                    #   NEVER commit a real secret here. (Register callback http://127.0.0.1/ :
@@ -182,6 +183,16 @@ def _open_system_browser(url):
     open_in_system_browser(url)
 
 
+def _oauth_client_id(site: str, entry) -> str:
+    """The OAuth client_id (which registered app to delegate as). Sourced from the env
+    (VOKTER_OAUTH_CLIENT_ID_<SITE>) so nothing test-specific lives in source — provider config comes from
+    env/config, not hardcoded; a registry `client_id` is honored as a fallback but stays empty in the repo.
+    An empty result means the entry is unconfigured and is refused up front (503)."""
+    import os
+    return (os.environ.get(f"VOKTER_OAUTH_CLIENT_ID_{site.strip().upper()}", "")
+            or entry.get("client_id", ""))
+
+
 def _oauth_client_secret(site: str, entry) -> str:
     """The OAuth client_secret for confidential clients (GitHub OAuth Apps, Google Desktop apps require
     one at the token endpoint even with PKCE). Public clients (Microsoft/Entra) need NONE — default "".
@@ -198,7 +209,7 @@ def _run_oauth_login(site: str, entry, identity: str) -> str:
     green) and NEVER returns the token — only status + metadata reach the handler/model. No cage, no
     secret in any page: the sovereign-best path."""
     from oauth_broker import begin_delegation, IdP
-    idp = IdP(authorize=entry["authorize"], token=entry["token"], client_id=entry["client_id"],
+    idp = IdP(authorize=entry["authorize"], token=entry["token"], client_id=_oauth_client_id(site, entry),
               scopes=entry["scopes"], revoke=entry.get("revoke"),
               client_secret=_oauth_client_secret(site, entry))
     res = begin_delegation(idp, origin=entry["registered_origin"], identity=identity,
@@ -259,7 +270,7 @@ def web_login(req: WebLoginRequest, x_vokter_human_session: str | None = Header(
             # OAuth consents in the user's OWN system browser (no cage); the sheet shows provider + scopes.
             # resolved_origin here is the IdP's registered authorize origin — the human ALSO verifies it in
             # their real address bar (§1.5). An unconfigured entry (no client_id) is refused up front.
-            if not entry.get("client_id"):
+            if not _oauth_client_id(req.site, entry):
                 raise HTTPException(503, f"OAuth not configured for '{req.site}' (no client_id provisioned)")
             raise HTTPException(428, detail={
                 "error": "confirmation_required", "action": "web.login",
@@ -281,7 +292,7 @@ def web_login(req: WebLoginRequest, x_vokter_human_session: str | None = Header(
         raise HTTPException(404, f"no login registered for site '{req.site}'")
     try:
         if entry.get("mode") == "oauth":
-            if not entry.get("client_id"):
+            if not _oauth_client_id(req.site, entry):
                 raise HTTPException(503, f"OAuth not configured for '{req.site}' (no client_id provisioned)")
             status = _run_oauth_login(req.site, entry, req.identity_ref)   # system-browser consent; no cage
         else:
