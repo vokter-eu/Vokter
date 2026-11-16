@@ -79,6 +79,10 @@ _SITE_REGISTRY = {
         "token": "https://github.com/login/oauth/access_token",
         "revoke": None,            # GitHub revokes via API, not an RFC7009 endpoint
         "client_id": "",           # ← set to your registered OAuth app's client_id to enable
+        "client_secret": "",       # ← GitHub (confidential client) REQUIRES a secret at the token endpoint
+                                   #   even with PKCE. Provide it via env VOKTER_OAUTH_CLIENT_SECRET_GITHUB —
+                                   #   NEVER commit a real secret here. (Register callback http://127.0.0.1/ :
+                                   #   GitHub ignores the loopback port, so Vokter's random port is fine.)
         "scopes": ["read:user"],
     },
     "google": {
@@ -178,14 +182,25 @@ def _open_system_browser(url):
     open_in_system_browser(url)
 
 
-def _run_oauth_login(entry, identity: str) -> str:
+def _oauth_client_secret(site: str, entry) -> str:
+    """The OAuth client_secret for confidential clients (GitHub OAuth Apps, Google Desktop apps require
+    one at the token endpoint even with PKCE). Public clients (Microsoft/Entra) need NONE — default "".
+    Sourced from the env (VOKTER_OAUTH_CLIENT_SECRET_<SITE>) so the secret is NEVER committed to source;
+    a registry `client_secret` is honored as a fallback but should stay empty in the repo."""
+    import os
+    return (os.environ.get(f"VOKTER_OAUTH_CLIENT_SECRET_{site.strip().upper()}", "")
+            or entry.get("client_secret", ""))
+
+
+def _run_oauth_login(site: str, entry, identity: str) -> str:
     """Path 1 (OAuth/PKCE): consent in the user's SYSTEM browser → loopback code (trusted backend) →
     server-side PKCE exchange → scoped token in the keychain. GATED (GateNotPassed until the ship gate is
     green) and NEVER returns the token — only status + metadata reach the handler/model. No cage, no
     secret in any page: the sovereign-best path."""
     from oauth_broker import begin_delegation, IdP
     idp = IdP(authorize=entry["authorize"], token=entry["token"], client_id=entry["client_id"],
-              scopes=entry["scopes"], revoke=entry.get("revoke"))
+              scopes=entry["scopes"], revoke=entry.get("revoke"),
+              client_secret=_oauth_client_secret(site, entry))
     res = begin_delegation(idp, origin=entry["registered_origin"], identity=identity,
                            store=_token_store(), open_url=_open_system_browser, wait_timeout=300)
     return res.get("status", "failed")
@@ -225,7 +240,7 @@ def web_login(req: WebLoginRequest, x_vokter_human_session: str | None = Header(
     from chat import is_local_human_session
     from safety import HUMAN, enforce_http
     import interactive_browser as ib
-    from oauth_broker import GateNotPassed
+    from oauth_broker import BrokerError, GateNotPassed
 
     context = HUMAN if is_local_human_session(x_vokter_human_session) else "autonomous"
     target = f"{req.site} as {req.identity_ref}"   # gateway-recorded target — secret-free by construction
@@ -268,13 +283,17 @@ def web_login(req: WebLoginRequest, x_vokter_human_session: str | None = Header(
         if entry.get("mode") == "oauth":
             if not entry.get("client_id"):
                 raise HTTPException(503, f"OAuth not configured for '{req.site}' (no client_id provisioned)")
-            status = _run_oauth_login(entry, req.identity_ref)       # system-browser consent; no cage
+            status = _run_oauth_login(req.site, entry, req.identity_ref)   # system-browser consent; no cage
         else:
             if not ib.browser_supported():
                 raise HTTPException(503, "interactive browser not available on this platform (contained Linux only)")
             status = _run_password_login(entry, req.identity_ref)    # cage inject
     except GateNotPassed:
         raise HTTPException(503, "login unavailable: the containment self-test has not passed on this install")
+    except BrokerError as e:
+        # The delegation reached the IdP but failed (token-exchange rejected, state mismatch, timeout).
+        # Surface the provider's reason (non-secret) as a clean 502 — the diagnostic for a real sign-in.
+        raise HTTPException(502, f"sign-in failed: {e}")
     return {"status": status}
 
 

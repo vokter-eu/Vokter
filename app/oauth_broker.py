@@ -154,20 +154,44 @@ def open_in_system_browser(url: str) -> None:
 
 # ───────────────────────── server-side token exchange + revoke ─────────────────────────
 def exchange_code(token_endpoint: str, *, client_id: str, redirect_uri: str, code: str,
-                  verifier: str, timeout: float = 30) -> dict:
+                  verifier: str, client_secret: str = "", timeout: float = 30) -> dict:
     """Exchange the authorization code for a token SERVER-SIDE (PKCE: send the verifier). Returns the
-    token response dict. Raises BrokerError on a non-2xx. The token stays in the backend."""
+    token response dict. Raises BrokerError on a non-2xx. The token stays in the backend.
+
+    `client_secret` is PKCE-additive, not a replacement: a truly public client (Microsoft/Entra, which
+    FORBIDS a secret) sends none (""), so it is included ONLY when provided. Standard/confidential
+    clients (GitHub OAuth Apps, Google Desktop apps) REQUIRE it at the token endpoint even with PKCE —
+    the mock IdP in tests didn't, which hid this. `Accept: application/json` is sent because GitHub's
+    token endpoint defaults to a form-encoded body otherwise, which `r.json()` cannot parse."""
     import httpx
-    r = httpx.post(token_endpoint, data={
+    data = {
         "grant_type": "authorization_code",
         "code": code,
         "redirect_uri": redirect_uri,
         "client_id": client_id,
         "code_verifier": verifier,
-    }, timeout=timeout)
+    }
+    if client_secret:
+        data["client_secret"] = client_secret
+    r = httpx.post(token_endpoint, data=data, headers={"Accept": "application/json"}, timeout=timeout)
     if r.status_code // 100 != 2:
         raise BrokerError(f"token exchange failed: HTTP {r.status_code}")
-    return r.json()
+    try:
+        body = r.json()
+    except Exception:
+        # A non-JSON 2xx body means the Accept: application/json negotiation didn't take (e.g. a
+        # form-encoded GitHub response) — surface it rather than crash on .json().
+        raise BrokerError("token exchange returned a non-JSON body "
+                          f"(content-type {r.headers.get('content-type','?')}): {r.text[:200]}")
+    # Some providers (notably GitHub) return token-exchange FAILURES as HTTP 200 with an
+    # {error, error_description} body instead of a non-2xx — surface the provider's real reason
+    # (incorrect_client_credentials / redirect_uri_mismatch / bad_verification_code / …) rather than
+    # a blind "no access_token". error_description is a provider message, not a secret.
+    if isinstance(body, dict) and body.get("error"):
+        desc = body.get("error_description") or body.get("error_uri") or ""
+        raise BrokerError(f"token exchange rejected by provider: {body['error']}"
+                          + (f" — {desc}" if desc else ""))
+    return body
 
 
 def revoke(revoke_endpoint: str, token: str, *, client_id: str, timeout: float = 30) -> bool:
@@ -229,9 +253,9 @@ def use_api_token(store, origin: str, identity: str) -> bool:
 class IdP:
     """Minimal IdP config for a delegation. In production these come from a per-site registry."""
     def __init__(self, *, authorize: str, token: str, client_id: str, scopes: list[str],
-                 revoke: str | None = None):
+                 revoke: str | None = None, client_secret: str = ""):
         self.authorize, self.token, self.client_id = authorize, token, client_id
-        self.scopes, self.revoke = scopes, revoke
+        self.scopes, self.revoke, self.client_secret = scopes, revoke, client_secret
 
 
 def begin_delegation(idp: IdP, *, origin: str, identity: str, store,
@@ -255,7 +279,7 @@ def begin_delegation(idp: IdP, *, origin: str, identity: str, store,
         open_url(url)                                   # the user's OWN browser; Vokter never renders it
         code = rx.wait(wait_timeout)                    # state verified inside
     tok = exchange_code(idp.token, client_id=idp.client_id, redirect_uri=rx.redirect_uri,
-                        code=code, verifier=verifier)
+                        code=code, verifier=verifier, client_secret=idp.client_secret)
     access = tok.get("access_token")
     if not access:
         raise BrokerError("token response carried no access_token")
