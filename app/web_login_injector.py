@@ -24,7 +24,7 @@ Custody / settled limit: Vokter READS the user's existing OS keychain and NEVER 
 """
 from __future__ import annotations
 
-from oauth_broker import GateNotPassed, ship_gate_ok   # the ONE ship gate, shared with Path 1
+from oauth_broker import GateNotPassed, ship_gate_ok, import_keychain  # the ONE ship gate + keychain resolver, shared with Path 1
 from web_login import origin_matches, read_resolved_origin
 
 
@@ -43,7 +43,7 @@ class KeychainCredentialStore:
     cannot write a user password (the settled limit 'Vokter does not store user passwords' holds
     structurally, not by convention). A locked/absent keychain → None, so login fails closed."""
     def get_secret(self, origin: str, identity: str) -> str | None:
-        import keychain   # desktop module; bundled (hiddenimport) in the frozen backend
+        keychain = import_keychain()   # frozen: hiddenimport; dev: resolved onto sys.path
         return keychain.get_key(service=_SERVICE, name=credential_name(origin, identity))
 
 

@@ -38,6 +38,31 @@ class BrokerError(RuntimeError):
     """Any delegation failure (state mismatch, timeout, token-exchange error)."""
 
 
+def import_keychain():
+    """Import the `keychain` desktop module, resolving it in BOTH run shapes.
+
+    Frozen backend (.deb): `keychain` is a declared hiddenimport (desktop/freeze/
+    vokter_backend.spec), so the plain import resolves from the bundle and this is
+    a straight pass-through — the fallback below NEVER runs.
+
+    Dev / from source: the backend runs out of app/, so desktop/ (where keychain.py
+    lives) is not on sys.path and the plain import raises ModuleNotFoundError. We
+    then APPEND desktop/ to sys.path and retry. Append (not insert-0) keeps app/
+    modules at priority so this can't shadow them; there is no other `keychain` on
+    the path to win. This mirrors the orchestrator reaching app/hwdetect the other
+    direction. Dev-env-only — the frozen path never reaches it."""
+    try:
+        import keychain
+    except ModuleNotFoundError:
+        import sys
+        from pathlib import Path
+        desktop = str(Path(__file__).resolve().parents[1] / "desktop")
+        if desktop not in sys.path:
+            sys.path.append(desktop)
+        import keychain
+    return keychain
+
+
 # ───────────────────────── the ship gate ─────────────────────────
 _GATE_ENV = "VOKTER_TIER3_SECRET_GATE"   # set to "passed" ONLY by the packaged containment-selftest
                                          # after the secret-non-leakage probe is green on the frozen .deb.
@@ -231,8 +256,7 @@ class KeychainTokenStore:
     ('Vokter does not store user passwords') intact."""
     _SERVICE = "vokter"
     def _kc(self):
-        import keychain  # desktop module; bundled (hiddenimport) in the frozen backend
-        return keychain
+        return import_keychain()  # frozen: hiddenimport; dev: resolved onto sys.path
     def put(self, name: str, value: str) -> None:
         self._kc().set_key(value, service=self._SERVICE, name=name)
     def get(self, name: str) -> str | None:
