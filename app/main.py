@@ -31,6 +31,7 @@ from interactive_browser import router as interactive_browser_router
 from web_login import router as web_login_router
 from web_pay import router as web_pay_router
 from web_pay_unattended import router as web_pay_unattended_router
+from email_send import router as email_send_router
 from backup_routes import router as backup_router
 from planner import router as planner_router
 from schedule_routes import router as schedule_router
@@ -136,6 +137,7 @@ app.include_router(interactive_browser_router)
 app.include_router(web_login_router)
 app.include_router(web_pay_router)
 app.include_router(web_pay_unattended_router)   # Tier-3 Phase 2B: opt-in, gated, dormant (TIER-7)
+app.include_router(email_send_router)           # Tier-3 Phase 3: outbound email, gated, dormant (TIER-8)
 app.include_router(backup_router)
 app.include_router(planner_router)
 app.include_router(schedule_router)

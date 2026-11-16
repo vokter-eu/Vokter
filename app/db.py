@@ -63,6 +63,18 @@ def get_db():
                added_at   TEXT NOT NULL
            )"""
     )
+    # Tier-3 Phase 3 (outbound email): the per-task unlinkable-alias ↔ task map. Load-bearing because
+    # email is bidirectional — an inbound REPLY to `alias` routes back to its task via this map. The alias
+    # is a truncation of identity.email_alias_key(task_id) (never the social npub); the map holds only the
+    # non-secret alias + task reference, never a key or a transport credential. DORMANT until TIER-8.
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS email_aliases (
+               alias        TEXT PRIMARY KEY,
+               task_id      TEXT NOT NULL,
+               counterparty TEXT,
+               created_at   TEXT NOT NULL
+           )"""
+    )
     conn.execute(
         """CREATE TABLE IF NOT EXISTS scheduled_tasks (
                id               TEXT PRIMARY KEY,

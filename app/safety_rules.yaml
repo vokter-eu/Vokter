@@ -53,6 +53,13 @@ rules:
   # revocable connection secret. See TIER3_PHASE2B_NWC_UNATTENDED.md. Dormant until the TIER-7 fire-test is
   # green on the frozen .deb.
   web.pay.unattended: { human: confirm, nonhuman: allow_if_within_mandate }
+  # Tier-3 Phase 3: SENDING EMAIL on the human's behalf (email_send routine). CONFIRM-human-only —
+  # collapses to BLOCK for peer/mcp/autonomous, so a page, a peer, or the untrusted inbound-email corpus
+  # can NEVER drive a send (T24). There is NO autonomous email path (plain CONFIRM/BLOCK, unlike NWC).
+  # Vokter sends from its OWN per-task unlinkable alias (never the user's social npub); the human sees
+  # recipient + alias + full body before it leaves; the body is built by INCLUSION from a disclosure
+  # whitelist. See TIER3_PHASE3_EMAIL.md. No email sends until the TIER-8 fire-test is green on the frozen .deb.
+  email.send:      { human: confirm, nonhuman: block }
   # Outbound agent messages — channel-confined to peers we already know.
   dm.send:
     human: allow_if_known

@@ -853,6 +853,136 @@ def _unattended_handler_e2e():
     return all(checks.values()), checks
 
 
+# ───────── TIER 8: live email.send — e2e, non-leakage + confirm-integrity + T24 inbound-injection guard ─────────
+# The opt-in, default-OFF outbound-email rail (TIER3_PHASE3_EMAIL.md). Drives the REAL email_send() handler
+# with a hermetic MOCK SMTP sink (no network, no real recipient). Proves: a send happens ONLY after a human
+# confirm (no autonomous path — the T24 structural bound: the untrusted inbound corpus can't drive a send);
+# what is sent == what the human confirmed (substituted recipient/body → 422, nothing sent); the body is
+# built by INCLUSION (non-whitelisted + blocked-class fields never leave); the per-task alias is
+# deterministic, unlinkable-across-tasks, and reply-routes back to its task; and the transport credential +
+# the alias never leak.
+def _email_handler_e2e():
+    import contextlib, io, sys as _sys, types
+    SENT_SECRET = "VKTR-SMTP-password-3e9b7f-never-to-model"   # the transport credential
+    LEAK = "LEAKED-MEMORY-must-never-appear-in-a-body-xyz"      # a non-whitelisted datum
+    TOK = "e2e-human-session-tok"; AUTO = "autonomous-no-human-session"
+    DOMAIN = "e2e-mail.example"; TO = "merchant@shop.example"; SUBJ = "Booking"
+
+    import email_send as es
+    from fastapi import HTTPException
+    import safety
+
+    _sys.modules["chat"] = types.ModuleType("chat"); _sys.modules["chat"].is_local_human_session = lambda m: m == TOK
+    sink = {"msgs": [], "calls": 0}
+    def mock_smtp(cfg, from_alias, to, subject, body):
+        sink["calls"] += 1; sink["msgs"].append({"from": from_alias, "to": to, "subject": subject, "body": body})
+        return True, "sent"
+
+    _saved = {"tr": es._transport, "smtp": es._smtp_transport, "gate": os.environ.get("VOKTER_EMAIL_SEND_GATE")}
+    checks = {}
+    responses = []
+    # disclosure carries MORE than the whitelist: `leaked` is not whitelisted; `identity` is whitelisted but
+    # a BLOCKED class — both must be absent from the body (inclusion + fail-closed).
+    DISC = {"greeting": "Hello", "party_size": "2", "date": "Friday", "leaked": LEAK, "identity": "passport-xyz"}
+    # whitelist OMITS 'leaked' (non-whitelisted → fails-closed absent) and INCLUDES 'identity' (whitelisted
+    # but a BLOCKED class → dropped). Both must be absent from the body.
+    FIELDS = ["greeting", "party_size", "date", "identity"]
+    try:
+        es._transport = es.InMemoryTransport()
+        es._transport.put({"host": "mx.example", "port": 587, "username": "u",
+                           "password": SENT_SECRET, "from_domain": DOMAIN, "starttls": True})
+        es._smtp_transport = mock_smtp
+        safety.load()
+
+        def call(confirm=False, tok=TOK, to=TO, disc=None, token="", task="task-1"):
+            try:
+                r = es.email_send(es.EmailSendRequest(task_id=task, to=to, subject=SUBJ,
+                        disclosure=DISC if disc is None else disc, fields=FIELDS,
+                        confirm=confirm, confirm_token=token),
+                        x_vokter_human_session=tok)
+                return 200, r
+            except HTTPException as e:
+                return e.status_code, (e.detail if isinstance(e.detail, dict) else {})
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            os.environ["VOKTER_EMAIL_SEND_GATE"] = "passed"
+
+            # (1) PHASE 1 (human) → 428 with recipient + alias + full body + token. Alias is Vokter's own
+            #     per-task address, not the social npub; body excludes non-whitelisted + blocked fields.
+            s1, d1 = call(confirm=False); responses += [d1]
+            alias = d1.get("alias", ""); body1 = d1.get("body", ""); tok1 = d1.get("confirm_token", "")
+            checks["phase1_428_confirm_payload"] = (s1 == 428 and d1.get("recipient") == TO
+                and alias.endswith("@" + DOMAIN) and not alias.startswith("npub") and bool(tok1))
+            checks["body_inclusion_whitelist_only"] = (LEAK not in body1 and "passport" not in body1
+                and "greeting: Hello" in body1 and "party_size: 2" in body1 and "date: Friday" in body1)
+
+            # (2) PHASE 2 (human, valid token) → SENT; the mock SMTP got the message, from == the alias.
+            s2, d2 = call(confirm=True, token=tok1); responses += [d2]
+            checks["phase2_sent"] = s2 == 200 and d2.get("status") == "sent" and sink["calls"] == 1
+            checks["sent_from_alias_to_recipient"] = (sink["msgs"][-1]["from"] == alias
+                and sink["msgs"][-1]["to"] == TO and LEAK not in sink["msgs"][-1]["body"]) if sink["msgs"] else False
+
+            # (3) CONFIRM-INTEGRITY — substituted RECIPIENT with the phase-1 token → 422, nothing sent.
+            before = sink["calls"]
+            s3, _ = call(confirm=True, to="attacker@evil.example", token=tok1)
+            checks["substituted_recipient_422_nothing_sent"] = s3 == 422 and sink["calls"] == before
+
+            # (4) CONFIRM-INTEGRITY — substituted BODY (changed disclosure) with the old token → 422, nothing sent.
+            s4, _ = call(confirm=True, disc=dict(DISC, party_size="999"), token=tok1)
+            checks["substituted_body_422_nothing_sent"] = s4 == 422 and sink["calls"] == before
+
+            # (5) T24 — a NON-HUMAN caller (stands in for "triggered by the untrusted inbound corpus") is
+            #     BLOCKED at BOTH phases; nothing drafted, nothing sent.
+            s5a, _ = call(confirm=False, tok=AUTO)
+            s5b, _ = call(confirm=True, tok=AUTO, token=tok1)
+            checks["t24_autonomous_phase1_403"] = s5a == 403
+            checks["t24_autonomous_phase2_403_nothing_sent"] = s5b == 403 and sink["calls"] == before
+
+            # (6) REPLY-ROUTING (bidirectional) — the alias maps back to its task; a fresh task → a fresh,
+            #     different alias (unlinkable across tasks); same task → the SAME alias (deterministic).
+            checks["reply_routes_to_task"] = es.task_for_alias(alias) == "task-1"
+            s6, d6 = call(confirm=False, task="task-2"); responses += [d6]
+            checks["alias_unlinkable_across_tasks"] = d6.get("alias") != alias and d6.get("alias", "").endswith("@" + DOMAIN)
+            checks["alias_deterministic_within_task"] = es.ensure_alias("task-1") == alias
+
+            # (7) GATE OFF → 503 (fully dormant), even with a transport provisioned.
+            del os.environ["VOKTER_EMAIL_SEND_GATE"]
+            s7, _ = call(confirm=False)
+            checks["gate_off_503"] = s7 == 503
+            os.environ["VOKTER_EMAIL_SEND_GATE"] = "passed"
+
+            # transport status must carry NO password.
+            st = es.transport_status(x_vokter_human_session=TOK); responses += [st]
+            checks["status_no_password"] = SENT_SECRET not in str(st) and st.get("transport", {}).get("from_domain") == DOMAIN
+
+        captured = buf.getvalue()
+
+        # (8) GATEWAY verdict — email.send is CONFIRM-human / BLOCK every non-human (no autonomous path).
+        checks["action_known"] = "email.send" in safety.KNOWN_ACTIONS
+        g = lambda ctx: safety.guard("email.send", "x", context=ctx)
+        checks["gw_human_CONFIRM"] = g(safety.HUMAN) == safety.Decision.CONFIRM
+        checks["gw_autonomous_BLOCK"] = g("autonomous") == safety.Decision.BLOCK
+        checks["gw_peer_BLOCK"] = g("peer") == safety.Decision.BLOCK
+        checks["gw_mcp_BLOCK"] = g("mcp") == safety.Decision.BLOCK
+
+        # SOURCE-LEVEL TRIPWIRE: the send handler MUST route through enforce_http("email.send", …).
+        import inspect as _inspect
+        checks["tripwire_handler_calls_enforce_http"] = 'enforce_http("email.send"' in _inspect.getsource(es)
+
+        # (b) NON-LEAKAGE — the transport credential + the leaked datum appear in NO response and NO stdout.
+        checks["secret_absent_from_responses"] = all(SENT_SECRET not in str(r) and LEAK not in str(r) for r in responses)
+        checks["secret_absent_from_stdout"] = SENT_SECRET not in captured and LEAK not in captured
+    finally:
+        es._transport = _saved["tr"]; es._smtp_transport = _saved["smtp"]
+        if _saved["gate"] is None:
+            os.environ.pop("VOKTER_EMAIL_SEND_GATE", None)
+        else:
+            os.environ["VOKTER_EMAIL_SEND_GATE"] = _saved["gate"]
+        _sys.modules.pop("chat", None)
+    return all(checks.values()), checks
+
+
 def run() -> int:
     """Run all tiers. Returns 0 only if every tier is green."""
     FAILS.clear(); SKIPS.clear()
@@ -958,6 +1088,15 @@ def run() -> int:
             _ok("e2e[unattended]: pays only INSIDE the mandate, wallet is authoritative, secret never leaks", un_ok)
         except Exception as e:
             _ok(f"TIER 7 unattended e2e probe ran ({e})", False)
+
+        print("\n── TIER 8: live email.send — e2e, non-leakage + CONFIRM-INTEGRITY + T24 inbound-injection ──")
+        try:
+            em_ok, echecks = _email_handler_e2e()
+            for k, v in echecks.items():
+                _ok(f"e2e[email]: {k}", v)
+            _ok("e2e[email]: sends only on human confirm, what's sent == confirmed, alias/credential never leak", em_ok)
+        except Exception as e:
+            _ok(f"TIER 8 email e2e probe ran ({e})", False)
     finally:
         srv.terminate()
         try:

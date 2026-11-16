@@ -99,6 +99,18 @@ def get_nostr_privkey() -> bytes:
     return hmac.digest(_master_key, b"vokter:nostr:identity:v1", hashlib.sha256)
 
 
+def email_alias_key(task_id: str) -> bytes:
+    """Derive a deterministic, per-task email-alias key (§0.6 taxonomy path `vokter/email/<task>`).
+
+    Labelled-HMAC over the master key — the same one-way derivation as get_nostr_privkey, scoped per task:
+    DETERMINISTIC within a task (so an inbound reply to the alias routes back to its task), yet
+    mutually UNLINKABLE across tasks (no two task aliases are linkable without the master key) and NEVER
+    equal to Vokter's social npub or the user's identity. The alias localpart is a truncation of this
+    key; the key itself never leaves the process. Default is ephemeral-per-task (a fresh task_id → a fresh
+    alias); a stable scoped alias is just a reused task_id for a named, ongoing relationship."""
+    return hmac.digest(_master_key, b"vokter:email:alias:v1:" + task_id.encode(), hashlib.sha256)
+
+
 @lru_cache(maxsize=1)
 def get_nostr_npub() -> str:
     """Return Vokter's stable Nostr public identity as a bech32 npub.
