@@ -494,15 +494,22 @@ def _pay_handler_e2e():
         if bits: o.append((acc << (5 - bits)) & 31)
         return o
     def _fld(t, v): return [t, len(v) // 32, len(v) % 32] + v
-    def mk_inv(hrp, dh): return _enc(hrp, [0] * 7 + _fld(1, _b5(b"\x11" * 32)) + _fld(23, _b5(dh)))
+    def mk_inv(hrp, dh=DH, desc=None):
+        # Real BOLT11 invoices always carry a 520-bit (104-group) signature at the end — include it so
+        # decode_bolt11's signature-exclusion is exercised. 'h' = LUD-06 description_hash; 'd' = BOLT11
+        # plaintext description (what Wallet of Satoshi + many popular wallets emit instead of 'h').
+        f = [0] * 7 + _fld(1, _b5(b"\x11" * 32))
+        if dh is not None:   f += _fld(23, _b5(dh))
+        if desc is not None: f += _fld(13, _b5(desc.encode()))
+        return _enc(hrp, f + [0] * 104)
 
-    def mk_http(hrp="lnbc10u", dh=DH):   # 1000 sats = 1_000_000 msat → lnbc10u
+    def mk_http(hrp="lnbc10u", dh=DH, desc=None):   # 1000 sats = 1_000_000 msat → lnbc10u
         def _get(url):
             if url.endswith("/.well-known/lnurlp/alice"):
                 return {"tag": "payRequest", "callback": f"https://{DOMAIN}/cb", "metadata": META,
                         "minSendable": 1000, "maxSendable": 100_000_000}
             if url.startswith(f"https://{DOMAIN}/cb"):
-                return {"pr": mk_inv(hrp, dh), "preimage": SENT_SECRET}   # callback also returns an extra secret
+                return {"pr": mk_inv(hrp, dh, desc), "preimage": SENT_SECRET}   # callback also returns an extra secret
             raise AssertionError(url)
         return _get
 
@@ -523,6 +530,17 @@ def _pay_handler_e2e():
             if handoff.startswith("lightning:"):
                 d = wp.decode_bolt11(handoff[len("lightning:"):])
                 integrity_ok = d["amount_msat"] == 1_000_000 and d["description_hash"] == DH.hex()
+            # 'd' plaintext-description form (no 'h'): ACCEPTED when d == metadata text/plain ("e2e"),
+            # REJECTED when it doesn't — the Wallet-of-Satoshi real-transport case, now a regression guard.
+            wp._http_get_json = mk_http(dh=None, desc="e2e"); wp._LEDGER.clear()
+            pd = wp.web_pay(wp.WebPayRequest(payee=PAYEE, amount_sats=1000, confirm=True), x_vokter_human_session=TOK)
+            d_form_ok = isinstance(pd, dict) and str(pd.get("handoff", "")).startswith("lightning:")
+            wp._http_get_json = mk_http(dh=None, desc="ATTACKER"); wp._LEDGER.clear()
+            d_bad = None
+            try:
+                wp.web_pay(wp.WebPayRequest(payee=PAYEE, amount_sats=1000, confirm=True), x_vokter_human_session=TOK)
+            except HTTPException as e:
+                d_bad = e.status_code
             wp._http_get_json = mk_http(hrp="lnbc2500u"); wp._LEDGER.clear()   # inflated: 250_000_000 msat
             inf = None
             try:
@@ -600,6 +618,8 @@ def _pay_handler_e2e():
             "pay_phase1_payee+amount+verifiable": p1d.get("payee_domain") == DOMAIN and p1d.get("amount_sats") == 1000 and p1d.get("verifiable") is True,
             "pay_phase2_ready_handoff": isinstance(p2, dict) and p2.get("status") == "ready" and str(p2.get("handoff", "")).startswith("lightning:"),
             "integrity_handoff_matches_confirmed": integrity_ok,
+            "integrity_d_form_accepted": d_form_ok,
+            "integrity_d_form_mismatch_rejected": d_bad == 422,
             "integrity_inflated_amount_rejected": inf == 422,
             "integrity_substituted_invoice_rejected": sub == 422,
             "pay_nonhuman_403": nh == 403,

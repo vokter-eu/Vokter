@@ -509,14 +509,18 @@
     const amount=m?parseInt(m[2].replace(/[.,]/g,''),10):0;
     if(!m || !amount || amount<=0){ addAgent(t('payCmdUsage')); return; }
     const res=await startWebPay(m[1].trim(), amount); const st=res&&res.status;
+    // Surface the backend's SPECIFIC reason (which field failed: amount vs description_hash vs
+    // description, or which ceiling) under the human-readable line — so a refusal is diagnosable in
+    // chat, not only in the terminal. res.detail is the 422/403 detail string (never a secret).
+    const why=(res&&typeof res.detail==='string'&&res.detail)?('\n\n'+res.detail):'';
     if(st==='ready')            addAgent(t('payDone',{domain:res.domain||m[1].trim()}));
     else if(st==='cancelled')   addAgent(t('payCancelled'));
     else if(st==='unavailable') addAgent(t('payUnavailable'));
-    else if(st==='rejected')    addAgent(t('payRejected'));
-    else if(st==='ceiling')     addAgent(t('payCeiling'));
+    else if(st==='rejected')    addAgent(t('payRejected')+why);
+    else if(st==='ceiling')     addAgent(t('payCeiling')+why);
     else if(st==='bad_payee')   addAgent(t('payCmdUsage'));
-    else if(st==='not_ready')   addAgent(t('payNotReady'));
-    else                        addAgent(t('payFailed'));
+    else if(st==='not_ready')   addAgent(t('payNotReady')+why);
+    else                        addAgent(t('payFailed')+why);
   }
 
   // Dev-preview ONLY (xvfb, never :0): ?__loginpreview=oauth|password renders the sheet with MOCK

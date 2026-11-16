@@ -84,25 +84,48 @@ def _hrp_amount_msat(hrp: str) -> int | None:
 
 
 def decode_bolt11(invoice: str) -> dict:
-    """Extract {amount_msat, description_hash, payment_hash} from a BOLT11 invoice. Enough to prove
-    confirm-integrity (amount + LUD-06 metadata binding); the wallet does full validation + signing."""
+    """Extract {amount_msat, description_hash, description, payment_hash} from a BOLT11 invoice. Enough to
+    prove confirm-integrity (amount + the LUD-06 metadata binding, via the 'h' hash OR the 'd' plaintext
+    description — see resolve_and_invoice); the wallet does full validation + signing."""
     hrp, data = _bech32_decode(invoice)
     amount_msat = _hrp_amount_msat(hrp)
-    # data = [7-group timestamp] + tagged fields (type[1] + len[2] + value[len]) + signature. Walk fields.
+    # data = [7-group timestamp] + tagged fields (type[1] + len[2] + value[len]) + [104-group signature,
+    # 520 bits]. Walk ONLY the fields: exclude the trailing signature so it can't be mis-parsed as a field.
+    body = data[:-104] if len(data) > 104 else data
     fields: dict[int, list[int]] = {}
     i = 7
-    while i + 3 <= len(data):
-        t = data[i]; ln = data[i + 1] * 32 + data[i + 2]; i += 3
-        if i + ln > len(data):
+    while i + 3 <= len(body):
+        t = body[i]; ln = body[i + 1] * 32 + body[i + 2]; i += 3
+        if i + ln > len(body):
             break
-        fields.setdefault(t, data[i:i + ln]); i += ln
-    desc_hash = _5bit_to_bytes(fields[23]).hex() if 23 in fields else None   # tag 'h'
-    pay_hash = _5bit_to_bytes(fields[1]).hex() if 1 in fields else None       # tag 'p'
-    return {"amount_msat": amount_msat, "description_hash": desc_hash, "payment_hash": pay_hash}
+        fields.setdefault(t, body[i:i + ln]); i += ln
+    desc_hash = _5bit_to_bytes(fields[23]).hex() if 23 in fields else None   # tag 'h' (description_hash)
+    pay_hash = _5bit_to_bytes(fields[1]).hex() if 1 in fields else None       # tag 'p' (payment_hash)
+    description = None                                                         # tag 'd' (plaintext desc)
+    if 13 in fields:
+        try:
+            description = _5bit_to_bytes(fields[13]).decode("utf-8")
+        except UnicodeDecodeError:
+            description = None
+    return {"amount_msat": amount_msat, "description_hash": desc_hash,
+            "description": description, "payment_hash": pay_hash}
 
 
 # ───────────────────────── Lightning Address / LNURL-pay (payee resolution) ─────────────────────────
 _LN_ADDR = re.compile(r"^([a-z0-9._%+\-]+)@([a-z0-9.\-]+\.[a-z]{2,})$", re.I)
+
+
+def _metadata_text_plain(metadata: str) -> str | None:
+    """The `text/plain` entry of an LNURL-pay metadata array — what a BOLT11 'd' plaintext description
+    must equal (LUD-06 §metadata). Returns None if absent/malformed."""
+    import json
+    try:
+        for entry in json.loads(metadata):
+            if isinstance(entry, list) and len(entry) >= 2 and entry[0] == "text/plain":
+                return entry[1]
+    except (ValueError, TypeError):
+        pass
+    return None
 
 
 def parse_lightning_address(addr: str) -> tuple[str, str] | None:
@@ -146,12 +169,31 @@ def resolve_and_invoice(payee: str, amount_sats: int) -> dict:
     if not bolt11:
         raise ValueError("payee callback returned no invoice")
     # ── CONFIRM-INTEGRITY (code, never the model): the invoice must match what the human will confirm ──
+    # The spine is domain(human-typed) + TLS-fetched LNURL from THAT domain + amount. The description
+    # binding is defense-in-depth, and BOLT11 carries it one of two ways — accept BOTH, each strict:
+    #   * LUD-06 'h' description_hash == sha256(metadata)  (the spec-ideal form), OR
+    #   * BOLT11 'd' plaintext description == metadata's text/plain  (what Wallet of Satoshi + many
+    #     popular wallets emit; BOLT11-valid, bound to the same metadata via a different field).
+    # A PRESENT-but-mismatched 'h' is a real substitution signal → reject, never fall back to 'd'.
     dec = decode_bolt11(bolt11)
+    if dec["amount_msat"] is None:
+        raise ValueError("REJECTED: amountless invoice (cannot verify the amount you confirmed)")
     if dec["amount_msat"] != amount_msat:
-        raise ValueError("REJECTED: invoice amount does not match the confirmed amount")
-    want = hashlib.sha256(params["metadata"].encode()).hexdigest()
-    if dec["description_hash"] != want:
-        raise ValueError("REJECTED: invoice is not bound to this payee's request (LUD-06 metadata mismatch)")
+        raise ValueError(f"REJECTED: invoice amount ({dec['amount_msat']} msat) does not match the "
+                         f"confirmed amount ({amount_msat} msat)")
+    if dec["description_hash"] is not None:
+        want = hashlib.sha256(params["metadata"].encode()).hexdigest()
+        if dec["description_hash"] != want:
+            raise ValueError("REJECTED: invoice description_hash is not bound to this payee's request "
+                             "(LUD-06 'h' mismatch)")
+    elif dec["description"] is not None:
+        text_plain = _metadata_text_plain(params["metadata"])
+        if text_plain is None or dec["description"] != text_plain:
+            raise ValueError("REJECTED: invoice description is not bound to this payee's request "
+                             "(BOLT11 'd' does not match the metadata text/plain)")
+    else:
+        raise ValueError("REJECTED: invoice carries no verifiable description "
+                         "(no 'h' hash or 'd' description to bind it to this payee)")
     return {"domain": domain, "bolt11": bolt11, "amount_sats": amount_sats}
 
 
