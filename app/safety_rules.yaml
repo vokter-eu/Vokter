@@ -43,6 +43,16 @@ rules:
   # flags the destination as unverifiable. Gateway ceilings (per-tx/window/payee) are a second limit.
   # See TIER3_PHASE2_PAYMENTS.md. No payment runs until the TIER-6 fire-test is green on the frozen .deb.
   web.pay:         { human: confirm, nonhuman: block }
+  # Tier-3 Phase 2B: AUTONOMOUS payment WITHIN A BUDGET (web_pay_unattended routine). OPT-IN, DEFAULT OFF,
+  # its OWN gate (TIER-7). The ONLY action where a non-human caller may move money with no per-payment
+  # confirm — and ONLY inside the user's upfront mandate. human: confirm (a human present confirms).
+  # nonhuman: allow_if_within_mandate — ALLOW is granted ONLY when the handler passes a MandateGrant proving
+  # the spend is in-envelope (allow-listed Lightning Address AND <= per-tx AND <= budget AND in-window AND
+  # under throttle). peer/mcp never build that grant -> BLOCK (fail-closed). Opaque/on-chain never eligible.
+  # The user's OWN wallet holds funds+key and enforces the cap (NIP-47); Vokter holds only a budget-limited,
+  # revocable connection secret. See TIER3_PHASE2B_NWC_UNATTENDED.md. Dormant until the TIER-7 fire-test is
+  # green on the frozen .deb.
+  web.pay.unattended: { human: confirm, nonhuman: allow_if_within_mandate }
   # Outbound agent messages — channel-confined to peers we already know.
   dm.send:
     human: allow_if_known

@@ -52,12 +52,12 @@ HUMAN = "human"                    # the owner, via the local UI (the only conte
 
 # The closed set of actions the gateway knows. Anything else → deny-by-default.
 KNOWN_ACTIONS = {
-    "browse", "web.act", "web.login", "web.pay", "dm.send", "doc.delete", "memory.delete", "memory.purge",
-    "task.delete", "email.purge", "avatar.delete", "schedule.create",
+    "browse", "web.act", "web.login", "web.pay", "web.pay.unattended", "dm.send", "doc.delete",
+    "memory.delete", "memory.purge", "task.delete", "email.purge", "avatar.delete", "schedule.create",
 }
 
 # sha256 of safety_rules.yaml — corruption-detection only (see module docstring).
-_RULES_SHA256 = "fec5e42f299007f27efb4409ceb9a41d38710caa967b2a56d718e7246d7191d3"
+_RULES_SHA256 = "bbfcf0c2309d004c2c96cfd04862ec3bc518c5f88e641ea18851bdf4207839a7"
 
 _rules: dict | None = None
 _ok = False
@@ -68,6 +68,24 @@ class Decision(str, Enum):
     ALLOW = "allow"
     BLOCK = "block"
     CONFIRM = "confirm"          # allowed only after explicit human approval; peers can't self-confirm
+
+
+class MandateGrant:
+    """Carries a handler-computed in-envelope decision to the gateway (Tier-3 Phase 2B, web.pay.unattended).
+    `guard` grants ALLOW for an UNATTENDED spend only when `within` is True — the handler sets it from the
+    PURE envelope check against the user's stored mandate (allow-list ∧ per-tx ∧ budget ∧ window ∧ throttle).
+    FAIL-CLOSED: any target that is not a MandateGrant-with-within=True falls to BLOCK, so a peer/mcp path
+    (which never builds one) can never obtain the autonomous spend grant. See TIER3_PHASE2B_NWC_UNATTENDED.md."""
+    def __init__(self, description: str, within: bool):
+        self.description = str(description)
+        self.within = bool(within)
+
+    def __str__(self) -> str:
+        return self.description
+
+
+def _within_mandate(target) -> bool:
+    return isinstance(target, MandateGrant) and target.within is True
 
 
 def load() -> bool:
@@ -121,14 +139,14 @@ def constitution() -> str:
     return "# Vokter's Constitution\n\n(unavailable)"
 
 
-def _default_decision(is_human: bool) -> Decision:
+def _default_decision(is_human: bool, context: str | None = None) -> Decision:
     if not _ok:                                   # fail-closed on the capability
         return Decision.CONFIRM if is_human else Decision.BLOCK
     d = _rules.get("default", {})
-    return _verdict(d.get("human" if is_human else "nonhuman"), is_human, None)
+    return _verdict(d.get("human" if is_human else "nonhuman"), is_human, None, context)
 
 
-def _verdict(v: str | None, is_human: bool, target) -> Decision:
+def _verdict(v: str | None, is_human: bool, target, context: str | None = None) -> Decision:
     if v == "allow":
         return Decision.ALLOW
     if v == "confirm":
@@ -137,6 +155,11 @@ def _verdict(v: str | None, is_human: bool, target) -> Decision:
         return Decision.ALLOW if _browse_allowed(target) else Decision.BLOCK
     if v == "allow_if_known":
         return Decision.ALLOW if _peer_known(target) else Decision.BLOCK
+    if v == "allow_if_within_mandate":             # Tier-3 Phase 2B: unattended spend inside the user's mandate
+        # ONLY the local planner ("autonomous") may spend unattended — and only with a handler-built
+        # in-envelope grant. peer/mcp are blocked here EVEN IF handed a within=True grant: _verdict can't
+        # otherwise tell them from "autonomous" (both are non-human), so we pin the context explicitly.
+        return Decision.ALLOW if (context == "autonomous" and _within_mandate(target)) else Decision.BLOCK
     return Decision.BLOCK                          # "block" or anything unrecognised → deny
 
 
@@ -147,11 +170,11 @@ def guard(action: str, target=None, *, context: str) -> Decision:
     if not _ok:
         return Decision.CONFIRM if is_human else Decision.BLOCK
     if action not in KNOWN_ACTIONS:                # deny-by-default for unknown actions
-        return _default_decision(is_human)
+        return _default_decision(is_human, context)
     rule = _rules.get("rules", {}).get(action)
     if not isinstance(rule, dict):
-        return _default_decision(is_human)
-    return _verdict(rule.get("human" if is_human else "nonhuman"), is_human, target)
+        return _default_decision(is_human, context)
+    return _verdict(rule.get("human" if is_human else "nonhuman"), is_human, target, context)
 
 
 def enforce_http(action: str, target=None, *, context: str, confirmed: bool = False) -> None:

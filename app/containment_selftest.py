@@ -604,13 +604,14 @@ def _pay_handler_e2e():
         _no_session = (not any(x in _handoff_blob for x in ("walletconnect", "wc:", "pairing", "session"))
                        and ocx_handoff.get("scheme") == "x402" and oce_uri.startswith("ethereum:")
                        and "lightning:" in str(p2))
-        # ZERO STORED FUND-MOVING SECRET on ANY pay path (NWC removed 2026-11-15). The pay surface must keep
-        # nothing that can move money: no NWC module, no keychain-backed connection store, no nwc route/field.
-        import importlib.util as _ilu
+        # ZERO STORED FUND-MOVING SECRET on the DEFAULT (QR) pay surface. web_pay_nwc exists again as the
+        # opt-in, gated, default-OFF unattended rail (Phase 2B, 2026-11-16) — so this is no longer a
+        # module-ABSENCE check. The invariant transforms: the QR path `wp` (web_pay.py) must still hold
+        # nothing that can move money (no nwc store/route/field on IT), and the unattended rail's stored
+        # connection-secret NON-LEAKAGE is asserted by TIER-7, not here (TIER3_PHASE2B_NWC_UNATTENDED.md §7).
         _pay_paths = [getattr(r, "path", "") for r in wp.router.routes]
         _no_stored_fund_secret = (
-            _ilu.find_spec("web_pay_nwc") is None
-            and not hasattr(wp, "_nwc_store") and not hasattr(wp, "NWCConnectRequest")
+            not hasattr(wp, "_nwc_store") and not hasattr(wp, "NWCConnectRequest")
             and not any("nwc" in p for p in _pay_paths)
             and "nwc" not in wp.WebPayRequest.model_fields and "via" not in wp.WebPayRequest.model_fields)
         checks = {
@@ -639,9 +640,215 @@ def _pay_handler_e2e():
             "onchain_missing_confirm_token_rejected": ocnotok_s == 422,
             "onchain_nonhuman_403": ocnh_s == 403,
             "no_session_scheme_any_rail": _no_session,   # inert QR/deep-link only — NO WalletConnect session
-            "no_stored_fund_moving_secret": _no_stored_fund_secret,   # NWC gone — nothing stored can move money
+            "no_stored_fund_moving_secret": _no_stored_fund_secret,   # QR DEFAULT surface stores nothing (unattended rail is TIER-7)
         }
     finally:
+        _sys.modules.pop("chat", None)
+    return all(checks.values()), checks
+
+
+# ───────── TIER 7: live web.pay.unattended — e2e, BOTH halves: envelope-integrity + secret-non-leakage ─────────
+# The opt-in, default-OFF autonomous-within-budget rail (TIER3_PHASE2B_NWC_UNATTENDED.md). Drives the REAL
+# web_pay_unattended() handler with a hermetic mock LNURL + a budget-ENFORCING mock wallet (no network, no
+# funds). Proves: (a) a spend INSIDE the mandate pays and the WALLET's own budget is authoritative (a spend
+# the envelope allows but the wallet refuses → NOT paid); every spend OUTSIDE the envelope (off allow-list,
+# over per-tx, over budget, over throttle, expired, not-opted-in, gate-off) is REFUSED/DOWNGRADED and
+# nothing is sent; peer/mcp can never obtain the grant; and (b) the stored connection SECRET never leaks.
+def _unattended_handler_e2e():
+    import contextlib, hashlib, io, sys as _sys, time, types
+    SENT_SECRET = "VKTR-NWC-connsecret-7a2f90-never-to-model"; TOK = "e2e-human-session-tok"
+    DOMAIN = "e2e-nwc.example"; PAYEE = f"alice@{DOMAIN}"; OFFLIST = "mallory@evil.example"
+    META = '[["text/plain","e2e"]]'
+    DH = hashlib.sha256(META.encode()).digest()
+    URI = f"nostr+walletconnect://deadbeef?relay=wss://r&secret={SENT_SECRET}"
+
+    import web_pay as wp
+    import web_pay_nwc as nwc
+    import web_pay_unattended as wpu
+    from fastapi import HTTPException
+    import safety
+    _B32 = wp._B32
+
+    # — a hermetic BOLT11 for 1000 sats (lnbc10u), bound to META via the LUD-06 'h' hash —
+    def _poly(vs):
+        G = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3]; c = 1
+        for v in vs:
+            b = c >> 25; c = ((c & 0x1ffffff) << 5) ^ v
+            for i in range(5): c ^= G[i] if ((b >> i) & 1) else 0
+        return c
+    def _enc(hrp, data):
+        pm = _poly([ord(x) >> 5 for x in hrp] + [0] + [ord(x) & 31 for x in hrp] + data + [0] * 6) ^ 1
+        return hrp + "1" + "".join(_B32[d] for d in data + [(pm >> 5 * (5 - i)) & 31 for i in range(6)])
+    def _b5(b):
+        acc = bits = 0; o = []
+        for x in b:
+            acc = (acc << 8) | x; bits += 8
+            while bits >= 5: bits -= 5; o.append((acc >> bits) & 31)
+        if bits: o.append((acc << (5 - bits)) & 31)
+        return o
+    def _fld(t, v): return [t, len(v) // 32, len(v) % 32] + v
+    def mk_inv(hrp="lnbc10u", dh=DH):
+        f = [0] * 7 + _fld(1, _b5(b"\x11" * 32)) + _fld(23, _b5(dh)) + [0] * 104
+        return _enc(hrp, f)
+    def make_get(inv_fn):
+        def _g(url):
+            if url.endswith("/.well-known/lnurlp/alice"):
+                return {"tag": "payRequest", "callback": f"https://{DOMAIN}/cb", "metadata": META,
+                        "minSendable": 1000, "maxSendable": 100_000_000}
+            if url.startswith(f"https://{DOMAIN}/cb"):
+                return {"pr": inv_fn()}
+            raise AssertionError(url)
+        return _g
+    _get = make_get(mk_inv)                                   # well-formed 1000-sat invoice bound to META
+
+    # — a mock wallet that ENFORCES its own connection budget (the REAL protection); status-only out —
+    wallet = {"budget_sats": 100_000, "spent": 0, "calls": 0}
+    def mock_transport(uri_str, bolt11):
+        wallet["calls"] += 1
+        amt = (wp.decode_bolt11(bolt11)["amount_msat"] or 0) // 1000
+        if wallet["spent"] + amt > wallet["budget_sats"]:
+            return False, "failed"          # wallet REFUSES over its own budget — cannot be overridden by Vokter
+        wallet["spent"] += amt
+        return True, "paid"
+
+    _sys.modules["chat"] = types.ModuleType("chat"); _sys.modules["chat"].is_local_human_session = lambda m: m == TOK
+    mem = nwc.InMemoryNWCStore()
+    _saved = {"store": wpu._store, "transport": nwc._nwc_transport, "http": wp._http_get_json,
+              "gate": os.environ.get("VOKTER_NWC_UNATTENDED_GATE")}
+    checks = {}
+    try:
+        wpu._store = mem; nwc._nwc_transport = mock_transport; wp._http_get_json = _get
+        safety.load()   # arm the capability gateway BEFORE any spend (else guard fail-closes to BLOCK)
+
+        def provision(allow, per_tx, budget, throttle, window=7 * 86400, expired=False):
+            env = nwc._new_envelope(allow, per_tx, budget, window, throttle)
+            if expired: env["expires_at"] = time.time() - 1
+            mem._d.clear(); nwc._SPEND_LEDGER.clear(); wallet["spent"] = 0; wallet["calls"] = 0
+            mem.put("default", URI, env)
+
+        # The unattended rail is FOR the local planner ("autonomous") — drive it with a NON-human token so
+        # the mandate (envelope) is the authority, not a human confirm. (TOK would make it HUMAN → confirm.)
+        AUTO = "autonomous-no-human-session"
+
+        def pay(payee, amount, tok=AUTO, confirm=False):
+            try:
+                r = wpu.web_pay_unattended(wpu.UnattendedPayRequest(payee=payee, amount_sats=amount, confirm=confirm),
+                                           x_vokter_human_session=tok)
+                return 200, r
+            except HTTPException as e:
+                return e.status_code, (e.detail if isinstance(e.detail, dict) else {})
+
+        buf = io.StringIO()
+        responses = []
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            os.environ["VOKTER_NWC_UNATTENDED_GATE"] = "passed"
+
+            # (1) IN-ENVELOPE → paid; the wallet actually moved (its budget decremented).
+            provision([PAYEE], per_tx=5_000, budget=10_000, throttle=5)
+            s1, r1 = pay(PAYEE, 1000); responses += [r1]
+            checks["in_envelope_paid"] = s1 == 200 and r1.get("status") == "paid" and r1.get("unattended") is True
+            checks["in_envelope_wallet_debited"] = wallet["spent"] == 1000 and wallet["calls"] == 1
+
+            # (2) OFF allow-list → 428 downgrade, NOTHING sent to the wallet.
+            provision([PAYEE], per_tx=5_000, budget=10_000, throttle=5)
+            s2, r2 = pay(OFFLIST, 1000); responses += [r2]
+            checks["offlist_downgraded_428"] = s2 == 428 and r2.get("downgrade") is True
+            checks["offlist_nothing_sent"] = wallet["calls"] == 0
+
+            # (3) OVER per-tx cap → downgrade, nothing sent.
+            provision([PAYEE], per_tx=5_000, budget=10_000, throttle=5)
+            s3, r3 = pay(PAYEE, 9_999); responses += [r3]
+            checks["over_pertx_downgraded"] = s3 == 428 and wallet["calls"] == 0
+
+            # (4) OVER rolling budget → downgrade, nothing sent (budget 1500; one 1000 pre-spent).
+            provision([PAYEE], per_tx=5_000, budget=1_500, throttle=5)
+            s4a, _ = pay(PAYEE, 1000)                      # first 1000 fits (spent→1000)
+            s4b, r4 = pay(PAYEE, 1000); responses += [r4]  # 1000+1000=2000 > 1500 → over budget
+            checks["over_budget_first_ok"] = s4a == 200
+            checks["over_budget_second_downgraded"] = s4b == 428 and r4.get("downgrade") is True
+
+            # (5) OVER count throttle → downgrade (throttle 1; one spend already recorded).
+            provision([PAYEE], per_tx=5_000, budget=100_000, throttle=1)
+            s5a, _ = pay(PAYEE, 1000)                      # count→1
+            s5b, r5 = pay(PAYEE, 1000); responses += [r5]  # count 2 > 1 → throttled
+            checks["over_throttle_downgraded"] = s5a == 200 and s5b == 428
+
+            # (6) EXPIRED window → downgrade, nothing sent.
+            provision([PAYEE], per_tx=5_000, budget=10_000, throttle=5, expired=True)
+            s6, r6 = pay(PAYEE, 1000); responses += [r6]
+            checks["expired_downgraded"] = s6 == 428 and wallet["calls"] == 0
+
+            # (7) NOT opted-in (no connection) → downgrade.
+            mem._d.clear(); nwc._SPEND_LEDGER.clear(); wallet["calls"] = 0
+            s7, r7 = pay(PAYEE, 1000); responses += [r7]
+            checks["not_optedin_downgraded"] = s7 == 428 and wallet["calls"] == 0
+
+            # (8) WALLET is authoritative: envelope ALLOWS but the wallet refuses (its own budget) → 502, not paid.
+            provision([PAYEE], per_tx=50_000, budget=100_000, throttle=5)
+            wallet["budget_sats"] = 500                    # wallet cap BELOW the requested 1000
+            s8, r8 = pay(PAYEE, 1000); responses += [r8]
+            checks["wallet_refusal_not_paid"] = s8 == 502 and wallet["spent"] == 0
+            wallet["budget_sats"] = 100_000
+
+            # (8b) CONFIRM-INTEGRITY (the T17 unattended guard): an IN-ENVELOPE payee whose LNURL returns a
+            # TAMPERED invoice (inflated amount / substituted description_hash) is REJECTED (422) by the
+            # reused resolve_and_invoice, and NOTHING is sent to the wallet. Mirrors TIER-6's inf/sub cases.
+            provision([PAYEE], per_tx=50_000, budget=100_000, throttle=5)
+            wp._http_get_json = make_get(lambda: mk_inv(hrp="lnbc2500u"))   # 250_000_000 msat vs confirmed 1000 sats
+            s8i, _ = pay(PAYEE, 1000)
+            checks["integrity_inflated_422_nothing_sent"] = s8i == 422 and wallet["calls"] == 0
+            wp._http_get_json = make_get(lambda: mk_inv(dh=hashlib.sha256(b"attacker").digest()))  # substituted 'h'
+            s8s, _ = pay(PAYEE, 1000)
+            checks["integrity_substituted_422_nothing_sent"] = s8s == 422 and wallet["calls"] == 0
+            wp._http_get_json = _get                                        # restore the well-formed invoice
+
+            # (8c) A HUMAN caller is ALSO bounded by the envelope: in-envelope + confirm → paid; OUT-of-
+            # envelope + confirm → DOWNGRADE to web.pay (never an unbounded spend over the stored connection).
+            provision([PAYEE], per_tx=5_000, budget=100_000, throttle=5)
+            sh_ok, _ = pay(PAYEE, 1000, tok=TOK, confirm=True)
+            checks["human_in_envelope_confirm_paid"] = sh_ok == 200 and wallet["calls"] == 1
+            provision([PAYEE], per_tx=5_000, budget=100_000, throttle=5)
+            sh_bad, rh = pay(OFFLIST, 1000, tok=TOK, confirm=True)
+            checks["human_out_envelope_downgraded"] = sh_bad == 428 and rh.get("downgrade") is True and wallet["calls"] == 0
+
+            # (9) GATE OFF → 503 (fully dormant), even fully opted-in + in-envelope.
+            provision([PAYEE], per_tx=5_000, budget=10_000, throttle=5)
+            del os.environ["VOKTER_NWC_UNATTENDED_GATE"]
+            s9, _ = pay(PAYEE, 1000)
+            checks["gate_off_503"] = s9 == 503 and wallet["calls"] == 0
+            os.environ["VOKTER_NWC_UNATTENDED_GATE"] = "passed"
+
+        captured = buf.getvalue()
+
+        # (10) GATEWAY verdict — peer/mcp can NEVER obtain the grant; ALLOW only for an in-envelope MandateGrant.
+        safety.load()
+        checks["action_known"] = "web.pay.unattended" in safety.KNOWN_ACTIONS
+        # SOURCE-LEVEL TRIPWIRE: the unattended handler MUST route the spend through
+        # enforce_http("web.pay.unattended", …) — a handler reachable without the gateway is a hole.
+        import inspect as _inspect
+        _wpu_src = _inspect.getsource(wpu)
+        checks["tripwire_handler_calls_enforce_http"] = 'enforce_http("web.pay.unattended"' in _wpu_src
+        g = lambda tgt, ctx: safety.guard("web.pay.unattended", tgt, context=ctx)
+        checks["gw_autonomous_in_envelope_ALLOW"] = g(safety.MandateGrant("x", True), "autonomous") == safety.Decision.ALLOW
+        checks["gw_autonomous_out_envelope_BLOCK"] = g(safety.MandateGrant("x", False), "autonomous") == safety.Decision.BLOCK
+        checks["gw_peer_BLOCK"] = g(safety.MandateGrant("x", True), "peer") == safety.Decision.BLOCK
+        checks["gw_mcp_BLOCK"] = g(safety.MandateGrant("x", True), "mcp") == safety.Decision.BLOCK
+        checks["gw_forged_string_target_BLOCK"] = g("in-envelope!", "autonomous") == safety.Decision.BLOCK
+
+        # (b) SECRET NON-LEAKAGE — the connection secret appears in NO response and NO stdout/stderr.
+        checks["secret_absent_from_responses"] = all(SENT_SECRET not in str(r) and "walletconnect" not in str(r)
+                                                      for r in responses)
+        checks["secret_absent_from_stdout"] = SENT_SECRET not in captured and "walletconnect" not in captured
+        # list_public must carry the envelope but NEVER the URI/secret.
+        pub = mem.list_public()
+        checks["list_public_no_secret"] = SENT_SECRET not in str(pub) and "walletconnect" not in str(pub) \
+            and any(e.get("alias") == "default" for e in pub)
+    finally:
+        wpu._store = _saved["store"]; nwc._nwc_transport = _saved["transport"]; wp._http_get_json = _saved["http"]
+        if _saved["gate"] is None:
+            os.environ.pop("VOKTER_NWC_UNATTENDED_GATE", None)
+        else:
+            os.environ["VOKTER_NWC_UNATTENDED_GATE"] = _saved["gate"]
         _sys.modules.pop("chat", None)
     return all(checks.values()), checks
 
@@ -742,6 +949,15 @@ def run() -> int:
             _ok("e2e[pay]: live web.pay hands off a confirmed invoice, rejects substitution, no key/funds", pay_ok)
         except Exception as e:
             _ok(f"TIER 6 pay e2e probe ran ({e})", False)
+
+        print("\n── TIER 7: live web.pay.unattended — e2e, ENVELOPE-INTEGRITY + secret-non-leakage ──")
+        try:
+            un_ok, uchecks = _unattended_handler_e2e()
+            for k, v in uchecks.items():
+                _ok(f"e2e[unattended]: {k}", v)
+            _ok("e2e[unattended]: pays only INSIDE the mandate, wallet is authoritative, secret never leaks", un_ok)
+        except Exception as e:
+            _ok(f"TIER 7 unattended e2e probe ran ({e})", False)
     finally:
         srv.terminate()
         try:
