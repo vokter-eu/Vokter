@@ -25,17 +25,19 @@ echo "[setup] installing backend dependencies (this compiles native wheels)…"
 
 # --- 2. Native Ollama (app-local, no sudo) ----------------------------------
 # Ollama ships as a .tar.zst on GitHub releases (asset: ollama-linux-<arch>.tar.zst).
-# We resolve the latest release's asset URL dynamically so this doesn't rot.
+# PINNED to an EXACT version (not "latest"): a core runtime must be reproducible — an unpinned fetch
+# drifts/breaks on any upstream change (same lesson as the nostr-sdk==0.44.2 pin). 0.32.5 is the version
+# currently shipping that passed all tests. Bump this deliberately + re-validate; the tagged-release URL
+# is deterministic, so no GitHub API lookup is needed.
+OLLAMA_VERSION="0.32.5"
 case "$(uname -m)" in
   x86_64|amd64)  OLLAMA_ARCH="amd64" ;;
   aarch64|arm64) OLLAMA_ARCH="arm64" ;;
   *) echo "[setup] unsupported arch $(uname -m)"; exit 1 ;;
 esac
 ASSET="ollama-linux-${OLLAMA_ARCH}.tar.zst"
-echo "[setup] resolving latest Ollama release asset ($ASSET)…"
-OLLAMA_URL="$(curl -s https://api.github.com/repos/ollama/ollama/releases/latest \
-  | python3 -c "import sys,json; d=json.load(sys.stdin); print(next(a['browser_download_url'] for a in d['assets'] if a['name']=='$ASSET'))")"
-echo "[setup] downloading native Ollama → $RUNTIME/ollama"
+OLLAMA_URL="https://github.com/ollama/ollama/releases/download/v${OLLAMA_VERSION}/${ASSET}"
+echo "[setup] downloading native Ollama v${OLLAMA_VERSION} ($ASSET) → $RUNTIME/ollama"
 mkdir -p "$RUNTIME/ollama"
 curl -L --fail "$OLLAMA_URL" -o "$RUNTIME/ollama.tar.zst"
 tar --zstd -xf "$RUNTIME/ollama.tar.zst" -C "$RUNTIME/ollama"
