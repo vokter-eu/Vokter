@@ -240,13 +240,24 @@ class InMemoryNWCStore:
 def _nwc_transport(uri_str: str, bolt11: str) -> tuple[bool, str]:
     """Send a pay_invoice over the user's NWC connection (NIP-47, via nostr_sdk). The WALLET signs and
     enforces its budget; we get only success/failure. Returns (ok, status) — NEVER the uri/secret/preimage.
-    Patched by the hermetic TIER-7 fire-test with a mock wallet that ENFORCES a budget."""
+    Patched by the hermetic TIER-7 fire-test with a mock wallet that ENFORCES a budget.
+
+    Written against nostr_sdk 0.44.2's Nwc API and VALIDATED in a real Coinos round-trip (2026-11-17:
+    baseline pay, wallet-authoritative budget stop, kill-mid-pay, Vokter revoke). The prior code imported
+    `NostrWalletConnect` (does NOT exist in 0.44.2 → ImportError) and built `PayInvoiceRequest(invoice=...)`
+    (needs id+invoice+amount) — an unpinned range let that slip through; app/requirements.txt now pins
+    `nostr-sdk==0.44.2`.
+    ⚠️ RESIDUAL — BEFORE ACTIVATION: the pin reduces drift but this call is validated only against the
+    DEV-VENV 0.44.2. The frozen-.deb build MUST be confirmed on 0.44.2 and this transport re-validated
+    there, or the import/signature-mismatch class of bug can recur. NWC stays DORMANT/gated until then."""
     import asyncio
-    from nostr_sdk import NostrWalletConnect, NostrWalletConnectUri, PayInvoiceRequest
+    from nostr_sdk import Nwc, NostrWalletConnectUri, PayInvoiceRequest
 
     async def _go():
-        nwc = NostrWalletConnect(NostrWalletConnectUri.parse(uri_str))
-        await nwc.pay_invoice(PayInvoiceRequest(invoice=bolt11))   # raises on over-budget / decline / unreachable
+        client = Nwc(NostrWalletConnectUri.parse(uri_str))
+        # amount=None → pay the BOLT11's own amount; id=None → no caller-chosen request id. The WALLET
+        # enforces its connection budget and raises on over-budget / decline / unreachable.
+        await client.pay_invoice(PayInvoiceRequest(id=None, invoice=bolt11, amount=None))
 
     try:
         asyncio.run(_go())

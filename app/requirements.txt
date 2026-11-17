@@ -23,7 +23,10 @@ kokoro-onnx>=0.4,<1
 piper-tts==1.4.2
 sqlcipher3>=0.5,<1
 mcp>=1.0,<2
-nostr-sdk>=0.44,<1
+nostr-sdk==0.44.2   # EXACT pin: the NWC (NIP-47) transport in web_pay_nwc.py is written against this
+                    # version's Nwc API (validated in a real Coinos round-trip 2026-11-17). An unpinned
+                    # range let a broken import (NostrWalletConnect, removed in favour of Nwc) ship unnoticed.
+                    # Re-validate web_pay_nwc._nwc_transport against any version bump AND the frozen-.deb SDK.
 # OS keychain for the DB key (desktop 3.3-A): the frozen binary's --orchestrate
 # mode reads GNOME Keyring in-process, so secretstorage (+jeepney, +cryptography)
 # must live in the freeze env. Linux-only — Mac/Windows get their own keychain later.
