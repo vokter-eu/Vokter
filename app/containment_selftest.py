@@ -647,6 +647,31 @@ def _pay_handler_e2e():
     return all(checks.values()), checks
 
 
+def _handler_routes_through_gateway(module, func_name: str, action: str) -> bool:
+    """FROZEN-SAFE tripwire: assert a handler routes its action through enforce_http, by inspecting the
+    COMPILED bytecode (func.__code__) — NOT inspect.getsource(), which reads the .py file that does NOT
+    exist in a frozen PyInstaller binary (OSError 'could not get source code'; caught by the TIER-7/8 VM
+    acceptance 2026-11-17). Checks the handler's code (recursively, incl. nested/inlined code objects) for
+    the name `enforce_http` AND the exact action STRING CONSTANT — so a handler reachable without the
+    gateway, or gated on the wrong action, still trips. Works identically in dev and in the shipped .deb."""
+    fn = getattr(module, func_name, None)
+    if fn is None or not hasattr(fn, "__code__"):
+        return False
+    names: set = set()
+    consts: set = set()
+
+    def _walk(code):
+        names.update(code.co_names)
+        names.update(code.co_varnames)
+        for k in code.co_consts:
+            if isinstance(k, str):
+                consts.add(k)
+            elif hasattr(k, "co_code"):
+                _walk(k)
+    _walk(fn.__code__)
+    return "enforce_http" in names and action in consts
+
+
 # ───────── TIER 7: live web.pay.unattended — e2e, BOTH halves: envelope-integrity + secret-non-leakage ─────────
 # The opt-in, default-OFF autonomous-within-budget rail (TIER3_PHASE2B_NWC_UNATTENDED.md). Drives the REAL
 # web_pay_unattended() handler with a hermetic mock LNURL + a budget-ENFORCING mock wallet (no network, no
@@ -823,11 +848,10 @@ def _unattended_handler_e2e():
         # (10) GATEWAY verdict — peer/mcp can NEVER obtain the grant; ALLOW only for an in-envelope MandateGrant.
         safety.load()
         checks["action_known"] = "web.pay.unattended" in safety.KNOWN_ACTIONS
-        # SOURCE-LEVEL TRIPWIRE: the unattended handler MUST route the spend through
+        # BYTECODE TRIPWIRE (frozen-safe): the unattended handler MUST route the spend through
         # enforce_http("web.pay.unattended", …) — a handler reachable without the gateway is a hole.
-        import inspect as _inspect
-        _wpu_src = _inspect.getsource(wpu)
-        checks["tripwire_handler_calls_enforce_http"] = 'enforce_http("web.pay.unattended"' in _wpu_src
+        checks["tripwire_handler_calls_enforce_http"] = _handler_routes_through_gateway(
+            wpu, "web_pay_unattended", "web.pay.unattended")
         g = lambda tgt, ctx: safety.guard("web.pay.unattended", tgt, context=ctx)
         checks["gw_autonomous_in_envelope_ALLOW"] = g(safety.MandateGrant("x", True), "autonomous") == safety.Decision.ALLOW
         checks["gw_autonomous_out_envelope_BLOCK"] = g(safety.MandateGrant("x", False), "autonomous") == safety.Decision.BLOCK
@@ -966,9 +990,9 @@ def _email_handler_e2e():
         checks["gw_peer_BLOCK"] = g("peer") == safety.Decision.BLOCK
         checks["gw_mcp_BLOCK"] = g("mcp") == safety.Decision.BLOCK
 
-        # SOURCE-LEVEL TRIPWIRE: the send handler MUST route through enforce_http("email.send", …).
-        import inspect as _inspect
-        checks["tripwire_handler_calls_enforce_http"] = 'enforce_http("email.send"' in _inspect.getsource(es)
+        # BYTECODE TRIPWIRE (frozen-safe): the send handler MUST route through enforce_http("email.send", …).
+        checks["tripwire_handler_calls_enforce_http"] = _handler_routes_through_gateway(
+            es, "email_send", "email.send")
 
         # (b) NON-LEAKAGE — the transport credential + the leaked datum appear in NO response and NO stdout.
         checks["secret_absent_from_responses"] = all(SENT_SECRET not in str(r) and LEAK not in str(r) for r in responses)
