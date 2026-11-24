@@ -20,8 +20,12 @@ mkdir -p "$RUNTIME"
 echo "[setup] creating Python venv → $RUNTIME/venv"
 python3 -m venv "$RUNTIME/venv"
 "$RUNTIME/venv/bin/python" -m pip install --upgrade pip
-echo "[setup] installing backend dependencies (this compiles native wheels)…"
-"$RUNTIME/venv/bin/python" -m pip install -r "$REPO/app/requirements.txt"
+echo "[setup] installing backend dependencies from the LOCKFILE (this compiles native wheels)…"
+# Install the FULLY PINNED lockfile (app/requirements.lock), NOT the loose direct-deps list
+# (app/requirements.txt). The lock freezes the entire transitive tree so a release build gets EXACTLY
+# the versions that were validated — no transitive drift (the class of bug that bit nostr-sdk, Ollama,
+# and PyAV/av). To change deps: edit requirements.txt, recreate the venv, regenerate the lock (pip freeze).
+"$RUNTIME/venv/bin/python" -m pip install -r "$REPO/app/requirements.lock"
 
 # --- 2. Native Ollama (app-local, no sudo) ----------------------------------
 # Ollama ships as a .tar.zst on GitHub releases (asset: ollama-linux-<arch>.tar.zst).
