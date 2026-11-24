@@ -15,6 +15,11 @@ pillow>=10,<13
 # travel into the frozen bundle — verify in the freeze spec (Task 2 re-freeze).
 pypdfium2>=4,<6
 faster-whisper>=1.0,<2
+# PIN PyAV (faster-whisper's audio-decode dep): faster-whisper 1.2.1 calls av.open(metadata_errors=…),
+# which PyAV 19 REMOVED → STT (/api/voice/transcribe) 500s on any fresh build that floats av up. 17.1.0
+# is what the working v0.18.0 release bundled and what transcribes correctly (validated 2026-11-24).
+# Same reproducibility lesson as the ollama / nostr-sdk pins: pin the leaves, not just the tops.
+av==17.1.0
 # TTS engine 1: Kokoro-82M (Apache-2.0) via kokoro-onnx — runs on the onnxruntime faster-whisper
 # already pulls in, no PyTorch. Covers en/es/fr/it/pt.
 kokoro-onnx>=0.4,<1
