@@ -230,6 +230,28 @@ def revoke(revoke_endpoint: str, token: str, *, client_id: str, timeout: float =
         return False
 
 
+def revoke_provider_api(endpoint_template: str, token: str, *, client_id: str, client_secret: str,
+                        timeout: float = 30) -> bool:
+    """Provider-specific token revocation for IdPs that have NO RFC 7009 endpoint (notably GitHub).
+
+    GitHub: DELETE https://api.github.com/applications/{client_id}/token, HTTP Basic auth
+    client_id:client_secret, JSON body {"access_token": <token>}; a 2xx (204 No Content) means the
+    token is dead at the provider. `endpoint_template` carries a `{client_id}` placeholder.
+
+    Returns True ONLY on a real 2xx. Any error — network failure, 401 (bad app credentials), 422, or a
+    404 (GitHub's answer for an already-dead/unknown token) — returns False, because the caller must
+    NOT claim upstream revocation it couldn't confirm. 404-as-not-confirmed is the conservative/honest
+    default (we'd rather tell the user to check than imply a revocation that may not have happened)."""
+    import httpx
+    url = endpoint_template.format(client_id=client_id)
+    try:
+        r = httpx.request("DELETE", url, json={"access_token": token},
+                          auth=(client_id, client_secret), timeout=timeout)
+        return r.status_code // 100 == 2
+    except Exception:
+        return False
+
+
 # ───────────────────────── token store (scoped, revocable; NOT a password) ─────────────────────────
 def token_name(origin: str, identity: str) -> str:
     """Keychain item name, scoped to (origin, identity) so origin-binding governs retrieval too."""
@@ -275,11 +297,18 @@ def use_api_token(store, origin: str, identity: str) -> bool:
 
 # ───────────────────────── the high-level interactive flow (GATED) ─────────────────────────
 class IdP:
-    """Minimal IdP config for a delegation. In production these come from a per-site registry."""
+    """Minimal IdP config for a delegation. In production these come from a per-site registry.
+
+    `revoke_method` says HOW the still-live upstream token is killed (the registry sets it per
+    provider): 'rfc7009' (standard POST revoke, e.g. Google), 'provider_api' (a provider-specific call,
+    e.g. GitHub's DELETE .../token), or 'manual' (no server-side revoke exists — the user must revoke it
+    themselves in the provider's settings). `revoke` is the endpoint for the first two ('provider_api'
+    may carry a `{client_id}` template); it is None for 'manual'."""
     def __init__(self, *, authorize: str, token: str, client_id: str, scopes: list[str],
-                 revoke: str | None = None, client_secret: str = ""):
+                 revoke: str | None = None, client_secret: str = "", revoke_method: str = "manual"):
         self.authorize, self.token, self.client_id = authorize, token, client_id
         self.scopes, self.revoke, self.client_secret = scopes, revoke, client_secret
+        self.revoke_method = revoke_method
 
 
 def begin_delegation(idp: IdP, *, origin: str, identity: str, store,
@@ -311,12 +340,58 @@ def begin_delegation(idp: IdP, *, origin: str, identity: str, store,
     return {"status": "succeeded", "origin": origin, "identity": identity, "scopes": idp.scopes}
 
 
-def revoke_delegation(store, *, origin: str, identity: str, idp: IdP | None = None) -> bool:
-    """One-action revocation: revoke at the IdP (if a revoke endpoint is known) AND delete locally.
-    Returns True if the local token was removed."""
+def _manual_revoke_hint(origin: str) -> str:
+    """The honest instruction when Vokter could NOT revoke the token upstream: the local copy is gone,
+    but the token is still VALID at the provider until the user kills it themselves. Provider-specific
+    where known (GitHub), generic otherwise. Non-secret, safe to show the user."""
+    host = (urlparse(origin).hostname or origin or "").lower()
+    if "github.com" in host:
+        return ("token deleted locally but still valid on GitHub — revoke it at "
+                "github.com/settings/applications")
+    where = host or "the provider"
+    return (f"token deleted locally but may still be valid at {where} — revoke it in that provider's "
+            "connected-apps / security settings")
+
+
+def revoke_delegation(store, *, origin: str, identity: str, idp: IdP | None = None) -> dict:
+    """One-action revocation that is HONEST about what actually happened upstream.
+
+    Always deletes the LOCAL token (Vokter stops holding the capability). Then, per the IdP's
+    `revoke_method`, attempts to kill the token at the PROVIDER and reports the truth:
+
+      * rfc7009      → POST the RFC 7009 revoke endpoint (Google); upstream_revoked = a real 2xx.
+      * provider_api → if BOTH client_id and client_secret are available, call the provider API
+                       (GitHub's DELETE .../token) and check the HTTP result; upstream_revoked = 2xx.
+                       If credentials are missing, OR the call fails, we do NOT claim revocation.
+      * manual / unknown → no server-side revoke exists; never claim upstream revocation.
+
+    Returns {local_deleted, upstream_revoked, method[, manual_step]}. The CRITICAL invariant:
+    `upstream_revoked` is True ONLY when a real upstream 2xx was observed — otherwise it is False and
+    `manual_step` tells the user the token is still live and where to revoke it. We never imply an
+    upstream revocation that didn't happen (the old code's silent local-only delete was the bug:
+    'revocation in one action' was false for any non-RFC7009 provider like GitHub).
+
+    NOT ship-gated (unlike begin_delegation): revocation destroys a capability already held; gating it
+    could trap a live token if the gate later goes un-green. Honest teardown must always be available."""
     name = token_name(origin, identity)
+    method = idp.revoke_method if idp else "manual"
+    tok = store.get(name)
+
+    if tok is None:
+        store.delete(name)   # idempotent; nothing was stored, so nothing upstream to revoke either
+        return {"local_deleted": False, "upstream_revoked": False, "method": method}
+
+    upstream = False
     if idp and idp.revoke:
-        tok = store.get(name)
-        if tok:
-            revoke(idp.revoke, tok, client_id=idp.client_id)
-    return store.delete(name)
+        if method == "rfc7009":
+            upstream = revoke(idp.revoke, tok, client_id=idp.client_id)
+        elif method == "provider_api" and idp.client_id and idp.client_secret:
+            # missing credentials → skip the call entirely (no creds, no request) and fall back honest
+            upstream = revoke_provider_api(idp.revoke, tok, client_id=idp.client_id,
+                                           client_secret=idp.client_secret)
+
+    local_deleted = store.delete(name)   # delete AFTER the upstream attempt (spec: check result, then delete)
+    result = {"local_deleted": local_deleted, "upstream_revoked": upstream, "method": method}
+    if not upstream:
+        result["manual_step"] = _manual_revoke_hint(origin)
+    return result

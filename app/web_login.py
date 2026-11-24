@@ -77,7 +77,10 @@ _SITE_REGISTRY = {
         "registered_origin": "https://github.com",
         "authorize": "https://github.com/login/oauth/authorize",
         "token": "https://github.com/login/oauth/access_token",
-        "revoke": None,            # GitHub revokes via API, not an RFC7009 endpoint
+        # GitHub has NO RFC7009 endpoint — it revokes via the app-token API. DELETE this with HTTP Basic
+        # client_id:client_secret + JSON {"access_token": <token>}; {client_id} is filled at call time.
+        "revoke": "https://api.github.com/applications/{client_id}/token",
+        "revoke_method": "provider_api",
         "client_id": "",           # ← provision via env VOKTER_OAUTH_CLIENT_ID_GITHUB (a registered OAuth app);
                                    #   NEVER commit a real client_id here — provider config comes from env, not source.
         "client_secret": "",       # ← GitHub (confidential client) REQUIRES a secret at the token endpoint
@@ -92,7 +95,8 @@ _SITE_REGISTRY = {
         "registered_origin": "https://accounts.google.com",
         "authorize": "https://accounts.google.com/o/oauth2/v2/auth",
         "token": "https://oauth2.googleapis.com/token",
-        "revoke": "https://oauth2.googleapis.com/revoke",
+        "revoke": "https://oauth2.googleapis.com/revoke",   # standard RFC 7009 revoke
+        "revoke_method": "rfc7009",
         "client_id": "",
         "scopes": ["openid", "email"],
     },
@@ -102,7 +106,8 @@ _SITE_REGISTRY = {
         "registered_origin": "https://login.microsoftonline.com",
         "authorize": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
         "token": "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-        "revoke": None,
+        "revoke": None,                 # no simple server-side revoke; user revokes in their MS account
+        "revoke_method": "manual",
         "client_id": "",
         "scopes": ["openid", "email", "offline_access"],
     },
@@ -211,7 +216,8 @@ def _run_oauth_login(site: str, entry, identity: str) -> str:
     from oauth_broker import begin_delegation, IdP
     idp = IdP(authorize=entry["authorize"], token=entry["token"], client_id=_oauth_client_id(site, entry),
               scopes=entry["scopes"], revoke=entry.get("revoke"),
-              client_secret=_oauth_client_secret(site, entry))
+              client_secret=_oauth_client_secret(site, entry),
+              revoke_method=entry.get("revoke_method", "manual"))
     res = begin_delegation(idp, origin=entry["registered_origin"], identity=identity,
                            store=_token_store(), open_url=_open_system_browser, wait_timeout=300)
     return res.get("status", "failed")

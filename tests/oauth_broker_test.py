@@ -33,9 +33,15 @@ def check(desc, got, want=True):
 # ───────────────────────── mock IdP ─────────────────────────
 class MockIdP:
     """/authorize → 302 back to the loopback redirect with code+state; /token → verifies PKCE
-    (sha256(verifier)==challenge) then issues the sentinel token; /revoke → 200."""
+    (sha256(verifier)==challenge) then issues the sentinel token; /revoke → 200 (RFC 7009); and
+    DELETE /applications/<id>/token → 204 iff HTTP-Basic secret matches + body carries access_token
+    (the GitHub-style provider_api revoke). `delete_hits` records every DELETE so a test can prove the
+    no-credentials path makes NO call at all."""
+    APP_SECRET = "gh-app-secret-xyz"   # the client_secret this mock GitHub app expects at revoke
+
     def __init__(self):
         self._challenge_for = {}   # code → code_challenge (to verify PKCE at /token)
+        self.delete_hits = []      # provider_api DELETE calls observed
         idp = self
 
         class _H(BaseHTTPRequestHandler):
@@ -71,6 +77,25 @@ class MockIdP:
                     self.send_response(200); self.end_headers()
                 else:
                     self.send_response(404); self.end_headers()
+
+            def do_DELETE(self):
+                # GitHub-style provider_api revoke: DELETE /applications/<client_id>/token,
+                # HTTP Basic client_id:client_secret, JSON body {"access_token": ...}. 204 iff all good.
+                u = urlparse(self.path); idp.delete_hits.append(u.path)
+                parts = u.path.strip("/").split("/")
+                auth = self.headers.get("Authorization", "")
+                ok_auth = False
+                if auth.startswith("Basic "):
+                    try:
+                        _, _, secret = base64.b64decode(auth[6:]).decode().partition(":")
+                        ok_auth = (secret == MockIdP.APP_SECRET)
+                    except Exception:
+                        ok_auth = False
+                n = int(self.headers.get("Content-Length", 0))
+                raw = self.rfile.read(n).decode() if n else ""
+                good = (len(parts) == 3 and parts[0] == "applications" and parts[2] == "token"
+                        and ok_auth and '"access_token"' in raw)
+                self.send_response(204 if good else 401); self.end_headers()
 
         self._srv = HTTPServer(("127.0.0.1", 0), _H)
         self.port = self._srv.server_address[1]
@@ -129,11 +154,51 @@ def main():
         check("use_api_token False for other identity",
               ob.use_api_token(store, "https://site.example", "other"), False)
 
-        # 5) one-action revocation removes the local token
-        check("revoke_delegation removes token",
-              ob.revoke_delegation(store, origin="https://site.example", identity="me", idp=idp), True)
-        check("token gone after revoke",
-              store.get(ob.token_name("https://site.example", "me")), None)
+        # 5) revocation is HONEST about what happened UPSTREAM (login-hardening #2). The invariant:
+        #    upstream_revoked is True ONLY on a real provider 2xx; otherwise False + a manual_step.
+        # 5a) rfc7009 (Google-style): real upstream 2xx → upstream_revoked True, local gone, no manual step.
+        rfc_idp = ob.IdP(authorize="x", token="y", client_id="vokter-test", scopes=["read"],
+                         revoke=idp_srv.base + "/revoke", revoke_method="rfc7009")
+        store.put(ob.token_name("https://site.example", "rfc"), SENTINEL_TOKEN)
+        r5a = ob.revoke_delegation(store, origin="https://site.example", identity="rfc", idp=rfc_idp)
+        check("rfc7009 revoke: upstream_revoked True", r5a.get("upstream_revoked"), True)
+        check("rfc7009 revoke: local token deleted", r5a.get("local_deleted"), True)
+        check("rfc7009 revoke: no manual_step on success", "manual_step" not in r5a)
+        check("rfc7009 revoke: token gone locally",
+              store.get(ob.token_name("https://site.example", "rfc")), None)
+
+        # 5b) provider_api (GitHub-style) WITH credentials: a real DELETE 2xx → upstream_revoked True.
+        papi = idp_srv.base + "/applications/{client_id}/token"
+        gh_ok = ob.IdP(authorize="x", token="y", client_id="gh-client", scopes=["read:user"],
+                       revoke=papi, revoke_method="provider_api", client_secret=MockIdP.APP_SECRET)
+        store.put(ob.token_name("https://github.com", "me"), SENTINEL_TOKEN)
+        hits = len(idp_srv.delete_hits)
+        r5b = ob.revoke_delegation(store, origin="https://github.com", identity="me", idp=gh_ok)
+        check("provider_api revoke: DELETE actually called", len(idp_srv.delete_hits) > hits)
+        check("provider_api revoke: upstream_revoked True", r5b.get("upstream_revoked"), True)
+        check("provider_api revoke: local token deleted", r5b.get("local_deleted"), True)
+        check("provider_api revoke: no manual_step on success", "manual_step" not in r5b)
+
+        # 5c) provider_api WITHOUT client_secret → honest fallback: NO call made, upstream False, manual step.
+        gh_nocreds = ob.IdP(authorize="x", token="y", client_id="gh-client", scopes=["read:user"],
+                            revoke=papi, revoke_method="provider_api", client_secret="")
+        store.put(ob.token_name("https://github.com", "nocreds"), SENTINEL_TOKEN)
+        hits = len(idp_srv.delete_hits)
+        r5c = ob.revoke_delegation(store, origin="https://github.com", identity="nocreds", idp=gh_nocreds)
+        check("provider_api no-creds: DELETE NEVER called", len(idp_srv.delete_hits), hits)
+        check("provider_api no-creds: upstream_revoked is False", r5c.get("upstream_revoked"), False)
+        check("provider_api no-creds: local token still deleted", r5c.get("local_deleted"), True)
+        check("provider_api no-creds: honest manual_step names GitHub",
+              "github.com/settings/applications" in r5c.get("manual_step", ""))
+
+        # 5d) provider_api call FAILS (bad client_secret → 401) → honest fallback, never claim revoked.
+        gh_bad = ob.IdP(authorize="x", token="y", client_id="gh-client", scopes=["read:user"],
+                        revoke=papi, revoke_method="provider_api", client_secret="WRONG-secret")
+        store.put(ob.token_name("https://github.com", "bad"), SENTINEL_TOKEN)
+        r5d = ob.revoke_delegation(store, origin="https://github.com", identity="bad", idp=gh_bad)
+        check("provider_api call-fails: upstream_revoked is False", r5d.get("upstream_revoked"), False)
+        check("provider_api call-fails: local token still deleted", r5d.get("local_deleted"), True)
+        check("provider_api call-fails: honest manual_step present", bool(r5d.get("manual_step")))
 
         # 6) PKCE is real: a tampered verifier is rejected by the IdP
         v, c = ob.gen_pkce()
