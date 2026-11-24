@@ -529,8 +529,8 @@
     const p=new URLSearchParams(location.search); const m=p.get('__loginpreview'); if(!m) return;
     const L=p.get('__lang'); if(L&&T[L]) lang=L;                                   // preview-only lang override
     const TH=p.get('__theme'); if(TH==='dark'||TH==='light') document.documentElement.setAttribute('data-theme',TH);
-    if(m==='oauth') loginConfirm({origin:'https://accounts.google.com', identity:'bilal@example.com', mode:'oauth', provider:'Google', scopes:['View your email address','Read your calendar (read-only)','Send email on your behalf']});
-    else if(m==='password') loginConfirm({origin:'https://www.iberdrola.es', identity:'bilal.m', mode:'password'});
+    if(m==='oauth') loginConfirm({origin:'https://accounts.google.com', identity:'you@example.com', mode:'oauth', provider:'Google', scopes:['View your email address','Read your calendar (read-only)','Send email on your behalf']});
+    else if(m==='password') loginConfirm({origin:'https://login.example.com', identity:'you@example.com', mode:'password'});
     else if(m==='cmd') handleLoginCommand('/login');   // the /login help listing in the chat (needs backend)
     else if(m==='pay') payConfirm({payee_domain:'getalby.com', amount_sats:1000, verifiable:true});
     // QR hand-off previews (xvfb-only): the post-confirm sheet for an opaque on-chain address + a Lightning uri.
