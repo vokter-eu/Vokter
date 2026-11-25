@@ -244,6 +244,22 @@
 
   let tT; function toast(m){const el=$('toast');el.textContent=m;el.classList.add('on');clearTimeout(tT);tT=setTimeout(()=>el.classList.remove('on'),2000);}
 
+  // Authenticated API call for the human-gated mutating routes (settings/schedule/browse-allowlist).
+  // Goes through the Electron bridge so the human-session token is attached in MAIN, never in page JS.
+  // Returns a fetch-like {ok, status, json()}. Outside Electron (dev-in-browser, no bridge) it falls
+  // back to a plain fetch with no token — the backend then 403s the gated routes, which is correct.
+  // Read-only GETs are NOT gated and keep using plain fetch().
+  async function vapi(path, opts){
+    opts = opts || {};
+    if(window.vokter && typeof window.vokter.api==='function'){
+      const r = await window.vokter.api({path, method:opts.method||'GET', json:opts.json});
+      return { ok: r.status>=200 && r.status<300, status: r.status, json: async()=>r.body };
+    }
+    const init = { method: opts.method||'GET', headers:{} };
+    if(opts.json!==undefined){ init.headers['Content-Type']='application/json'; init.body=JSON.stringify(opts.json); }
+    return fetch(path, init);
+  }
+
   // ── Tier-3 web.login human-confirm sheet (step 6). The LAST gate before any sign-in: shows the
   //    RESOLVED origin (read from the browser, never the model's claim), which identity, and for
   //    OAuth the provider + requested scopes. Returns a Promise<boolean>. Pure UI — it NEVER sees
@@ -1283,7 +1299,7 @@
         const row=document.createElement('div');row.className='drow';
         row.innerHTML='<span class="dn"></span><span class="dc">'+t('passages',{n:d.chunks})+'</span><button class="del" aria-label="Delete">&times;</button>';
         row.querySelector('.dn').textContent=d.doc;
-        row.querySelector('.del').onclick=async()=>{ if(!confirm(t('docDeleteConfirm',{doc:d.doc}))) return; await fetch('/api/docs/'+encodeURIComponent(d.doc)+'?confirm=true',{method:'DELETE'}); renderDocs(); toast(t('deleted')); };
+        row.querySelector('.del').onclick=async()=>{ if(!confirm(t('docDeleteConfirm',{doc:d.doc}))) return; await vapi('/api/docs/'+encodeURIComponent(d.doc)+'?confirm=true',{method:'DELETE'}); renderDocs(); toast(t('deleted')); };
         wrap.appendChild(row);
       });
     }catch{ wrap.innerHTML='<div class="placeholder">'+t('noReachShort')+'</div>'; }
@@ -1360,7 +1376,7 @@
           const row=document.createElement('div'); row.className='drow';
           const dn=document.createElement('span'); dn.className='dn'; dn.textContent=perm.pattern;
           const del=document.createElement('button'); del.className='del'; del.setAttribute('aria-label',t('removeAria')); del.textContent='×';
-          del.onclick=async()=>{ try{ await fetch('/api/browse/permissions/'+encodeURIComponent(perm.pattern),{method:'DELETE'}); }catch{} refresh(); };
+          del.onclick=async()=>{ try{ await vapi('/api/browse/permissions/'+encodeURIComponent(perm.pattern),{method:'DELETE'}); }catch{} refresh(); };
           row.appendChild(dn); row.appendChild(del); list.appendChild(row);
         });
       }catch{ list.appendChild(_placeholder(t('noReachShort'))); }
@@ -1368,7 +1384,7 @@
     async function add(){
       const pattern=input.value.trim(); if(!pattern) return;
       addBtn.disabled=true;
-      try{ const r=await fetch('/api/browse/permissions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pattern})});
+      try{ const r=await vapi('/api/browse/permissions',{method:'POST',json:{pattern}});
         if(r.ok){ input.value=''; refresh(); } else{ toast(t('webAddErr')); }
       }catch{ toast(t('noReachShort')); }
       addBtn.disabled=false;
@@ -1400,9 +1416,9 @@
           const dc=document.createElement('span'); dc.className='dc'+(task.enabled?' on':''); dc.textContent=_fmtInterval(task.interval_seconds)+' · '+(task.enabled?t('taskOn'):t('taskPaused'));
           const acts2=document.createElement('span'); acts2.className='acts';
           const tg=document.createElement('button'); tg.className='sbtn mini ghost'; tg.textContent=task.enabled?t('taskPause'):t('taskResume');
-          tg.onclick=async()=>{ tg.disabled=true; try{ await fetch('/api/schedule/'+task.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:!task.enabled})}); }catch{} refresh(); };
+          tg.onclick=async()=>{ tg.disabled=true; try{ await vapi('/api/schedule/'+task.id,{method:'PATCH',json:{enabled:!task.enabled}}); }catch{} refresh(); };
           const del=document.createElement('button'); del.className='del'; del.setAttribute('aria-label',t('removeAria')); del.textContent='×';
-          del.onclick=async()=>{ if(!confirm(t('taskDeleteConfirm',{name:task.name}))) return; try{ await fetch('/api/schedule/'+task.id+'?confirm=true',{method:'DELETE'}); }catch{} refresh(); };
+          del.onclick=async()=>{ if(!confirm(t('taskDeleteConfirm',{name:task.name}))) return; try{ await vapi('/api/schedule/'+task.id+'?confirm=true',{method:'DELETE'}); }catch{} refresh(); };
           acts2.appendChild(tg); acts2.appendChild(del);
           row.appendChild(dn); row.appendChild(dc); row.appendChild(acts2); list.appendChild(row);
         });
@@ -1412,7 +1428,7 @@
       const name=nameI.value.trim(), goal=goalI.value.trim(), interval=intI.value.trim();
       if(!name||!goal||!interval){ toast(t('taskFill')); return; }
       createBtn.disabled=true;
-      try{ const r=await fetch('/api/schedule?confirm=true',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,goal,interval})});
+      try{ const r=await vapi('/api/schedule?confirm=true',{method:'POST',json:{name,goal,interval}});
         if(r.ok){ nameI.value='';goalI.value='';intI.value=''; refresh(); } else{ toast(t('taskCreateErr')); }
       }catch{ toast(t('noReachShort')); }
       createBtn.disabled=false;
@@ -1492,8 +1508,8 @@
     }catch{ status.textContent=t('noReachShort'); }
     saveBtn.onclick=async()=>{
       saveBtn.disabled=true; status.textContent=t('modelSaving');
-      try{ const r=await fetch('/api/config',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-        agent_name:nameI.value.trim()||null, tone:toneS.value, mode:modeS.value, language:langS.value })});
+      try{ const r=await vapi('/api/config',{method:'PATCH',json:{
+        agent_name:nameI.value.trim()||null, tone:toneS.value, mode:modeS.value, language:langS.value }});
         status.textContent=r.ok?t('modelSaved'):t('serverErr'); if(r.ok) setTimeout(()=>{status.textContent='';},2000);
       }catch{ status.textContent=t('noReachShort'); }
       saveBtn.disabled=false;
@@ -1516,7 +1532,7 @@
         if(name===def){ const tag=document.createElement('span'); tag.className='mtag'; tag.textContent=t('modelCurrentDefault'); row.appendChild(tag); }
         row.insertAdjacentHTML('beforeend',TICK);
         row.onclick=async()=>{
-          try{ await fetch('/api/config',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_model:name})}); }catch{}
+          try{ await vapi('/api/config',{method:'PATCH',json:{chat_model:name}}); }catch{}
           await refresh(); refreshModelBadge();      // instant: the check moves + the chat badge updates
         };
         mlist.appendChild(row);
@@ -1598,7 +1614,7 @@
     const advRow=document.createElement('div'); advRow.className='saddrow'; advRow.appendChild(urlIn); advRow.appendChild(applyBtn); advBox.appendChild(advRow);
     const advHint=document.createElement('div'); advHint.className='smeta'; advHint.textContent=t('advEngineHint'); advBox.appendChild(advHint);
     async function saveEngineUrl(v){
-      try{ const r=await fetch('/api/config',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({engine_url:v})});
+      try{ const r=await vapi('/api/config',{method:'PATCH',json:{engine_url:v}});
         if(!r.ok){ const d=await r.json().catch(()=>({})); advHint.textContent=(typeof d.detail==='string')?d.detail:t('advEngineBad'); return false; }
         advHint.textContent=t('advEngineHint'); return true;
       }catch{ advHint.textContent=t('noReachShort'); return false; }
@@ -2054,7 +2070,7 @@
             onProgress:(pct,indet)=>{ fill.classList.toggle('indet',!!indet); if(!indet) fill.style.width=Math.max(0,Math.min(100,pct))+'%'; },
             onStatus:(s,o)=>{ st.textContent = s==='done'?t('dlDone') : s.includes('verif')?t('dlVerify') : s.includes('manifest')?t('dlManifest')
               : t('dlDownloading')+((o&&o.indeterminate)?'…':' · '+Math.round((o&&o.percent)||0)+'%'); }});
-          try{ await fetch('/api/config',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_model:rec.model})}); }catch{}
+          try{ await vapi('/api/config',{method:'PATCH',json:{chat_model:rec.model}}); }catch{}
           try{ localStorage.setItem('vokter_rec_dismissed','1'); }catch{}
           st.textContent=t('dlDone'); refreshModelBadge(); setTimeout(()=>card.remove(),1500);
         }catch(e){ st.textContent=t('dlErr'); dl.disabled=false; no.disabled=false; }

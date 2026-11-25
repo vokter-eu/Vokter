@@ -1,7 +1,7 @@
 import io
 from contextlib import closing
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Header, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from pypdf import PdfReader
 
@@ -74,9 +74,12 @@ def list_docs():
 
 
 @router.delete("/api/docs/{doc_name}")
-def delete_doc(doc_name: str, confirm: bool = False):
+def delete_doc(doc_name: str, confirm: bool = False,
+               x_vokter_human_session: str | None = Header(default=None)):
+    from chat import is_local_human_session
     from safety import HUMAN, enforce_http
-    enforce_http("doc.delete", doc_name, context=HUMAN, confirmed=confirm)
+    context = HUMAN if is_local_human_session(x_vokter_human_session) else "autonomous"
+    enforce_http("doc.delete", doc_name, context=context, confirmed=confirm)
     with closing(get_db()) as db:
         cur = db.execute("DELETE FROM chunks WHERE doc = ?", (doc_name,))
         db.commit()

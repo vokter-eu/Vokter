@@ -61,6 +61,11 @@ contextBridge.exposeInMainWorld('vokter', {
   // {status, body}. Used only by the Memory settings view.
   memory: (req) => ipcRenderer.invoke('vokter:memory', req),
 
+  // api({path, method, json}): authenticated same-origin /api call proxied through main so the
+  // human-session token is attached there, never in page JS. For the human-gated settings / schedule /
+  // browse-allowlist routes. Relative /api paths only (main rejects absolute URLs). Resolves {status, body}.
+  api: (req) => ipcRenderer.invoke('vokter:api', req),
+
   // webLogin(req): proxy /api/web/login (Tier-3 sign-in) through main so the human-session token never
   // lives in page JS. Two-phase + stateless: webLogin({site, identity_ref}) → {status:428, body with the
   // resolved origin for the confirm sheet}; then webLogin({site, identity_ref, confirm:true}) → status.

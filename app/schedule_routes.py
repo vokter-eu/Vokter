@@ -9,9 +9,10 @@ import uuid
 from contextlib import closing
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel, field_validator
 
+from chat import is_local_human_session, require_human
 from db import get_db
 from safety import HUMAN, enforce_http
 
@@ -98,8 +99,12 @@ def _run_row(row) -> dict:
 
 
 @router.post("/api/schedule", status_code=201)
-def create_task(req: CreateTask, confirm: bool = False):
-    enforce_http("schedule.create", req.name, context=HUMAN, confirmed=confirm)
+def create_task(req: CreateTask, confirm: bool = False,
+                x_vokter_human_session: str | None = Header(default=None)):
+    # Context from the verified token, not a caller-asserted flag (CRITICAL-1): a tokenless loopback
+    # caller (incl. MCP/peer) is nonhuman → the gateway collapses schedule.create to BLOCK.
+    context = HUMAN if is_local_human_session(x_vokter_human_session) else "autonomous"
+    enforce_http("schedule.create", req.name, context=context, confirmed=confirm)
     task_id = str(uuid.uuid4())
     now = time.time()
     interval_seconds = _parse_interval(req.interval)
@@ -137,7 +142,10 @@ def get_task(task_id: str):
 
 
 @router.patch("/api/schedule/{task_id}")
-def patch_task(task_id: str, req: PatchTask):
+def patch_task(task_id: str, req: PatchTask, x_vokter_human_session: str | None = Header(default=None)):
+    # PATCH can rewrite goal/interval/enabled, so it is as powerful as create — gate it (CRITICAL-1:
+    # it was previously ungated, letting any loopback caller re-arm a task with an attacker goal).
+    require_human(x_vokter_human_session)
     with closing(get_db()) as db:
         row = db.execute(
             "SELECT id,name,goal,interval_seconds,next_run,last_run,enabled,created_at"
@@ -178,8 +186,10 @@ def patch_task(task_id: str, req: PatchTask):
 
 
 @router.delete("/api/schedule/{task_id}", status_code=204)
-def delete_task(task_id: str, confirm: bool = False):
-    enforce_http("task.delete", task_id, context=HUMAN, confirmed=confirm)
+def delete_task(task_id: str, confirm: bool = False,
+                x_vokter_human_session: str | None = Header(default=None)):
+    context = HUMAN if is_local_human_session(x_vokter_human_session) else "autonomous"
+    enforce_http("task.delete", task_id, context=context, confirmed=confirm)
     with closing(get_db()) as db:
         cur = db.execute("DELETE FROM scheduled_tasks WHERE id=?", (task_id,))
         db.commit()

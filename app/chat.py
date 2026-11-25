@@ -99,6 +99,19 @@ def is_local_human_session(mark: str | None) -> bool:
     return hmac.compare_digest(mark.encode(), token.encode())
 
 
+def require_human(mark: str | None) -> None:
+    """Deny-by-default guard for loopback routes that mutate or expose the human's data but do NOT
+    pass through the capability gateway (which derives its own HUMAN/nonhuman verdict). Same P2 gate
+    as personal memory: only THIS launch's human-session token may proceed. Closes the hole where any
+    same-user local process (or a DNS-rebinding page) could drive config/allowlist/schedule/agent
+    routes over loopback with no token — the exact residual the memory gate already defends against.
+    Raises 403 for everyone else. For gateway routes, derive context from is_local_human_session()
+    instead and let the gateway's nonhuman→BLOCK collapse do the work (do not stack both)."""
+    from fastapi import HTTPException
+    if not is_local_human_session(mark):
+        raise HTTPException(403, "this action is available only to the local human session")
+
+
 async def build_chat_system(cfg: dict, human: bool, query: str | None = None) -> str:
     """Assemble the chat system prompt. Personal memory (P2) is appended ONLY for the
     local human session; withheld for every other caller (deny-by-default). The P2 gate is

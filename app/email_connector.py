@@ -3,7 +3,7 @@ import email.header
 import imaplib
 from contextlib import closing
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 
 from config import (
     EMAIL_FOLDER, EMAIL_IMAP_HOST, EMAIL_IMAP_PORT,
@@ -137,9 +137,11 @@ def email_status():
 
 
 @router.delete("/api/email/all")
-def delete_all_emails(confirm: bool = False):
+def delete_all_emails(confirm: bool = False, x_vokter_human_session: str | None = Header(default=None)):
+    from chat import is_local_human_session
     from safety import HUMAN, enforce_http
-    enforce_http("email.purge", None, context=HUMAN, confirmed=confirm)
+    context = HUMAN if is_local_human_session(x_vokter_human_session) else "autonomous"
+    enforce_http("email.purge", None, context=context, confirmed=confirm)
     with closing(get_db()) as db:
         chunks_removed = db.execute(
             "DELETE FROM chunks WHERE doc LIKE 'email::%'"

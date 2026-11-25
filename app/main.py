@@ -14,7 +14,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from auth import admin_token_ok, requires_admin
+from auth import admin_token_ok, host_allowed, requires_admin
 
 import identity  # noqa: F401 — triggers master key init on startup
 
@@ -116,6 +116,14 @@ async def admin_gate(request: Request, call_next):
     """Gate the human's admin API (H1). The public agent surface (/a2a,
     /.well-known, /api/agent/card) and the loopback-only UI pass through."""
     if requires_admin(request.url.path):
+        # DNS-rebinding defense (CRITICAL-1): on the default loopback install, the admin API must be
+        # addressed by a loopback Host — a hostile page that rebinds its domain to 127.0.0.1 keeps its
+        # own hostname in the Host header, so this blocks it before any handler runs. No-op when an
+        # admin token is configured (deliberate exposure → the token is the control).
+        if not host_allowed(request.headers.get("host")):
+            return JSONResponse(
+                {"detail": "Forbidden — admin API is loopback-only"}, status_code=403
+            )
         token = request.headers.get("x-vokter-admin-token")
         if not token:
             scheme, _, bearer = request.headers.get("authorization", "").partition(" ")

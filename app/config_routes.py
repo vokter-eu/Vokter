@@ -15,11 +15,12 @@ import os
 import shutil
 
 import httpx
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from agent_config import DEFAULTS, get_config, set_config
+from chat import is_local_human_session, require_human
 from config import DATA_DIR, CHAT_MODEL
 from engine import resolve_base_url
 from hardware import MIRROR_MODELS, MODEL_ASSETS_BASE
@@ -50,7 +51,11 @@ def config_get():
 
 
 @router.patch("/api/config")
-def config_patch(patch: ConfigPatch):
+def config_patch(patch: ConfigPatch, x_vokter_human_session: str | None = Header(default=None)):
+    # Human-session gate (CRITICAL-1): engine_url redirects WHERE every prompt — including the P2
+    # personal-memory block — is sent, so an unauthenticated loopback caller must not be able to set
+    # it. Same gate as /api/memory; the renderer reaches this through the authed bridge.
+    require_human(x_vokter_human_session)
     updates: dict[str, str] = {}
 
     if patch.agent_name is not None:
@@ -298,7 +303,9 @@ def _avatar_path() -> str | None:
 
 
 @router.post("/api/config/avatar")
-async def avatar_upload(file: UploadFile = File(...)):
+async def avatar_upload(file: UploadFile = File(...),
+                        x_vokter_human_session: str | None = Header(default=None)):
+    require_human(x_vokter_human_session)
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in _AVATAR_EXTS:
         raise HTTPException(400, f"Unsupported format. Use: jpg, png, webp, gif")
@@ -323,9 +330,12 @@ def avatar_get():
 
 
 @router.delete("/api/config/avatar")
-def avatar_delete(confirm: bool = False):
+def avatar_delete(confirm: bool = False, x_vokter_human_session: str | None = Header(default=None)):
+    # Derive the gateway context from the verified token (CRITICAL-1): "human" must come from proof of
+    # the human session, never a caller-asserted flag. A tokenless caller → nonhuman → gateway BLOCK.
     from safety import HUMAN, enforce_http
-    enforce_http("avatar.delete", None, context=HUMAN, confirmed=confirm)
+    context = HUMAN if is_local_human_session(x_vokter_human_session) else "autonomous"
+    enforce_http("avatar.delete", None, context=context, confirmed=confirm)
     path = _avatar_path()
     if not path:
         raise HTTPException(404, "No avatar to delete")

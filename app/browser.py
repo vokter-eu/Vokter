@@ -6,9 +6,11 @@ from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
+from urllib.parse import urljoin
 
+from chat import require_human
 from db import get_db
 from identity import new_session_key
 from embedding import pack_embedding
@@ -20,6 +22,7 @@ router = APIRouter()
 
 _MAX_DOWNLOAD_BYTES = 2_000_000  # 2 MB raw limit per page
 _TIMEOUT = 15.0
+_MAX_REDIRECTS = 5               # hops we follow, validating each before fetching (SSRF guard)
 
 
 class BrowseRequest(BaseModel):
@@ -100,9 +103,14 @@ async def browse(req: BrowseRequest):
     # One ephemeral session key per browse request — stored locally, never sent out.
     session_id, _ = new_session_key(context=f"browse:{url}")
 
+    # Follow redirects MANUALLY, validating every hop BEFORE it is fetched (SSRF fix): httpx's
+    # follow_redirects=True would fetch each intermediate target — including a 302 to
+    # http://127.0.0.1:<port>/… — before any check runs, letting an allowlisted-but-compromised site
+    # bounce the backend into its own loopback admin API. Each Location is resolved (relative→absolute),
+    # must be http(s), must not resolve to a private/internal address, and must stay in the allowlist.
     try:
         async with httpx.AsyncClient(
-            follow_redirects=True,
+            follow_redirects=False,
             timeout=_TIMEOUT,
             headers={
                 "User-Agent": "Mozilla/5.0 (compatible; local-browser/1.0)",
@@ -110,19 +118,26 @@ async def browse(req: BrowseRequest):
                 "Accept-Language": "en,*;q=0.5",
             },
         ) as client:
-            resp = await client.get(url)
+            current = url
+            for _ in range(_MAX_REDIRECTS + 1):
+                resp = await client.get(current)
+                if not resp.is_redirect:
+                    break
+                nxt = urljoin(current, resp.headers.get("location", ""))   # resolve relative redirects
+                parsed_nxt = urlparse(nxt)
+                if parsed_nxt.scheme not in ("http", "https"):
+                    raise HTTPException(403, f"Redirect to a non-http(s) URL is not allowed: {nxt}")
+                if _is_private_host(parsed_nxt.hostname or ""):
+                    raise HTTPException(403, "Redirect to a private/internal address is not allowed.")
+                if not _is_allowed(nxt):
+                    raise HTTPException(403, f"Redirect led to non-allowlisted URL: {nxt}")
+                current = nxt
+            else:
+                raise HTTPException(310, "Too many redirects.")
     except httpx.TimeoutException:
         raise HTTPException(504, f"Request timed out after {_TIMEOUT}s.")
     except httpx.RequestError as exc:
         raise HTTPException(502, f"Could not reach URL: {exc}")
-
-    # Re-validate the final URL in case redirects led to a different origin.
-    final_url = str(resp.url)
-    final_host = urlparse(final_url).hostname or ""
-    if _is_private_host(final_host):
-        raise HTTPException(403, "Redirect to a private/internal address is not allowed.")
-    if not _is_allowed(final_url):
-        raise HTTPException(403, f"Redirect led to non-allowlisted URL: {final_url}")
 
     content_type = resp.headers.get("content-type", "")
     if "text" not in content_type:
@@ -160,7 +175,10 @@ def list_permissions():
 
 
 @router.post("/api/browse/permissions")
-def add_permission(req: AllowRequest):
+def add_permission(req: AllowRequest, x_vokter_human_session: str | None = Header(default=None)):
+    # Human-session gate (CRITICAL-1): the allowlist IS the predicate the browse gateway trusts, so an
+    # unauthenticated caller must not be able to widen it (that would bless attacker URLs for ingestion).
+    require_human(x_vokter_human_session)
     pattern = req.pattern.strip()
     if not pattern:
         raise HTTPException(400, "pattern is empty")
@@ -176,7 +194,8 @@ def add_permission(req: AllowRequest):
 
 
 @router.delete("/api/browse/permissions/{pattern:path}")
-def remove_permission(pattern: str):
+def remove_permission(pattern: str, x_vokter_human_session: str | None = Header(default=None)):
+    require_human(x_vokter_human_session)
     with closing(get_db()) as db:
         db.execute("DELETE FROM browse_allowlist WHERE pattern = ?", (pattern,))
         db.commit()

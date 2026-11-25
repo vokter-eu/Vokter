@@ -14,9 +14,10 @@ the agent transport (Nostr / A2A).
 """
 from contextlib import closing
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
+from chat import require_human
 from db import get_db
 from negotiation import accept_offer, negotiate_with
 
@@ -107,8 +108,10 @@ class AcceptReq(BaseModel):
 
 
 @router.post("/api/negotiate/accept")
-async def accept(req: AcceptReq):
+async def accept(req: AcceptReq, x_vokter_human_session: str | None = Header(default=None)):
     """Send the human-confirmed acceptance of a deal reached by /start."""
+    # Committing a deal to a peer is a human decision (CRITICAL-1: was ungated).
+    require_human(x_vokter_human_session)
     try:
         return await accept_offer(req.target, req.session_id, req.amount, token=req.token)
     except ValueError as exc:

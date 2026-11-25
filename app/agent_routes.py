@@ -20,9 +20,10 @@ A2A work — expose only /a2a + /.well-known via a reverse proxy.
 from contextlib import contextmanager
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
+from chat import require_human
 from agent_client import call_a2a, fetch_card
 from nostr_outbound import call_nostr
 from agent_profile import build_agent_card
@@ -67,7 +68,10 @@ class RateReq(BaseModel):
 
 
 @router.post("/api/agents/rate")
-def agents_rate(req: RateReq):
+def agents_rate(req: RateReq, x_vokter_human_session: str | None = Header(default=None)):
+    # Trusting a peer grants it private tools over inbound A2A/Nostr — a capability the human alone may
+    # grant (CRITICAL-1: was ungated, so any loopback caller could elevate an attacker pubkey).
+    require_human(x_vokter_human_session)
     if req.trust not in TRUST_LEVELS:
         raise HTTPException(400, f"trust must be one of: {', '.join(TRUST_LEVELS)}")
     if not set_trust(req.id, req.trust):
@@ -82,12 +86,14 @@ class AttestReq(BaseModel):
 
 
 @router.post("/api/agents/attest")
-async def agents_attest(req: AttestReq):
+async def agents_attest(req: AttestReq, x_vokter_human_session: str | None = Header(default=None)):
     """Publish a signed, PUBLIC NIP-32 reputation attestation about a peer.
 
-    Explicit and opt-in: this broadcasts the human's judgement to Nostr relays.
+    Explicit and opt-in: this broadcasts the human's judgement to Nostr relays under the human's own
+    key, so only the human session may trigger it (CRITICAL-1: was ungated).
     Distinct from /rate, which only updates the private local trust list.
     """
+    require_human(x_vokter_human_session)
     try:
         event_id = await publish_attestation(req.id, req.label, req.note)
     except ValueError as exc:
@@ -149,7 +155,10 @@ class TalkReq(BaseModel):
 
 
 @router.post("/api/agents/talk")
-async def agents_talk(req: TalkReq):
+async def agents_talk(req: TalkReq, x_vokter_human_session: str | None = Header(default=None)):
+    # Human-initiated outbound only (CRITICAL-1): the HTTP target path had no gateway choke, so a
+    # loopback caller could make Vokter message arbitrary endpoints.
+    require_human(x_vokter_human_session)
     target = req.target.strip()
     if target.startswith("nostr:"):
         # Fire-and-forget transport: call_nostr publishes the DM and waits for the

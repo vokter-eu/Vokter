@@ -495,6 +495,41 @@ ipcMain.handle('vokter:memory', (_event, reqIn) => new Promise((resolve) => {
   rq.end();
 }));
 
+// Generic authenticated API bridge: proxy a same-origin /api call through MAIN so the human-session
+// token is attached HERE and never lives in page JS (same discipline as vokter:memory). This is what
+// lets the renderer drive the human-gated settings / schedule / browse-allowlist routes. JSON bodies
+// only; the page supplies a RELATIVE /api path (absolute URLs rejected, so the bridge can't be turned
+// into an SSRF primitive). Read routes may also use it, but ungated GETs still work via plain fetch.
+ipcMain.handle('vokter:api', (_event, reqIn) => new Promise((resolve) => {
+  if (!ready || backendPort == null) { resolve({ status: 0, body: null }); return; }
+  const r = (reqIn && typeof reqIn === 'object') ? reqIn : {};
+  const path = typeof r.path === 'string' ? r.path : '';
+  const method = String(r.method || 'GET').toUpperCase();
+  if (!path.startsWith('/api/') || path.includes('://')) { resolve({ status: 400, body: null }); return; }
+  if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(method)) { resolve({ status: 400, body: null }); return; }
+  const headers = { 'X-Vokter-Human-Session': HUMAN_SESSION_TOKEN };
+  let payload = null;
+  if (r.json !== undefined) {
+    payload = JSON.stringify(r.json);
+    headers['Content-Type'] = 'application/json';
+    headers['Content-Length'] = Buffer.byteLength(payload);
+  }
+  const rq = http.request({ host: '127.0.0.1', port: backendPort, path, method, headers }, (res) => {
+    let data = '';
+    res.setEncoding('utf8');
+    res.on('data', (c) => { data += c; });
+    res.on('end', () => {
+      let parsed = null;
+      try { parsed = JSON.parse(data); } catch { /* non-JSON (e.g. 204) → null */ }
+      resolve({ status: res.statusCode || 0, body: parsed });
+    });
+  });
+  rq.on('error', () => resolve({ status: 0, body: null }));
+  rq.setTimeout(30000, () => { rq.destroy(); resolve({ status: 0, body: null }); });
+  if (payload != null) rq.write(payload);
+  rq.end();
+}));
+
 // web.login bridge: proxy /api/web/login through MAIN so the human-session token never touches page
 // JS (same discipline as vokter:memory). Two-phase + stateless — the page sends {site, identity_ref}
 // (phase 1 → 428 carrying the RESOLVED origin for the confirm sheet), then {…, confirm:true} (phase 2
