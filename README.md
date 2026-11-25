@@ -9,7 +9,7 @@ Vokter (Norwegian: *guardian*) is a personal, sovereign AI agent that runs on **
 > There's a right older than the internet: what is yours cannot be taken. Norwegians call it *odel*. Vokter is its digital guardian.
 > — [Read the full manifesto](https://vokterai.com/MANIFESTO.html)
 
-## What Vokter does today (v0.14.0)
+## What Vokter does today (v1.0.0)
 
 | Capability | Details |
 |---|---|
