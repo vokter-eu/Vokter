@@ -1,0 +1,41 @@
+name: CI
+
+# Anti-regression ratchet: every push to main and every PR runs the hermetic
+# script-test suite (tests/run_ci.sh) on a clean Ubuntu runner, installing the
+# EXACT dependency tree from app/requirements.lock with --require-hashes — so a
+# red test OR a tampered/drifted dependency fails the build.
+#
+# What this deliberately does NOT cover (and where that lives instead) is in
+# .github/workflows/README.md — headline: the full containment fire-test
+# (bwrap/pasta/nftables + real Chromium + dual-stack IPv6) needs a VM and stays
+# in the clean-VM acceptance against the frozen .deb.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: app/requirements.lock
+
+      - name: System deps (sqlcipher3 builds from sdist)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libsqlcipher-dev
+
+      - name: Build venv from the hash-pinned lock (supply-chain gate)
+        run: |
+          python -m venv /tmp/ci-venv
+          /tmp/ci-venv/bin/python -m pip install --quiet --upgrade pip
+          /tmp/ci-venv/bin/python -m pip install --require-hashes -r app/requirements.lock
+
+      - name: Run the hermetic suite (script-tests + tripwires + originguard)
+        run: PYTHON=/tmp/ci-venv/bin/python bash tests/run_ci.sh

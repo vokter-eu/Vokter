@@ -53,8 +53,10 @@ def _field(tag, value5):
     ln = len(value5)
     return [tag, ln // 32, ln % 32] + value5
 def mk_invoice(hrp, desc_hash: bytes, pay_hash: bytes = b"\x11" * 32):
-    """Build a bech32 BOLT11-shaped string (no valid signature — the decoder reads amount + fields only)."""
-    data = [0] * 7 + _field(1, _bytes_to_5bit(pay_hash)) + _field(23, _bytes_to_5bit(desc_hash))
+    """Build a bech32 BOLT11-shaped string. Real BOLT11 invoices always end in a 520-bit (104-group)
+    signature, and decode_bolt11 strips those trailing groups before walking the tagged fields — so the
+    mock must carry the padding too (same as the selftest's builder) or the strip eats the fields."""
+    data = [0] * 7 + _field(1, _bytes_to_5bit(pay_hash)) + _field(23, _bytes_to_5bit(desc_hash)) + [0] * 104
     return _bech32_encode(hrp, data)
 
 
@@ -109,7 +111,7 @@ def main():
         wp.resolve_and_invoice("alice@getalby.com", 1000)
         check("substituted invoice (metadata mismatch) REJECTED", False)
     except ValueError as e:
-        check("substituted invoice (metadata mismatch) REJECTED", "metadata" in str(e).lower())
+        check("substituted invoice (metadata mismatch) REJECTED", "'h' mismatch" in str(e).lower())
 
     # 5) gateway ceilings
     wp._LEDGER.clear()
