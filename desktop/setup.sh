@@ -33,17 +33,19 @@ echo "[setup] installing backend dependencies from the LOCKFILE (this compiles n
 # --- 2. Native Ollama (app-local, no sudo) ----------------------------------
 # Ollama ships as a .tar.zst on GitHub releases (asset: ollama-linux-<arch>.tar.zst).
 # PINNED to an EXACT version (not "latest"): a core runtime must be reproducible — an unpinned fetch
-# drifts/breaks on any upstream change (same lesson as the nostr-sdk==0.44.2 pin). 0.32.5 is the version
-# currently shipping that passed all tests. Bump this deliberately + re-validate; the tagged-release URL
-# is deterministic, so no GitHub API lookup is needed.
-OLLAMA_VERSION="0.32.5"
-# PINNED sha256 per arch (from the v0.32.5 release's official sha256sum.txt, captured 2026-11-25 and
+# drifts/breaks on any upstream change (same lesson as the nostr-sdk==0.44.2 pin). 0.40.18 is the version
+# currently shipping that passed all tests (bumped from 0.32.5 for CVE-2026-103663 /api/pull path
+# traversal, CVE-2026-85180 + CVE-2026-108836 SSRF, CVE-2026-65315 GGUF-parser DoS; re-validated in the
+# clean-VM acceptance). Bump this deliberately + re-validate; the tagged-release URL is deterministic,
+# so no GitHub API lookup is needed.
+OLLAMA_VERSION="0.40.18"
+# PINNED sha256 per arch (from the v0.40.18 release's official sha256sum.txt, captured 2026-11-25 and
 # hardcoded HERE — never fetched at install time, or whoever can swap the tarball can swap the sums
 # too). Same verify-the-bytes rule the voice packs and GGUF pulls already follow. On a version bump,
 # update BOTH the version and these hashes.
 case "$(uname -m)" in
-  x86_64|amd64)  OLLAMA_ARCH="amd64"; OLLAMA_SHA256="f7d6bdbcf71b83aa8670c4e7dc4b6936c0952fcf8b114eaf6a11cbadb9684214" ;;
-  aarch64|arm64) OLLAMA_ARCH="arm64"; OLLAMA_SHA256="aa7e06b5683ee66c4a3ec68ea7236db43b5a5d0821f0dfe2c5a215f4462bddf4" ;;
+  x86_64|amd64)  OLLAMA_ARCH="amd64"; OLLAMA_SHA256="b82649006cb5b54ed1237fa2d1a26a7f939a4fd03150033759acbff7ff315adf" ;;
+  aarch64|arm64) OLLAMA_ARCH="arm64"; OLLAMA_SHA256="63f01dae3b65641866991e75e2aecb7aed8a4041f4c2c3c7d92862c5a47ebed6" ;;
   *) echo "[setup] unsupported arch $(uname -m)"; exit 1 ;;
 esac
 ASSET="ollama-linux-${OLLAMA_ARCH}.tar.zst"

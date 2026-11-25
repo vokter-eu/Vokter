@@ -49,7 +49,9 @@
           "!lib/ollama/cuda_v12",
           "!lib/ollama/cuda_v12/**",
           "!lib/ollama/cuda_v13",
-          "!lib/ollama/cuda_v13/**"
+          "!lib/ollama/cuda_v13/**",
+          "!lib/ollama/vulkan",
+          "!lib/ollama/vulkan/**"
         ]
       },
       {
