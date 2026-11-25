@@ -844,15 +844,21 @@
     }
   });
 
-  // Drag a file/image onto the window → OCR/ingest it (with a drop-cue outline).
+  // Drag a file/image onto the window → OCR/ingest it (with a drop-cue outline). SECURITY (ALTO-3):
+  // claim BOTH file drops AND link/URL drops (text/uri-list) so a dragged external link can never
+  // navigate the window to attacker content (the main.js will-navigate fence is the backstop; this
+  // stops it at the source). Plain-text drags into inputs are left to native behaviour.
+  const _dropTypes=e=>(e.dataTransfer && Array.from(e.dataTransfer.types||[]))||[];
   ['dragover','dragenter'].forEach(ev=>document.addEventListener(ev, e=>{
-    if(e.dataTransfer && Array.from(e.dataTransfer.types||[]).includes('Files')){ e.preventDefault(); document.body.classList.add('dragging'); }
+    const types=_dropTypes(e);
+    if(types.includes('Files')||types.includes('text/uri-list')){ e.preventDefault(); if(types.includes('Files')) document.body.classList.add('dragging'); }
   }));
   ['dragleave','dragend'].forEach(ev=>document.addEventListener(ev, ()=>document.body.classList.remove('dragging')));
   document.addEventListener('drop', e=>{
     document.body.classList.remove('dragging');
     const f=e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-    if(f){ e.preventDefault(); uploadFile(f); }
+    if(f){ e.preventDefault(); uploadFile(f); return; }
+    if(_dropTypes(e).includes('text/uri-list')){ e.preventDefault(); }   // a dropped link must never navigate
   });
 
   let rec=null, chunks=[], keep=true;

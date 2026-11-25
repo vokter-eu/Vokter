@@ -20,6 +20,7 @@ const http = require('http');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
+const { makeGuards } = require('./originguard');
 const { LineBuffer, parseProgressLine, parseGuardrailLine } = require('./progress_pipe');
 const { pickFreePort } = require('./netutil');
 const { guardrailHtml } = require('./guardrail_screen');
@@ -71,6 +72,43 @@ function orchestratorCommand() {
 // backend squatting on a different port can never be adopted (the zombie bug).
 let backendPort = null;
 const healthUrl = () => `http://127.0.0.1:${backendPort}/`;
+
+// ─── Navigation fence (ALTO-3): keep external web content out of the trusted shell ───────────────
+// After CRITICAL-1 the IPC bridges attach a valid human-session token, so a navigation hijack would be
+// AUTHENTICATED access to window.vokter. This fence shuts that door: external links open in the SYSTEM
+// browser (never a new Vokter-chrome window), and top-level navigation is confined to our own loopback
+// origin, so a clicked/dragged external link can never point the main webContents (and its token-bearing
+// bridge) at an attacker page.
+const _guards = makeGuards(() => backendPort);
+app.on('web-contents-created', (_e, contents) => {
+  contents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) { try { shell.openExternal(url); } catch { /* ignore */ } }
+    return { action: 'deny' };                       // never open an in-app Electron window
+  });
+  const fence = (ev, url) => {
+    if (_guards.isOwn(url)) return;                   // same-origin app navigation is allowed
+    ev.preventDefault();                              // block the navigation…
+    if (/^https?:\/\//i.test(url)) { try { shell.openExternal(url); } catch { /* ignore */ } }  // …hand http(s) to the system browser
+  };
+  contents.on('will-navigate', fence);
+  contents.on('will-redirect', fence);
+});
+
+// Reject IPC from any frame that is not our own app surface (defence-in-depth behind the fence): even
+// if a frame were somehow pointed at a foreign origin, window.vokter / vokter:api stay inert to it — so
+// the human-session token the bridges attach can never be driven from attacker content. Wrapping
+// ipcMain.handle/on ONCE covers every bridge (current and future) with no per-handler opt-in to forget.
+function _senderIsApp(event) {
+  try { return _guards.senderIsApp(event && event.senderFrame && event.senderFrame.url); }
+  catch { return false; }
+}
+const _ipcHandle = ipcMain.handle.bind(ipcMain);
+ipcMain.handle = (channel, fn) => _ipcHandle(channel, (event, ...args) =>
+  _senderIsApp(event) ? fn(event, ...args) : { status: 403, body: null });
+const _ipcOn = ipcMain.on.bind(ipcMain);
+ipcMain.on = (channel, fn) => _ipcOn(channel, (event, ...args) => {
+  if (_senderIsApp(event)) fn(event, ...args);
+});
 
 // Human-session token (P2): minted ONCE per Electron launch and handed to the backend
 // on EVERY spawn (see startOrchestrator) so it survives a Start-fresh respawn without
