@@ -54,9 +54,10 @@ Vokter detects your hardware and recommends a model; you can pick and download o
 
 | Your machine | Recommended model | Download |
 |---|---|---|
-| Most laptops / weaker CPU | `qwen2.5:3b` — *Light* (the default) | ~2 GB |
-| Capable CPU or GPU | `gemma3:4b` — *Balanced* | ~3 GB |
-| Strong GPU | `qwen3:30b-a3b` — *Powerful* | ~18 GB |
+| Weak CPU-only machine | `qwen2.5:1.5b` — *Ultra-light* (picked automatically on first run) | ~1 GB |
+| Most laptops | `qwen2.5:3b` — *Light* (the default) | ~2 GB |
+| Any GPU / Apple Silicon, or a strong CPU | `llama3.1:8b` — *Balanced* | ~4.9 GB |
+| Strong GPU / Apple Silicon | `qwen2.5:14b` — *Powerful* | ~9 GB |
 | Catalan | `salamandra-2b-instruct` | ~1.5 GB |
 
 The recommendation is conservative on purpose: a bigger model is only suggested when your hardware can actually run it responsively.

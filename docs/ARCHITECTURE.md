@@ -176,11 +176,34 @@ All tables are created idempotently in `db.py` via `CREATE TABLE IF NOT EXISTS`.
 
 ## What Vokter will never do
 
-These are architectural constraints, not policy choices. Violating them would require a fork.
+Vokter separates two kinds of promise, and is honest about which is which.
 
-1. Send any request to a third-party AI API (all inference is local via Ollama)
-2. Use a persistent public key as an external-facing identity
-3. Hold custody of user funds
-4. Make any payment without explicit user confirmation
-5. Use engagement mechanics, retention design, or exploit loneliness
-6. Delete a document without also deleting its embeddings
+**Hard invariants — changing these would require forking the code:**
+
+1. **Nothing leaves your machine.** Your prompts, documents, and memory never go to the
+   cloud. No telemetry, no analytics, no phone-home. The only network access on a default
+   install is the one-time model download, shown to you before it happens; after that,
+   nothing leaves unless you take an explicit action.
+2. **No requests to third-party AI APIs.** All inference is local via the bundled engine.
+3. **No custody of your funds or keys — ever.** Your money and your wallet keys stay in
+   your wallet. Vokter is not a wallet. The most it can ever hold is a spending
+   *authorization* you explicitly grant — capped and revocable — never the funds
+   themselves.
+4. **No action on your behalf unless you turn it on.** Vokter does not browse-and-act,
+   sign in, pay, or send email unless you have explicitly enabled that capability.
+5. **No persistent public key as an external-facing identity** (ephemeral, unlinkable
+   session keys per interaction).
+6. **No engagement mechanics, retention design, or exploiting loneliness.**
+7. **No deleting a document without also deleting its embeddings.**
+
+**Capabilities that are OFF by default — you enable them, you set the limits, you revoke
+anytime:**
+
+- **Autonomous payments** (off by default): only if you connect a wallet and set a
+  spending cap. Within that cap you choose the mode — confirm each payment, or let it run
+  inside a budget you pre-approved. Your wallet holds the funds and can cut Vokter off
+  instantly.
+- **Web actions, logins, email sending** (off by default): gated, confirmation-first,
+  limited to what you authorize.
+
+None of the second group is active in a default install.
