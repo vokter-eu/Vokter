@@ -38,6 +38,12 @@ Vokter ships as a desktop app — no Docker, no accounts, no config files.
    ```
 3. Launch **Vokter** from your applications menu.
 
+**Verify your download** (recommended): releases are signed. Import
+[`vokter-release-pubkey.asc`](vokter-release-pubkey.asc), check the fingerprint is exactly
+`775D 4008 FB7D 0EE1 D369 BF17 4F2E 21E6 78C2 4E4B`, then
+`gpg --verify SHA256SUMS.asc SHA256SUMS && sha256sum -c SHA256SUMS --ignore-missing`.
+Full walkthrough: [docs/VERIFY.md](docs/VERIFY.md) · [vokterai.com/VERIFY.md](https://vokterai.com/VERIFY.md).
+
 On first run, Vokter downloads its models — the **qwen2.5:3b** chat model and the **bge-m3** multilingual embedder (~2.4 GB) — and generates your encryption key automatically. Everything after that runs locally: no account, no cloud, no telemetry. Not a single byte leaves your machine.
 
 **macOS** and **Windows** builds are coming soon. In the meantime the source is public — see *Build from source* below.
