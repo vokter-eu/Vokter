@@ -24,7 +24,6 @@ from email_connector import router as email_router
 from voice.whisper import router as whisper_router
 from voice.registry import router as voice_speak_router
 from voice.fetch import router as voice_fetch_router
-from voice.fetch import opportunistic_startup_fetch
 from engine import warm_up
 from browser import router as browser_router
 from interactive_browser import router as interactive_browser_router
@@ -85,10 +84,11 @@ async def lifespan(_app: FastAPI):
     # background (fire-and-forget) and can never block or fail boot; until a row is (re)embedded
     # its stale vector is dim-guarded out and it stays keyword-retrievable via FTS (clean degrade).
     backfill_task = asyncio.create_task(migrations.reembed_stale())
-    # Stage 3 trigger 3 — opportunistic voice fetch. Best-effort in a daemon thread: if the
-    # current language's voice is missing and there's network, it downloads; if not, the
-    # backend comes up regardless. Never awaited, never raised → cannot block boot.
-    opportunistic_startup_fetch()
+    # Voice assets are NOT fetched on boot (that was an unconsented GitHub beacon on every start,
+    # even on a voiceless install — contradicting "nothing leaves your machine"). They download
+    # ON DEMAND the first time the user actually uses voice: the renderer calls /api/voice/ensure
+    # when speak/transcribe returns voice_not_ready (app.js voiceEnsure). A default boot makes zero
+    # outbound calls.
     # Pre-warm the configured chat model so the user's FIRST message hits the warm ~2s
     # path, not the ~10-15s cold model-load. Fire-and-forget, best-effort — cannot block
     # or fail boot (see engine.warm_up).

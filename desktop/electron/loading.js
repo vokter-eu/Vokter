@@ -21,6 +21,22 @@ const PHASE_TEXT = {
   writing: 'Almost there…',
 };
 
+// Human-readable size for the first-run DISCLOSURE (never a byte count / model id on screen).
+function fmtSize(bytes) {
+  if (!bytes || bytes <= 0) return '';
+  if (bytes >= 1e9) return `~${(bytes / 1e9).toFixed(1)} GB`;
+  if (bytes >= 1e6) return `~${Math.round(bytes / 1e6)} MB`;
+  return '';
+}
+
+// The first-run disclosure shown WHILE the base model downloads: names what is fetched, its size, and
+// that it is the ONLY thing leaving the machine — so the user proceeds informed (audit beacon fix #2).
+function disclosure(bytes) {
+  const sz = fmtSize(bytes);
+  return `One-time download${sz ? ' (' + sz + ')' : ''}: Vokter's AI model, so it runs entirely on `
+       + `your device. This is the only thing it fetches — nothing else leaves your machine.`;
+}
+
 function applyProgress(p, els) {
   if (p.phase === 'downloading') {
     const pct = Math.max(0, Math.min(100, p.percent));
@@ -29,6 +45,7 @@ function applyProgress(p, els) {
     els.setTitle("Downloading Vokter's model");
     const ofN = (p.index && p.count) ? `${p.index} of ${p.count} · ` : '';
     els.setStatus(ofN + Math.round(pct) + '%');
+    if (els.setNote) els.setNote(disclosure(p.total));     // size-disclosed, every download tick
     return;
   }
   if (p.phase === 'done') {
@@ -40,6 +57,7 @@ function applyProgress(p, els) {
       els.mode('spinner');
       els.setTitle('Starting Vokter…');
       els.setStatus('Almost ready.');
+      if (els.setNote) els.setNote('');                    // download done — drop the disclosure
     }
     return;
   }
@@ -59,6 +77,7 @@ if (typeof document !== 'undefined') {
   const els = {
     setTitle: (t) => { $('.title').textContent = t; },
     setStatus: (t) => { $('.status').textContent = t; },
+    setNote: (t) => { const n = $('.note'); if (n) n.textContent = t; },
     setFill: (pct) => { fill.style.width = pct + '%'; },
     mode: (m) => {
       const bar = m === 'bar';

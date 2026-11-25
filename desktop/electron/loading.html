@@ -16,6 +16,8 @@
   .shield { font-size: 3.2rem; line-height: 1; }
   .title  { font-size: 1.15rem; font-weight: 600; letter-spacing: .01em; }
   .status { color: #8b909a; font-size: .9rem; min-height: 1.2em; }
+  .note   { color: #9aa0ab; font-size: .82rem; max-width: 360px; text-align: center;
+            line-height: 1.4; min-height: 1.1em; }
   .spinner {
     width: 34px; height: 34px;
     border: 3px solid #2a2e37;
@@ -45,5 +47,6 @@
 <div class="title">Starting Vokter…</div>
 <div class="spinner"></div>
 <div class="progress"><div class="fill"></div></div>
-<div class="status">Bringing up your local agent. First run downloads models — this can take a few minutes.</div>
+<div class="status">Bringing up your local agent.</div>
+<div class="note">First run: Vokter downloads its AI model to run entirely on your device. This one-time download is the only thing it fetches — nothing else leaves your machine.</div>
 <script src="loading.js"></script>
