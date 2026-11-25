@@ -48,6 +48,11 @@ net={
  "cloud-metadata 169.254.169.254:80": tcp("169.254.169.254",80),
  "sandbox-own-loopback 127.0.0.1:%d"%vport: tcp("127.0.0.1",vport),
  "dns-rebind %s:80"%RB: tcp(RB,80),
+ # IPv6 (audit C2): the cage runs --ipv4-only, so there is NO v6 stack. Internal v6 targets (coverage,
+ # blocked on old+new) + a PUBLIC v6 literal that the OLD dual-stack cage REACHES and the new one can't.
+ "host-loopback v6 [::1]:%d"%vport: tcp("::1",vport),
+ "ULA LAN v6 [fd00::1]:80": tcp("fd00::1",80),
+ "v6-egress cloudflare [2606:4700:4700::1111]:443": tcp("2606:4700:4700::1111",443),
  "public egress 1.1.1.1:443": tcp("1.1.1.1",443),
 }
 fs={}
@@ -56,7 +61,19 @@ for p in (os.path.expanduser("~/.config"), os.path.expanduser("~/.bashrc"), "/et
     try:
         (os.listdir(p) if os.path.isdir(p) else open(p,"rb").read(1)); fs[p]="READABLE"
     except Exception: fs[p]="blocked"
-print(json.dumps({"net":net,"fs":fs}))
+# audit A4: report (as booleans, never the values) whether any VOKTER_* secret reached the cage env.
+env_leak={k:(k in os.environ) for k in ("VOKTER_DB_KEY","VOKTER_HUMAN_SESSION_TOKEN","VOKTER_EMAIL_PASSWORD")}
+# audit C2 (the RELIABLE discriminator, independent of v6 routing): routable v6 addresses inside the
+# cage netns. Old pasta --config-net on a dual-stack host copies the host's global/ULA v6 in → ≥1;
+# new --ipv4-only → 0. Excludes loopback ::1 and link-local fe80::/10.
+v6=[]
+try:
+    for ln in open("/proc/net/if_inet6"):
+        a=ln.split()[0]
+        if a=="00000000000000000000000000000001" or a.startswith("fe80"): continue
+        v6.append(a)
+except Exception: pass
+print(json.dumps({"net":net,"fs":fs,"env_leak":env_leak,"v6_routable_addrs":v6}))
 '''
 
 FAILS, SKIPS = [], []
@@ -122,6 +139,9 @@ def _hostile_page(vport, hostlan):
           "f('cloud-metadata','http://169.254.169.254/'),"
           f"f('ollama via gateway','http://{GATEWAY}:11434/'),"
           f"f('dns-rebind','http://{DNS_REBIND}:{vport}/'),"
+          f"f('host-loopback v6','http://[::1]:{vport}/'),"
+          "f('ULA LAN v6','http://[fd00::1]/'),"
+          "f('v6-egress cloudflare','http://[2606:4700:4700::1111]/'),"
           "f('public','http://1.1.1.1/')"
           "]).then(()=>{window.__done=true});")
     return "data:text/html," + urllib.parse.quote(f"<!doctype html><script>{js}</script>")
@@ -1017,6 +1037,12 @@ def run() -> int:
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(0.8)
     probe_path = _write_probe()
+    # audit A4: ensure the SQLCipher key + P2 token are present in THIS process's env while probing, so
+    # the cage-env check actually bites — in the shipped .deb they are the real secrets; in a hermetic
+    # run setdefault supplies sentinels. clean_env() (built by inclusion) must keep them out of the cage.
+    os.environ.setdefault("VOKTER_DB_KEY", "A4-selftest-sentinel-dbkey")
+    os.environ.setdefault("VOKTER_HUMAN_SESSION_TOKEN", "A4-selftest-sentinel-token")
+    os.environ.setdefault("VOKTER_EMAIL_PASSWORD", "A4-selftest-sentinel-smtp")
     try:
         print("\n── TIER 1: filesystem/mount-ns cage ──")
         red = _run_probe(False, vport, hostlan, probe_path)
@@ -1036,7 +1062,16 @@ def run() -> int:
             _ok("public egress REACHABLE", g["net"]["public egress 1.1.1.1:443"] == "REACHED")
             for k, v in g["net"].items():
                 if not k.startswith("public"):
-                    _ok(f"egress blocked: {k}", v == "blocked")
+                    _ok(f"egress blocked: {k}", v == "blocked")   # includes the IPv6 probes (audit C2)
+            # audit C2 (reliable, routing-independent): the cage netns must have NO routable IPv6 address
+            # (--ipv4-only). On the OLD dual-stack cage this list was non-empty → the real discriminator.
+            _ok("C2: cage has NO routable IPv6 address (--ipv4-only)",
+                len(g.get("v6_routable_addrs", [])) == 0)
+            # audit A4: no VOKTER_* secret may be present in the cage environment.
+            el = g.get("env_leak", {})
+            _ok("A4: cage env carries no VOKTER_DB_KEY", el.get("VOKTER_DB_KEY") is False)
+            _ok("A4: cage env carries no VOKTER_HUMAN_SESSION_TOKEN", el.get("VOKTER_HUMAN_SESSION_TOKEN") is False)
+            _ok("A4: cage env carries no VOKTER_EMAIL_PASSWORD", el.get("VOKTER_EMAIL_PASSWORD") is False)
         except Exception as e:
             _ok(f"TIER 2 egress cage ran ({e})", False)
 
@@ -1051,7 +1086,8 @@ def run() -> int:
                 print("  page-JS reached:", json.dumps(page))
                 _ok("page-JS public REACHABLE", page.get("public") == "REACHED")
                 for name in ("host-loopback via gateway", "host LAN", "router", "cloud-metadata",
-                             "ollama via gateway", "dns-rebind"):
+                             "ollama via gateway", "dns-rebind", "host-loopback v6", "ULA LAN v6",
+                             "v6-egress cloudflare"):
                     _ok(f"page-JS blocked: {name}", page.get(name) == "blocked")
             except Exception as e:
                 _ok(f"TIER 3 chrome page-JS ran ({e})", False)

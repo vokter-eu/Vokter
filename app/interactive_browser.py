@@ -58,8 +58,14 @@ _NFT_DROP_PRIVATE = (
     "    ip daddr 172.16.0.0/12 drop\n"
     "    ip daddr 192.168.0.0/16 drop\n"
     "    ip daddr 169.254.0.0/16 drop\n"
+    "    ip daddr 100.64.0.0/10 drop\n"   # CGNAT / Tailscale tailnet — browser.py blocks it (is_private);
+                                          # the cage must match so page-JS can't reach the user's tailnet.
+    "    ip daddr 0.0.0.0/8 drop\n"       # "this network" / unspecified
+    "    ip daddr 224.0.0.0/3 drop\n"     # multicast (224/4) + reserved/broadcast (240/4)
     "  }\n"
     "}\n"
+    # IPv6 is disabled in the cage entirely (pasta --ipv4-only) — there is no v6 stack to filter, so a
+    # hostile page cannot reach ::1 / ULA-LAN / link-local over a protocol family that does not exist.
 )
 
 
@@ -78,17 +84,27 @@ def nft_bin():   return _bin("nft", "VOKTER_NFT")
 def bwrap_bin(): return _bin("bwrap", "VOKTER_BWRAP")
 
 
+# Env the contained browser is allowed to inherit — an ALLOWLIST (audit A4). Only what chrome/bwrap/
+# pasta need to start; everything else, crucially every VOKTER_* secret, is left OUT.
+_CAGE_ENV_KEYS = ("PATH", "HOME", "USER", "LOGNAME", "LANG", "LANGUAGE", "LC_ALL", "LC_CTYPE",
+                  "TMPDIR", "TERM", "TZ")
+
+
 def clean_env() -> dict:
-    """Env for spawning the contained browser: strip the PyInstaller bundle's LD_LIBRARY_PATH so
-    chrome loads SYSTEM libraries, not the frozen backend's `_internal/` (which is built against the
-    BUILD host's glibc and can be newer than the target). PyInstaller stashes the original in
-    LD_LIBRARY_PATH_ORIG — restore it; else drop the var entirely."""
-    env = dict(os.environ)
-    orig = env.pop("LD_LIBRARY_PATH_ORIG", None)
-    if orig is not None:
+    """Env for spawning the contained browser, built by INCLUSION — never by exclusion (audit A4). The
+    old `dict(os.environ)` handed the whole backend environment to the cage, so pasta/bwrap/chrome all
+    carried VOKTER_DB_KEY (the SQLCipher key) and VOKTER_HUMAN_SESSION_TOKEN (the P2 gate token) in
+    /proc/self/environ — a single Chromium escape could read them. This copies only the handful of vars
+    needed to start; no VOKTER_* secret is ever present inside the cage.
+
+    chrome must load SYSTEM libraries, not the frozen bundle's `_internal/` (built against the build-host
+    glibc, which may be newer than the target), so LD_LIBRARY_PATH is restored from PyInstaller's
+    LD_LIBRARY_PATH_ORIG when present, and otherwise left unset."""
+    env = {k: os.environ[k] for k in _CAGE_ENV_KEYS if k in os.environ}
+    env.setdefault("PATH", "/usr/bin:/bin")
+    orig = os.environ.get("LD_LIBRARY_PATH_ORIG")
+    if orig:
         env["LD_LIBRARY_PATH"] = orig
-    else:
-        env.pop("LD_LIBRARY_PATH", None)
     return env
 
 
@@ -148,7 +164,11 @@ def egress_argv(inner_argv, *, ro_binds=()):
     nft = shlex.quote(nft_bin() or "nft")
     sh = (f"printf %s {shlex.quote(_NFT_DROP_PRIVATE)} | {nft} -f - && exec "
           + " ".join(shlex.quote(a) for a in jail))
-    return [pasta_bin() or "pasta", "--config-net", "--no-map-gw", "--", "bash", "-c", sh]
+    # --ipv4-only: the cage gets NO IPv6 operation (audit C2 option a). The old IPv4-only nft left v6
+    # egress wide open on any dual-stack host — ::1 to the host, ULA/link-local LAN, dual-stack services.
+    # Disabling the family is robust-by-construction: there is nothing to firewall because there is no v6.
+    return [pasta_bin() or "pasta", "--config-net", "--no-map-gw", "--ipv4-only",
+            "--", "bash", "-c", sh]
 
 
 # ───────────────────────── the injector: INNOCUOUS fields only ─────────────────────────
