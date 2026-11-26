@@ -23,6 +23,7 @@
     ],
     "files": [
       "main.js",
+      "originguard.js",
       "loading.html",
       "loading.js",
       "preload.js",
